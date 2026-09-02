@@ -7,6 +7,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
+import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException;
@@ -19,6 +21,18 @@ public class ApiExceptionHandler {
     ResponseEntity<Map<String, String>> duplicado(NombreProcesoDuplicadoException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("codigo", "PROCESO_NOMBRE_DUPLICADO", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(NitEmpresaDuplicadoException.class)
+    ResponseEntity<Map<String, String>> nitDuplicado(NitEmpresaDuplicadoException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("codigo", "EMPRESA_NIT_DUPLICADO", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(CorreoAdministradorEnUsoException.class)
+    ResponseEntity<Map<String, String>> correoEnUso(CorreoAdministradorEnUsoException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("codigo", "USUARIO_CORREO_EN_USO", "mensaje", exception.getMessage()));
     }
 
     @ExceptionHandler(RecursoNoEncontradoException.class)
