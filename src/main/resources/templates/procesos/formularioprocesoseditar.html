@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Editar proceso</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">Catálogo de procesos</p>
+        <h1 id="form-title">Editar proceso</h1>
+        <p class="intro">Actualiza la información básica. El contenido del diagrama no se modifica aquí.</p>
+        <form th:action="@{/procesos/{id}(id=${procesoId})}" th:object="${proceso}" method="post" novalidate>
+            <label for="nombre">Nombre</label>
+            <input id="nombre" type="text" th:field="*{nombre}" required maxlength="150" autofocus>
+            <small class="error" th:if="${#fields.hasErrors('nombre')}" th:errors="*{nombre}"></small>
+
+            <label for="descripcion">Descripción</label>
+            <textarea id="descripcion" th:field="*{descripcion}" required rows="5"></textarea>
+            <small class="error" th:if="${#fields.hasErrors('descripcion')}" th:errors="*{descripcion}"></small>
+
+            <label for="categoria">Categoría</label>
+            <input id="categoria" type="text" th:field="*{categoria}" required maxlength="100">
+            <small class="error" th:if="${#fields.hasErrors('categoria')}" th:errors="*{categoria}"></small>
+
+            <label for="estado">Estado</label>
+            <select id="estado" th:field="*{estado}" required>
+                <option value="">Seleccione un estado</option>
+                <option th:each="estado : ${estados}" th:value="${estado}" th:text="${estado}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('estado')}" th:errors="*{estado}"></small>
+
+            <button type="submit">Guardar cambios</button>
+        </form>
+    </section>
+</main>
+<script th:src="@{/js/procesos.js}"></script>
+</body>
+</html>
