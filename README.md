@@ -108,6 +108,31 @@ Las pruebas unitarias no necesitan base de datos:
 La suite completa incluye una prueba que levanta el contexto de Spring y sí requiere que
 PostgreSQL esté disponible con las credenciales configuradas.
 
+## Calidad de código
+
+El proyecto se analiza con **SonarQube Cloud**. La cobertura la mide **JaCoCo** durante
+`mvn verify` y el análisis lo dispara **GitHub Actions**, no el análisis automático de Sonar.
+
+| Dato | Valor |
+|---|---|
+| Organization | `kerosene21` |
+| Project | `Kerosene21_ProcesosEmpresarialesWeb2630` |
+
+El flujo es:
+
+```
+Código → Maven → Tests → JaCoCo → SonarQube Cloud → Quality Gate
+```
+
+El **Quality Gate se evalúa en CI**: el workflow corre en cada push a `main` y en cada pull
+request hacia `main`, de modo que los cambios de una rama de feature se revisan al abrir el PR.
+
+El token de análisis (`SONAR_TOKEN`) vive **únicamente en GitHub Secrets** y el workflow lo
+consume como `${{ secrets.SONAR_TOKEN }}`. **Ningún secreto se versiona en este repositorio**:
+ni tokens, ni contraseñas, ni archivos `.env`.
+
+El detalle está en [`docs/calidad/sonarqube.md`](docs/calidad/sonarqube.md).
+
 ## Documentación
 
 Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs/historias/):
