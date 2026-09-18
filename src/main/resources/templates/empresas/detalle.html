@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${empresa.nombre}">Empresa</title>
+    <link rel="stylesheet" th:href="@{/css/empresas.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="panel" aria-labelledby="detalle-title">
+        <p class="eyebrow">Empresa</p>
+        <h1 id="detalle-title" th:text="${empresa.nombre}">Nombre de la empresa</h1>
+
+        <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
+
+        <dl>
+            <dt>NIT</dt>
+            <dd th:text="${empresa.nit}">NIT</dd>
+
+            <dt>Correo de contacto</dt>
+            <dd th:text="${empresa.correoContacto}">Correo</dd>
+
+            <dt>Administrador inicial</dt>
+            <dd th:if="${empresa.administradorUsername}" th:text="${empresa.administradorUsername}">Administrador</dd>
+            <dd th:unless="${empresa.administradorUsername}">Esta empresa todavia no tiene administrador asignado.</dd>
+        </dl>
+
+        <div class="acciones">
+            <a th:href="@{/empresas}">Volver al listado</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

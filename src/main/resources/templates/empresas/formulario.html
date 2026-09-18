@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Registrar empresa</title>
+    <link rel="stylesheet" th:href="@{/css/empresas.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="panel" aria-labelledby="form-title">
+        <p class="eyebrow">Empresas</p>
+        <h1 id="form-title">Registrar empresa</h1>
+        <p class="intro">
+            Al registrar la empresa se crea tambien su usuario administrador inicial,
+            identificado con el correo de contacto.
+        </p>
+
+        <form th:action="@{/empresas}" th:object="${empresa}" method="post" novalidate>
+            <label for="nombre">Nombre de la empresa</label>
+            <input id="nombre" type="text" th:field="*{nombre}" maxlength="150" autofocus>
+            <small class="error" th:if="${#fields.hasErrors('nombre')}" th:errors="*{nombre}"></small>
+
+            <label for="nit">NIT</label>
+            <input id="nit" type="text" th:field="*{nit}" maxlength="20">
+            <small class="error" th:if="${#fields.hasErrors('nit')}" th:errors="*{nit}"></small>
+
+            <label for="correoContacto">Correo de contacto</label>
+            <input id="correoContacto" type="email" th:field="*{correoContacto}" maxlength="180">
+            <small class="error" th:if="${#fields.hasErrors('correoContacto')}" th:errors="*{correoContacto}"></small>
+
+            <button type="submit">Registrar empresa</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/empresas}">Volver al listado</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

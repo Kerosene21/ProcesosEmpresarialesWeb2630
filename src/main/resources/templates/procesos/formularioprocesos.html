@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Crear proceso</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">Catálogo de procesos</p>
+        <h1 id="form-title">Crear proceso</h1>
+        <p class="intro">Registra la información básica. El diagrama iniciará con el pool de tu empresa.</p>
+        <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
+        <form th:action="@{/procesos}" th:object="${proceso}" method="post" novalidate>
+            <label for="nombre">Nombre</label>
+            <input id="nombre" type="text" th:field="*{nombre}" required maxlength="150" autofocus>
+            <small class="error" th:if="${#fields.hasErrors('nombre')}" th:errors="*{nombre}"></small>
+
+            <label for="descripcion">Descripción</label>
+            <textarea id="descripcion" th:field="*{descripcion}" required rows="5"></textarea>
+            <small class="error" th:if="${#fields.hasErrors('descripcion')}" th:errors="*{descripcion}"></small>
+
+            <label for="categoria">Categoría</label>
+            <input id="categoria" type="text" th:field="*{categoria}" required maxlength="100">
+            <small class="error" th:if="${#fields.hasErrors('categoria')}" th:errors="*{categoria}"></small>
+
+            <button type="submit">Crear proceso</button>
+        </form>
+    </section>
+</main>
+<script th:src="@{/js/procesos.js}"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${proceso.nombre}">Proceso</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="process-title">
+        <p class="eyebrow">Proceso</p>
+        <h1 id="process-title" th:text="${proceso.nombre}">Nombre del proceso</h1>
+        <p th:text="${proceso.descripcion}">Descripción del proceso</p>
+        <p><strong>Categoría:</strong> <span th:text="${proceso.categoria}">Categoría</span></p>
+        <p><strong>Estado:</strong> <span th:text="${proceso.estado}">BORRADOR</span></p>
+        <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
+        <a th:if="${puedeEditar}" th:href="@{/procesos/{id}/editar(id=${proceso.id})}">Editar</a>
+    </section>
+</main>
+</body>
+</html>
