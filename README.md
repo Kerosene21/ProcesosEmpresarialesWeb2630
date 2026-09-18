@@ -102,7 +102,7 @@ La aplicación queda disponible en `http://localhost:8080`.
 Las pruebas unitarias no necesitan base de datos:
 
 ```bash
-./mvnw -Dtest=EmpresaServiceTest,RegistroEmpresaDtoTest test
+./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests' test
 ```
 
 La suite completa incluye una prueba que levanta el contexto de Spring y sí requiere que
@@ -138,3 +138,5 @@ El detalle está en [`docs/calidad/sonarqube.md`](docs/calidad/sonarqube.md).
 Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs/historias/):
 
 - [HU-01 · Registro de empresa](docs/historias/HU-01-registro-empresa.md)
+- [HU-04 · Crear proceso](docs/historias/HU-04-crear-proceso.md)
+- [HU-05 · Editar proceso](docs/historias/HU-05-editar-proceso.md)

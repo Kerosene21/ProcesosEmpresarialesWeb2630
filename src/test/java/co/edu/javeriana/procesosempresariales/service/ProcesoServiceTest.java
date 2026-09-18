@@ -1,0 +1,553 @@
+package co.edu.javeriana.procesosempresariales.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.modelmapper.ModelMapper;
+import org.springframework.dao.DataIntegrityViolationException;
+
+import co.edu.javeriana.procesosempresariales.domain.Empresa;
+import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
+import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
+import co.edu.javeriana.procesosempresariales.domain.Pool;
+import co.edu.javeriana.procesosempresariales.domain.Proceso;
+import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
+import co.edu.javeriana.procesosempresariales.domain.Usuario;
+import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
+import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
+import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
+import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
+import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
+
+@ExtendWith(MockitoExtension.class)
+class ProcesoServiceTest {
+
+    private static final String USERNAME = "admin@alpes.com";
+    private static final Long EMPRESA_PROPIA = 7L;
+    private static final Long EMPRESA_AJENA = 99L;
+
+    @Mock
+    private ProcesoRepository procesoRepository;
+
+    @Mock
+    private UsuarioRepository usuarioRepository;
+
+    @Mock
+    private HistorialProcesoRepository historialProcesoRepository;
+
+    private ProcesoService procesoService;
+
+    @BeforeEach
+    void inicializar() {
+        procesoService = new ProcesoService(procesoRepository, usuarioRepository, historialProcesoRepository,
+                new ModelMapper());
+    }
+
+    private Empresa empresa(Long id, String nombre) {
+        return new Empresa(id, nombre, "900123456-7", "contacto@alpes.com");
+    }
+
+    private Usuario usuarioAutenticado(RolUsuario rol) {
+        return new Usuario(1L, USERNAME, rol, empresa(EMPRESA_PROPIA, "Alpes Logistica"));
+    }
+
+    private void autenticar(Usuario usuario) {
+        when(usuarioRepository.findByUsername(USERNAME)).thenReturn(Optional.of(usuario));
+    }
+
+    private void sinUsuarioAutenticado() {
+        when(usuarioRepository.findByUsername(USERNAME)).thenReturn(Optional.empty());
+    }
+
+    private void asignarIdentificadoresAlGuardar(Long procesoId, Long poolId) {
+        when(procesoRepository.save(any(Proceso.class))).thenAnswer(invocacion -> {
+            Proceso guardado = invocacion.getArgument(0);
+            guardado.setId(procesoId);
+            guardado.getPool().setId(poolId);
+            return guardado;
+        });
+    }
+
+    private Proceso procesoExistente(Long empresaId) {
+        return new Proceso(5L, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
+                empresa(empresaId, "Alpes Logistica"), new Pool(80L, "Alpes Logistica"));
+    }
+
+    private void existeElProceso(Proceso proceso) {
+        when(procesoRepository.findById(proceso.getId())).thenReturn(Optional.of(proceso));
+    }
+
+    private Proceso procesoGuardado() {
+        ArgumentCaptor<Proceso> capturado = ArgumentCaptor.forClass(Proceso.class);
+        verify(procesoRepository).save(capturado.capture());
+        return capturado.getValue();
+    }
+
+    private HistorialProceso historialGuardado() {
+        ArgumentCaptor<HistorialProceso> capturado = ArgumentCaptor.forClass(HistorialProceso.class);
+        verify(historialProcesoRepository).save(capturado.capture());
+        return capturado.getValue();
+    }
+
+    private CrearProcesoDto formularioCreacion() {
+        return new CrearProcesoDto("Ventas", "Proceso comercial de la compania", "Comercial");
+    }
+
+    private EditarProcesoDto formularioEdicion() {
+        return new EditarProcesoDto("Ventas Corporativas", "Descripcion actualizada", "Operaciones",
+                EstadoProceso.PUBLICADO);
+    }
+
+    @Test
+    void crearIdentificaAlUsuarioPorSuUsername() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        procesoService.crear(formularioCreacion(), USERNAME);
+
+        verify(usuarioRepository).findByUsername(USERNAME);
+    }
+
+    @Test
+    void crearRechazaUnUsuarioAutenticadoQueNoExiste() {
+        sinUsuarioAutenticado();
+
+        assertThatThrownBy(() -> procesoService.crear(formularioCreacion(), USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El usuario autenticado no existe");
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+    }
+
+    @Test
+    void crearBuscaNombresDuplicadosUnicamenteEnLaEmpresaDelUsuario() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        procesoService.crear(formularioCreacion(), USERNAME);
+
+        verify(procesoRepository).existsByEmpresaIdAndNombreIgnoreCase(EMPRESA_PROPIA, "Ventas");
+    }
+
+    @Test
+    void crearRechazaUnNombreYaUsadoEnLaMismaEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        when(procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(EMPRESA_PROPIA, "Ventas")).thenReturn(true);
+
+        assertThatThrownBy(() -> procesoService.crear(formularioCreacion(), USERNAME))
+                .isInstanceOf(NombreProcesoDuplicadoException.class)
+                .hasMessage("Ya existe un proceso con ese nombre en la empresa");
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+    }
+
+    @Test
+    void crearGuardaElProcesoCuandoElNombreEstaDisponible() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        procesoService.crear(formularioCreacion(), USERNAME);
+
+        assertThat(procesoGuardado().getNombre()).isEqualTo("Ventas");
+    }
+
+    @Test
+    void crearAdmiteElMismoNombreEnUnaEmpresaDistinta() {
+        Usuario otraEmpresa = new Usuario(2L, USERNAME, RolUsuario.ADMINISTRADOR,
+                empresa(EMPRESA_AJENA, "Andes Consultores"));
+        autenticar(otraEmpresa);
+        when(procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(anyLong(), eq("Ventas")))
+                .thenAnswer(invocacion -> EMPRESA_PROPIA.equals(invocacion.getArgument(0)));
+        asignarIdentificadoresAlGuardar(31L, 81L);
+
+        procesoService.crear(formularioCreacion(), USERNAME);
+
+        verify(procesoRepository).existsByEmpresaIdAndNombreIgnoreCase(EMPRESA_AJENA, "Ventas");
+        assertThat(procesoGuardado().getEmpresa().getId()).isEqualTo(EMPRESA_AJENA);
+    }
+
+    @Test
+    void crearDejaElProcesoEnEstadoBorrador() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        ProcesoRespuestaDto respuesta = procesoService.crear(formularioCreacion(), USERNAME);
+
+        assertThat(procesoGuardado().getEstado()).isEqualTo(EstadoProceso.BORRADOR);
+        assertThat(respuesta.getEstado()).isEqualTo(EstadoProceso.BORRADOR);
+    }
+
+    @Test
+    void crearAsociaElProcesoALaEmpresaDelUsuarioAutenticado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        procesoService.crear(formularioCreacion(), USERNAME);
+
+        assertThat(procesoGuardado().getEmpresa().getId()).isEqualTo(EMPRESA_PROPIA);
+    }
+
+    @Test
+    void crearPreparaElPoolInicialConElNombreDeLaEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        procesoService.crear(formularioCreacion(), USERNAME);
+
+        Pool pool = procesoGuardado().getPool();
+        assertThat(pool).isNotNull();
+        assertThat(pool.getNombre()).isEqualTo("Alpes Logistica");
+    }
+
+    @Test
+    void crearDevuelveElIdentificadorDelPoolAsociadoAlProceso() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        ProcesoRespuestaDto respuesta = procesoService.crear(formularioCreacion(), USERNAME);
+
+        assertThat(respuesta.getPoolId()).isEqualTo(80L);
+    }
+
+    @Test
+    void crearEliminaLosEspaciosSobrantesDelNombre() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        procesoService.crear(new CrearProcesoDto("   Ventas   ", "Proceso comercial", "Comercial"), USERNAME);
+
+        verify(procesoRepository).existsByEmpresaIdAndNombreIgnoreCase(EMPRESA_PROPIA, "Ventas");
+        assertThat(procesoGuardado().getNombre()).isEqualTo("Ventas");
+    }
+
+    @Test
+    void crearDevuelveLosDatosDelProcesoRegistrado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        ProcesoRespuestaDto respuesta = procesoService.crear(formularioCreacion(), USERNAME);
+
+        assertThat(respuesta.getId()).isEqualTo(30L);
+        assertThat(respuesta.getNombre()).isEqualTo("Ventas");
+        assertThat(respuesta.getDescripcion()).isEqualTo("Proceso comercial de la compania");
+        assertThat(respuesta.getCategoria()).isEqualTo("Comercial");
+    }
+
+    @Test
+    void crearTraduceLaViolacionDeIntegridadEnNombreDuplicado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        when(procesoRepository.save(any(Proceso.class)))
+                .thenThrow(new DataIntegrityViolationException("uk_proceso_empresa_nombre"));
+
+        assertThatThrownBy(() -> procesoService.crear(formularioCreacion(), USERNAME))
+                .isInstanceOf(NombreProcesoDuplicadoException.class)
+                .hasMessage("Ya existe un proceso con ese nombre en la empresa");
+    }
+
+    @Test
+    void puedeEditarAutorizaAlAdministrador() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+
+        assertThat(procesoService.puedeEditar(USERNAME)).isTrue();
+    }
+
+    @Test
+    void puedeEditarAutorizaAlEditor() {
+        autenticar(usuarioAutenticado(RolUsuario.EDITOR));
+
+        assertThat(procesoService.puedeEditar(USERNAME)).isTrue();
+    }
+
+    @Test
+    void puedeEditarNiegaAlUsuarioDeSoloLectura() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+
+        assertThat(procesoService.puedeEditar(USERNAME)).isFalse();
+    }
+
+    @Test
+    void puedeEditarRechazaUnUsuarioAutenticadoQueNoExiste() {
+        sinUsuarioAutenticado();
+
+        assertThatThrownBy(() -> procesoService.puedeEditar(USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
+    void obtenerDevuelveElProcesoDeLaEmpresaDelUsuario() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.obtener(5L, USERNAME);
+
+        assertThat(respuesta.getId()).isEqualTo(5L);
+        assertThat(respuesta.getNombre()).isEqualTo("Ventas");
+        assertThat(respuesta.getPoolId()).isEqualTo(80L);
+    }
+
+    @Test
+    void obtenerEstaPermitidoParaUnUsuarioDeSoloLectura() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        assertThat(procesoService.obtener(5L, USERNAME).getNombre()).isEqualTo("Ventas");
+    }
+
+    @Test
+    void obtenerRechazaUnUsuarioAutenticadoQueNoExiste() {
+        sinUsuarioAutenticado();
+
+        assertThatThrownBy(() -> procesoService.obtener(5L, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El usuario autenticado no existe");
+    }
+
+    @Test
+    void obtenerRechazaUnProcesoInexistente() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        when(procesoRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> procesoService.obtener(404L, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El proceso no existe");
+    }
+
+    @Test
+    void obtenerRechazaUnProcesoDeOtraEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_AJENA));
+
+        assertThatThrownBy(() -> procesoService.obtener(5L, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage("El proceso no pertenece a la empresa del usuario");
+    }
+
+    @Test
+    void editarRechazaUnUsuarioAutenticadoQueNoExiste() {
+        sinUsuarioAutenticado();
+
+        assertThatThrownBy(() -> procesoService.editar(5L, formularioEdicion(), USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+    }
+
+    @Test
+    void editarPermiteAlAdministrador() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        verify(procesoRepository).save(any(Proceso.class));
+    }
+
+    @Test
+    void editarPermiteAlEditor() {
+        autenticar(usuarioAutenticado(RolUsuario.EDITOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        verify(procesoRepository).save(any(Proceso.class));
+    }
+
+    @Test
+    void editarRechazaAlUsuarioDeSoloLectura() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+
+        assertThatThrownBy(() -> procesoService.editar(5L, formularioEdicion(), USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage("Solo un administrador o editor puede modificar procesos");
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void editarRechazaUnProcesoInexistente() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        when(procesoRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> procesoService.editar(404L, formularioEdicion(), USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El proceso no existe");
+    }
+
+    @Test
+    void editarRechazaUnProcesoDeOtraEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_AJENA));
+
+        assertThatThrownBy(() -> procesoService.editar(5L, formularioEdicion(), USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void editarActualizaNombreDescripcionYCategoria() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        Proceso guardado = procesoGuardado();
+        assertThat(guardado.getNombre()).isEqualTo("Ventas Corporativas");
+        assertThat(guardado.getDescripcion()).isEqualTo("Descripcion actualizada");
+        assertThat(guardado.getCategoria()).isEqualTo("Operaciones");
+    }
+
+    @Test
+    void editarLlevaElProcesoDeBorradorAPublicado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        assertThat(procesoGuardado().getEstado()).isEqualTo(EstadoProceso.PUBLICADO);
+        assertThat(respuesta.getEstado()).isEqualTo(EstadoProceso.PUBLICADO);
+    }
+
+    @Test
+    void editarEliminaLosEspaciosSobrantesDelNombre() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("   Ventas Corporativas   ", "Descripcion actualizada",
+                "Operaciones", EstadoProceso.PUBLICADO), USERNAME);
+
+        assertThat(procesoGuardado().getNombre()).isEqualTo("Ventas Corporativas");
+    }
+
+    @Test
+    void editarRechazaUnNombreYaUsadoPorOtroProcesoDeLaEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+        when(procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(EMPRESA_PROPIA, "Ventas Corporativas"))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> procesoService.editar(5L, formularioEdicion(), USERNAME))
+                .isInstanceOf(NombreProcesoDuplicadoException.class);
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void editarConservaElMismoNombreSinReportarUnDuplicadoInexistente() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas", "Otra descripcion", "Comercial",
+                EstadoProceso.PUBLICADO), USERNAME);
+
+        verify(procesoRepository, never()).existsByEmpresaIdAndNombreIgnoreCase(anyLong(), anyString());
+        verify(procesoRepository).save(any(Proceso.class));
+    }
+
+    @Test
+    void editarAdmiteCambiarSoloLasMayusculasDelNombre() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("VENTAS", "Otra descripcion", "Comercial",
+                EstadoProceso.BORRADOR), USERNAME);
+
+        verify(procesoRepository, never()).existsByEmpresaIdAndNombreIgnoreCase(anyLong(), anyString());
+        assertThat(procesoGuardado().getNombre()).isEqualTo("VENTAS");
+    }
+
+    @Test
+    void editarDevuelveElProcesoActualizado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        assertThat(respuesta.getId()).isEqualTo(5L);
+        assertThat(respuesta.getNombre()).isEqualTo("Ventas Corporativas");
+        assertThat(respuesta.getCategoria()).isEqualTo("Operaciones");
+        assertThat(respuesta.getPoolId()).isEqualTo(80L);
+    }
+
+    @Test
+    void editarRegistraUnaEntradaDeHistorialPorCadaModificacion() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        verify(historialProcesoRepository).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void editarAsociaElHistorialAlProcesoYAlUsuarioQueLoModifico() {
+        Usuario editor = usuarioAutenticado(RolUsuario.EDITOR);
+        autenticar(editor);
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        HistorialProceso historial = historialGuardado();
+        assertThat(historial.getProceso().getId()).isEqualTo(5L);
+        assertThat(historial.getUsuario()).isSameAs(editor);
+        assertThat(historial.getUsuario().getUsername()).isEqualTo(USERNAME);
+    }
+
+    @Test
+    void editarRegistraLaFechaDelCambioEnElHistorial() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+        LocalDateTime antes = LocalDateTime.now();
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        LocalDateTime fecha = historialGuardado().getFecha();
+        assertThat(fecha).isNotNull();
+        assertThat(fecha).isBetween(antes, LocalDateTime.now());
+    }
+
+    @Test
+    void editarGuardaElEstadoAnteriorEnElHistorial() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        assertThat(historialGuardado().getEstadoAnterior()).isEqualTo("BORRADOR");
+    }
+
+    @Test
+    void editarResumeLosValoresAnterioresYNuevosEnElHistorial() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("nombre: 'Ventas' -> 'Ventas Corporativas'; descripcion actualizada; "
+                        + "categoria: 'Comercial' -> 'Operaciones'; estado: 'BORRADOR' -> 'PUBLICADO'");
+    }
+}
