@@ -181,3 +181,20 @@ Y la cobertura del código ejercitado se ve en `target/site/jacoco/index.html` d
   [HU-01](HU-01-registro-empresa.md) y [HU-04](HU-04-crear-proceso.md).
 - **Sin restricción de transiciones de estado.** Se puede volver de `PUBLICADO` a `BORRADOR`. La
   historia no lo prohíbe, así que no se añadió la regla.
+
+## Actualización tras el bloque de HU-03
+
+Con Spring Security en marcha, tres de los pendientes de arriba quedaron resueltos:
+
+- **La autenticación ya existe.** La edición se puede ejercitar desde el navegador y desde la API
+  con un usuario real. Las reglas de rol siguen donde estaban, en `ProcesoService`.
+- **Orden de validación en `actualizar`.** Ya no valida el formulario antes que la autenticación:
+  el filtro de seguridad se ejecuta antes que el `DispatcherServlet`, de modo que una petición sin
+  sesión con datos inválidos redirige al login. Lo cubre la prueba
+  `actualizarUnProcesoExigeAutenticacionAntesDeValidarElFormulario` de `SeguridadRutasTest`. No se
+  añadió una segunda comprobación en el controlador para no duplicar la lógica de seguridad.
+- **Errores en JSON sobre vistas MVC.** `ApiExceptionHandler` se limitó a los `@RestController` y
+  se añadió `MvcExceptionHandler` para las vistas.
+
+El resto de pendientes (resumen del historial, pantalla de historial, transiciones de estado) sigue
+igual. El detalle está en [HU-03 · Inicio de sesión](HU-03-inicio-sesion.md).

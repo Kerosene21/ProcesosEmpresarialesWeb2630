@@ -115,17 +115,6 @@ class ProcesoRestControllerTest {
     }
 
     @Test
-    void crearSinUsuarioAutenticadoDevuelveCuatrocientosUno() throws Exception {
-        mockMvc.perform(post("/api/procesos")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON_CREACION))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
-
-        verify(procesoService, never()).crear(any(CrearProcesoDto.class), anyString());
-    }
-
-    @Test
     void crearConCuerpoInvalidoDevuelveCuatrocientos() throws Exception {
         mockMvc.perform(post("/api/procesos")
                 .principal(PRINCIPAL)
@@ -179,17 +168,6 @@ class ProcesoRestControllerTest {
         verify(procesoService).editar(eq(5L), enviado.capture(), eq(USERNAME));
         assertThat(enviado.getValue().getNombre()).isEqualTo("Ventas Corporativas");
         assertThat(enviado.getValue().getEstado()).isEqualTo(EstadoProceso.PUBLICADO);
-    }
-
-    @Test
-    void editarSinUsuarioAutenticadoDevuelveCuatrocientosUno() throws Exception {
-        mockMvc.perform(put("/api/procesos/5")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON_EDICION))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
-
-        verify(procesoService, never()).editar(anyLong(), any(EditarProcesoDto.class), anyString());
     }
 
     @Test

@@ -30,10 +30,6 @@ public class ProcesoRestController {
     @PostMapping
     public ResponseEntity<ProcesoRespuestaDto> crear(@Valid @RequestBody CrearProcesoDto dto, Principal principal) {
         // La empresa se toma de la sesión, nunca del JSON que manda el cliente.
-        if (principal == null) {
-            throw new co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException(
-                    "Se requiere autenticación para crear un proceso");
-        }
         ProcesoRespuestaDto creado = procesoService.crear(dto, principal.getName());
         // Indicamos en qué URL quedó el proceso nuevo.
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
@@ -44,10 +40,6 @@ public class ProcesoRestController {
     @PutMapping("/{id}")
     public ResponseEntity<ProcesoRespuestaDto> editar(@PathVariable("id") Long procesoId,
             @Valid @RequestBody EditarProcesoDto dto, Principal principal) {
-        if (principal == null) {
-            throw new co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException(
-                    "Se requiere autenticación para editar un proceso");
-        }
         return ResponseEntity.ok(procesoService.editar(procesoId, dto, principal.getName()));
     }
 }

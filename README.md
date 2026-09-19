@@ -16,6 +16,7 @@ manteniendo la información de cada organización aislada de las demás.
 - Spring MVC
 - Spring Data JPA
 - Spring Validation
+- Spring Security 7.1.1
 - Thymeleaf
 - PostgreSQL
 - ModelMapper
@@ -49,14 +50,18 @@ co.edu.javeriana.procesosempresariales
 
 | Historia | Estado |
 |---|---|
-| HU-01 · Registro de empresa | Implementada, salvo la credencial del administrador inicial (depende de HU-03) |
+| HU-01 · Registro de empresa | Implementada |
 | HU-02 · Registro de usuario en empresa | Pendiente |
-| HU-03 · Inicio de sesión | Pendiente; aún no hay autenticación en el proyecto |
+| HU-03 · Inicio de sesión | Implementada |
 | HU-04 · Crear proceso | Implementada a nivel de servicio y vistas; pendiente de revisión |
 | HU-05 · Editar proceso | Implementada a nivel de servicio y vistas; pendiente de revisión |
 
-Como todavía no existe autenticación, las pantallas de proceso que dependen del usuario
-autenticado no son accesibles de extremo a extremo. Las pantallas de empresa sí lo son.
+Con la autenticación en marcha, las pantallas de proceso que dependen del usuario autenticado ya
+son accesibles de extremo a extremo: se registra una empresa, se inicia sesión con las credenciales
+del administrador inicial y desde ahí se trabajan los procesos de esa empresa.
+
+De HU-02 solo existe el administrador inicial que crea HU-01. **No hay alta de usuarios dentro de
+una empresa, ni cambio de rol, ni activación o desactivación desde la interfaz.**
 
 ## Historias en desarrollo
 
@@ -89,6 +94,14 @@ cp .env.example .env
 La URL de la base de pruebas es fija y no se puede redirigir por variables de entorno, porque
 `create-drop` destruye el esquema al terminar.
 
+> **Si la base de desarrollo ya existía antes de HU-03**, hay que migrarla antes de arrancar. La
+> tabla `usuario` tiene dos columnas nuevas obligatorias (`password_hash` y `activo`) y `ddl-auto=update`
+> no puede añadirlas si la tabla ya tiene filas: registra el error como advertencia, la aplicación
+> arranca sin las columnas y el fallo aparece más tarde. Los dos caminos posibles (recrear el
+> esquema o migrar de forma aditiva) están en
+> [HU-03 · Migración de base de datos](docs/historias/HU-03-inicio-sesion.md#migración-de-base-de-datos).
+> En CI no ocurre: el perfil de pruebas usa `create-drop` sobre un contenedor limpio.
+
 ### Ejecutar
 
 ```bash
@@ -99,14 +112,16 @@ La aplicación queda disponible en `http://localhost:8080`.
 
 ### Pruebas
 
-Las pruebas unitarias no necesitan base de datos:
+Las pruebas que no levantan el contexto completo tampoco necesitan base de datos. Eso incluye las
+de seguridad, que usan `@WebMvcTest` y sí ejecutan los filtros de Spring Security:
 
 ```bash
-./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests' test
+./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest' test
 ```
 
-La suite completa incluye una prueba que levanta el contexto de Spring y sí requiere que
-PostgreSQL esté disponible con las credenciales configuradas.
+La suite completa incluye dos clases que levantan el contexto de Spring
+(`ProcesosEmpresarialesWeb2630ApplicationTests` y `RegistroYLoginIntegracionTest`) y sí requieren
+que PostgreSQL esté disponible con las credenciales configuradas.
 
 ## Calidad de código
 
@@ -138,5 +153,6 @@ El detalle está en [`docs/calidad/sonarqube.md`](docs/calidad/sonarqube.md).
 Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs/historias/):
 
 - [HU-01 · Registro de empresa](docs/historias/HU-01-registro-empresa.md)
+- [HU-03 · Inicio de sesión](docs/historias/HU-03-inicio-sesion.md)
 - [HU-04 · Crear proceso](docs/historias/HU-04-crear-proceso.md)
 - [HU-05 · Editar proceso](docs/historias/HU-05-editar-proceso.md)

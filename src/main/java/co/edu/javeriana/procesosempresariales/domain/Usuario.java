@@ -29,11 +29,17 @@ public class Usuario {
     @Column(nullable = false, length = 180)
     private String username; // nombre del usuario
 
+    @Column(name = "password_hash", nullable = false, length = 100)
+    private String password;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private RolUsuario rol; // rol que verifica si puede editar o solo consultar
 
-        @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @Column(nullable = false)
+    private boolean activo;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "empresa_id", nullable = false) // Guarda la relación en usuario
     private Empresa empresa; // Define a qué empresa pertenece el usuario
 }

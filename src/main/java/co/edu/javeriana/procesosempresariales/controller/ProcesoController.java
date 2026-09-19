@@ -37,9 +37,6 @@ public class ProcesoController {
 
     @GetMapping("/{id}")
     public String ver(@PathVariable("id") Long procesoId, Principal principal, Model model) {
-        if (principal == null) {
-            return "redirect:/login";
-        }
         model.addAttribute("proceso", procesoService.obtener(procesoId, principal.getName()));
         model.addAttribute("puedeEditar", procesoService.puedeEditar(principal.getName()));
         return "procesos/proceso";
@@ -47,9 +44,6 @@ public class ProcesoController {
 
     @GetMapping("/{id}/editar")
     public String editar(@PathVariable("id") Long procesoId, Principal principal, Model model) {
-        if (principal == null) {
-            return "redirect:/login";
-        }
         ProcesoRespuestaDto proceso = procesoService.obtener(procesoId, principal.getName());
         if (!procesoService.puedeEditar(principal.getName())) {
             return "redirect:/procesos/" + procesoId;
@@ -70,9 +64,6 @@ public class ProcesoController {
             model.addAttribute("estados", EstadoProceso.values());
             return "procesos/formularioprocesoseditar";
         }
-        if (principal == null) {
-            return "redirect:/login";
-        }
         procesoService.editar(procesoId, dto, principal.getName());
         redirectAttributes.addFlashAttribute("mensaje", "Proceso actualizado correctamente");
         return "redirect:/procesos/" + procesoId;
@@ -84,9 +75,6 @@ public class ProcesoController {
         // Si falta algo, volvemos al formulario y mostramos los errores junto a cada campo.
         if (result.hasErrors()) {
             return "procesos/formularioprocesos";
-        }
-        if (principal == null) {
-            return "redirect:/login";
         }
         procesoService.crear(dto, principal.getName());
         // Después de guardar redirigimos para que recargar la página no repita el POST.

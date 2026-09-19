@@ -146,3 +146,18 @@ comportamiento se demuestra por ahora con las pruebas:
   [HU-01](HU-01-registro-empresa.md) y debe resolverse con una estrategia global de errores.
 - **Unicidad a nivel de tabla sin verificar contra PostgreSQL.** La regla está probada en el
   servicio; la restricción `uk_proceso_empresa_nombre` se validará en la máquina virtual del curso.
+
+## Actualización tras el bloque de HU-03
+
+Con Spring Security en marcha, dos de los pendientes de arriba quedaron resueltos:
+
+- **La autenticación ya existe.** `Principal` llega real a `ProcesoController` y a
+  `ProcesoRestController`, así que HU-04 **sí se puede ejercitar de extremo a extremo**: registrar
+  empresa → iniciar sesión → `GET /procesos/nuevo` → crear. Las comprobaciones manuales
+  `principal == null → redirect:/login` se eliminaron: ahora la corta el `SecurityFilterChain`
+  antes de llegar al controlador, y las pruebas de ese comportamiento viven en `SeguridadRutasTest`.
+- **Errores en JSON sobre vistas MVC.** `ApiExceptionHandler` se limitó a los `@RestController` y
+  se añadió `MvcExceptionHandler` para las vistas.
+
+El resto de pendientes (listado de procesos por empresa, redirección tras crear, unicidad a nivel
+de tabla) sigue igual. El detalle está en [HU-03 · Inicio de sesión](HU-03-inicio-sesion.md).

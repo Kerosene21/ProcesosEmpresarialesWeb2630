@@ -16,6 +16,10 @@
         <p><strong>Estado:</strong> <span th:text="${proceso.estado}">BORRADOR</span></p>
         <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
         <a th:if="${puedeEditar}" th:href="@{/procesos/{id}/editar(id=${proceso.id})}">Editar</a>
+
+        <form th:action="@{/logout}" method="post">
+            <button type="submit">Cerrar sesion</button>
+        </form>
     </section>
 </main>
 </body>

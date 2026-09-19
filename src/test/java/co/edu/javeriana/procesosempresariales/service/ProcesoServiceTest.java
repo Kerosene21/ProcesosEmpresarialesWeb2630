@@ -43,6 +43,7 @@ import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 class ProcesoServiceTest {
 
     private static final String USERNAME = "admin@alpes.com";
+    private static final String HASH_CREDENCIAL = "$2a$10$7EqJtq98hPqEX7fNZaFWoOhi5jzHiZQ2mQ0ym2hQ0y1hQ0ym2hQ0y";
     private static final Long EMPRESA_PROPIA = 7L;
     private static final Long EMPRESA_AJENA = 99L;
 
@@ -68,7 +69,7 @@ class ProcesoServiceTest {
     }
 
     private Usuario usuarioAutenticado(RolUsuario rol) {
-        return new Usuario(1L, USERNAME, rol, empresa(EMPRESA_PROPIA, "Alpes Logistica"));
+        return new Usuario(1L, USERNAME, HASH_CREDENCIAL, rol, true, empresa(EMPRESA_PROPIA, "Alpes Logistica"));
     }
 
     private void autenticar(Usuario usuario) {
@@ -173,7 +174,7 @@ class ProcesoServiceTest {
 
     @Test
     void crearAdmiteElMismoNombreEnUnaEmpresaDistinta() {
-        Usuario otraEmpresa = new Usuario(2L, USERNAME, RolUsuario.ADMINISTRADOR,
+        Usuario otraEmpresa = new Usuario(2L, USERNAME, HASH_CREDENCIAL, RolUsuario.ADMINISTRADOR, true,
                 empresa(EMPRESA_AJENA, "Andes Consultores"));
         autenticar(otraEmpresa);
         when(procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(anyLong(), eq("Ventas")))

@@ -10,13 +10,13 @@
 <main class="page-shell">
     <section class="panel" aria-labelledby="lista-title">
         <p class="eyebrow">Empresas</p>
-        <h1 id="lista-title">Empresas registradas</h1>
+        <h1 id="lista-title">Mi empresa</h1>
         <p class="intro">Cada empresa administra sus propios procesos de forma independiente.</p>
 
         <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
 
         <p class="vacio" th:if="${#lists.isEmpty(empresas)}">
-            Todavia no hay empresas registradas.
+            Tu usuario todavia no tiene una empresa asociada.
         </p>
 
         <table th:unless="${#lists.isEmpty(empresas)}">
@@ -39,8 +39,12 @@
         </table>
 
         <div class="acciones">
-            <a th:href="@{/empresas/nueva}">Registrar nueva empresa</a>
+            <a th:href="@{/procesos/nuevo}">Crear proceso</a>
         </div>
+
+        <form th:action="@{/logout}" method="post">
+            <button type="submit">Cerrar sesion</button>
+        </form>
     </section>
 </main>
 </body>

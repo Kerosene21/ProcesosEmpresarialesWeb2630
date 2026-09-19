@@ -74,14 +74,6 @@ class ProcesoControllerTest {
     }
 
     @Test
-    void verRedirigeAlLoginCuandoNoHayUsuarioAutenticado() throws Exception {
-        mockMvc.perform(get("/procesos/5"))
-                .andExpect(redirectedUrl("/login"));
-
-        verify(procesoService, never()).obtener(anyLong(), anyString());
-    }
-
-    @Test
     void verMuestraElProcesoYSiElUsuarioPuedeEditarlo() throws Exception {
         when(procesoService.obtener(5L, USERNAME)).thenReturn(procesoExistente());
         when(procesoService.puedeEditar(USERNAME)).thenReturn(true);
@@ -102,14 +94,6 @@ class ProcesoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("procesos/proceso"))
                 .andExpect(model().attribute("puedeEditar", false));
-    }
-
-    @Test
-    void elFormularioDeEdicionRedirigeAlLoginCuandoNoHayUsuarioAutenticado() throws Exception {
-        mockMvc.perform(get("/procesos/5/editar"))
-                .andExpect(redirectedUrl("/login"));
-
-        verify(procesoService, never()).obtener(anyLong(), anyString());
     }
 
     @Test
@@ -157,18 +141,6 @@ class ProcesoControllerTest {
     }
 
     @Test
-    void actualizarRedirigeAlLoginCuandoNoHayUsuarioAutenticado() throws Exception {
-        mockMvc.perform(post("/procesos/5")
-                .param("nombre", "Ventas Corporativas")
-                .param("descripcion", "Descripcion actualizada")
-                .param("categoria", "Operaciones")
-                .param("estado", "PUBLICADO"))
-                .andExpect(redirectedUrl("/login"));
-
-        verify(procesoService, never()).editar(anyLong(), any(EditarProcesoDto.class), anyString());
-    }
-
-    @Test
     void actualizarDelegaEnElServicioYRedirigeAlDetalleDelProceso() throws Exception {
         when(procesoService.editar(anyLong(), any(EditarProcesoDto.class), anyString()))
                 .thenReturn(procesoExistente());
@@ -200,17 +172,6 @@ class ProcesoControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("procesos/formularioprocesos"))
                 .andExpect(model().attributeHasFieldErrors("proceso", "nombre", "descripcion", "categoria"));
-
-        verify(procesoService, never()).crear(any(CrearProcesoDto.class), anyString());
-    }
-
-    @Test
-    void crearRedirigeAlLoginCuandoNoHayUsuarioAutenticado() throws Exception {
-        mockMvc.perform(post("/procesos")
-                .param("nombre", "Ventas")
-                .param("descripcion", "Proceso comercial")
-                .param("categoria", "Comercial"))
-                .andExpect(redirectedUrl("/login"));
 
         verify(procesoService, never()).crear(any(CrearProcesoDto.class), anyString());
     }

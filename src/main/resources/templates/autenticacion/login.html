@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Iniciar sesion</title>
+    <link rel="stylesheet" th:href="@{/css/empresas.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="panel" aria-labelledby="login-title">
+        <p class="eyebrow">Procesos empresariales</p>
+        <h1 id="login-title">Iniciar sesion</h1>
+        <p class="intro">
+            Ingresa con el correo y la contrasena de tu usuario. Cada usuario solo ve
+            la informacion de su propia empresa.
+        </p>
+
+        <p class="error" th:if="${param.error}">
+            Correo o contrasena incorrectos.
+        </p>
+        <p class="success" th:if="${param.logout}">
+            Tu sesion se cerro correctamente.
+        </p>
+
+        <form th:action="@{/login}" method="post" novalidate>
+            <label for="username">Correo</label>
+            <input id="username" name="username" type="email" maxlength="180" autocomplete="username" autofocus>
+
+            <label for="password">Contrasena</label>
+            <input id="password" name="password" type="password" maxlength="100" autocomplete="current-password">
+
+            <button type="submit">Entrar</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/empresas/nueva}">Registrar una empresa nueva</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>
