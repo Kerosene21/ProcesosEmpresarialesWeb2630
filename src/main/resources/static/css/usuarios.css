@@ -1,0 +1,6 @@
+.acciones-fila { display: flex; gap: 12px; align-items: center; }
+.acciones-fila form { display: inline; margin: 0; max-width: none; }
+.acciones-fila button { margin-top: 0; padding: 4px 10px; font-weight: normal; }
+
+.estado { font-weight: bold; }
+.propio { font-style: italic; }

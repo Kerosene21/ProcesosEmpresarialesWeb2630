@@ -1,5 +1,6 @@
 package co.edu.javeriana.procesosempresariales.repository;
 
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
@@ -13,4 +14,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     boolean existsByUsername(String username);
 
     Optional<Usuario> findFirstByEmpresaIdAndRolOrderByIdAsc(Long empresaId, RolUsuario rol);
+
+    List<Usuario> findByEmpresaIdOrderByUsernameAsc(Long empresaId);
+
+    Optional<Usuario> findByIdAndEmpresaId(Long id, Long empresaId);
 }

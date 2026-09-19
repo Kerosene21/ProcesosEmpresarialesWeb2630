@@ -51,17 +51,22 @@ co.edu.javeriana.procesosempresariales
 | Historia | Estado |
 |---|---|
 | HU-01 · Registro de empresa | Implementada |
-| HU-02 · Registro de usuario en empresa | Pendiente |
+| HU-02 · Registro de usuario en empresa | Implementada |
 | HU-03 · Inicio de sesión | Implementada |
 | HU-04 · Crear proceso | Implementada a nivel de servicio y vistas; pendiente de revisión |
 | HU-05 · Editar proceso | Implementada a nivel de servicio y vistas; pendiente de revisión |
 
 Con la autenticación en marcha, las pantallas de proceso que dependen del usuario autenticado ya
 son accesibles de extremo a extremo: se registra una empresa, se inicia sesión con las credenciales
-del administrador inicial y desde ahí se trabajan los procesos de esa empresa.
+del administrador inicial y desde ahí se administran los usuarios y los procesos de esa empresa.
 
-De HU-02 solo existe el administrador inicial que crea HU-01. **No hay alta de usuarios dentro de
-una empresa, ni cambio de rol, ni activación o desactivación desde la interfaz.**
+El administrador de cada empresa crea usuarios con rol `ADMINISTRADOR`, `EDITOR` o `SOLO_LECTURA`,
+cambia su rol y los desactiva. La desactivación es **lógica** (`activo = false`): el usuario deja de
+poder iniciar sesión, pero su cuenta y su historial de ediciones se conservan, y los procesos de la
+empresa siguen disponibles. La invitación se hace creando la cuenta con el correo como identificador
+de acceso: **no hay envío de correo ni integración SMTP**.
+
+HU-06 y HU-07 no están implementadas.
 
 ## Historias en desarrollo
 
@@ -116,12 +121,13 @@ Las pruebas que no levantan el contexto completo tampoco necesitan base de datos
 de seguridad, que usan `@WebMvcTest` y sí ejecutan los filtros de Spring Security:
 
 ```bash
-./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest' test
+./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest' test
 ```
 
-La suite completa incluye dos clases que levantan el contexto de Spring
-(`ProcesosEmpresarialesWeb2630ApplicationTests` y `RegistroYLoginIntegracionTest`) y sí requieren
-que PostgreSQL esté disponible con las credenciales configuradas.
+La suite completa incluye tres clases que levantan el contexto de Spring
+(`ProcesosEmpresarialesWeb2630ApplicationTests`, `RegistroYLoginIntegracionTest` y
+`GestionUsuariosIntegracionTest`) y sí requieren que PostgreSQL esté disponible con las credenciales
+configuradas. En CI corren todas contra el contenedor `postgres:16-alpine` del workflow.
 
 ## Calidad de código
 
@@ -153,6 +159,7 @@ El detalle está en [`docs/calidad/sonarqube.md`](docs/calidad/sonarqube.md).
 Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs/historias/):
 
 - [HU-01 · Registro de empresa](docs/historias/HU-01-registro-empresa.md)
+- [HU-02 · Registro y administración de usuarios](docs/historias/HU-02-registro-usuario.md)
 - [HU-03 · Inicio de sesión](docs/historias/HU-03-inicio-sesion.md)
 - [HU-04 · Crear proceso](docs/historias/HU-04-crear-proceso.md)
 - [HU-05 · Editar proceso](docs/historias/HU-05-editar-proceso.md)

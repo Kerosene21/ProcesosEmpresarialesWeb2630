@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${usuario.correo}">Usuario</title>
+    <link rel="stylesheet" th:href="@{/css/empresas.css}">
+    <link rel="stylesheet" th:href="@{/css/usuarios.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="panel" aria-labelledby="detalle-title">
+        <p class="eyebrow">Usuario de la empresa</p>
+        <h1 id="detalle-title" th:text="${usuario.correo}">Correo del usuario</h1>
+
+        <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
+
+        <dl>
+            <dt>Correo</dt>
+            <dd th:text="${usuario.correo}">Correo</dd>
+
+            <dt>Rol de acceso</dt>
+            <dd th:text="${usuario.rol}">ROL</dd>
+
+            <dt>Estado</dt>
+            <dd class="estado" th:text="${usuario.activo} ? 'Activo' : 'Inactivo'">Estado</dd>
+        </dl>
+
+        <p class="intro" th:unless="${usuario.activo}">
+            Este usuario esta desactivado: no puede iniciar sesion, pero su cuenta y su historial
+            de ediciones siguen guardados.
+        </p>
+
+        <div class="acciones">
+            <a th:href="@{/usuarios/{id}/editar(id=${usuario.id})}">Cambiar rol</a>
+            <a th:href="@{/usuarios}">Volver a los usuarios</a>
+        </div>
+
+        <form th:if="${usuario.activo}" th:action="@{/usuarios/{id}/desactivar(id=${usuario.id})}" method="post">
+            <button type="submit">Desactivar usuario</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

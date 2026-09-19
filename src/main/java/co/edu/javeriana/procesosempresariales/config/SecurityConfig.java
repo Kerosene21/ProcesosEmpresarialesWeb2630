@@ -20,6 +20,9 @@ public class SecurityConfig {
     private static final String RUTA_LOGIN = "/login";
     private static final String RUTA_API = "/api/**";
     private static final String RUTA_REGISTRO_EMPRESA = "/empresas/nueva";
+    private static final String RUTA_USUARIOS = "/usuarios/**";
+    private static final String RUTA_ACCESO_DENEGADO = "/acceso-denegado";
+    private static final String ROL_ADMINISTRADOR = "ADMINISTRADOR";
     private static final String[] RECURSOS_PUBLICOS = { "/css/**", "/js/**", "/favicon.ico", "/error" };
 
     @Bean
@@ -34,6 +37,7 @@ public class SecurityConfig {
                         .requestMatchers(RECURSOS_PUBLICOS).permitAll()
                         .requestMatchers(RUTA_REGISTRO_EMPRESA).permitAll()
                         .requestMatchers(HttpMethod.POST, "/empresas").permitAll()
+                        .requestMatchers(RUTA_USUARIOS).hasRole(ROL_ADMINISTRADOR)
                         .anyRequest().authenticated())
                 .formLogin(login -> login
                         .loginPage(RUTA_LOGIN)
@@ -45,7 +49,9 @@ public class SecurityConfig {
                         .invalidateHttpSession(true)
                         .clearAuthentication(true)
                         .permitAll())
-                .exceptionHandling(errores -> errores.authenticationEntryPoint(puntoDeEntrada()))
+                .exceptionHandling(errores -> errores
+                        .authenticationEntryPoint(puntoDeEntrada())
+                        .accessDeniedPage(RUTA_ACCESO_DENEGADO))
                 .build();
     }
 

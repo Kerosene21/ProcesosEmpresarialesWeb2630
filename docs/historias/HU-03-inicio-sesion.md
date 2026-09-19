@@ -64,6 +64,7 @@ POST /logout           → invalida la sesión y limpia el contexto → redirect
 | `GET /empresas`, `GET /empresas/{id}` | Autenticado | Exponían información de todas las empresas |
 | `/procesos/**` | Autenticado | Dependen del usuario autenticado |
 | `/api/procesos/**` | Autenticado | Igual que las anteriores, pero responden JSON |
+| `/usuarios/**` | Rol `ADMINISTRADOR` | Administración de usuarios de HU-02 |
 
 ## Contraseñas
 
@@ -264,11 +265,12 @@ ALTER TABLE usuario ALTER COLUMN password_hash SET NOT NULL;
 
 ## Qué quedó pendiente
 
-- **HU-02 (administración de usuarios).** Solo existe el administrador inicial que crea HU-01. No
-  hay alta de usuarios dentro de una empresa, ni cambio de rol, ni activación/desactivación desde
-  la interfaz. El modelo ya soporta todo eso (`rol`, `activo`, hash), pero la funcionalidad no está.
-- **Autorización por rol en las rutas.** El rol viaja como autoridad `ROLE_ADMINISTRADOR`,
-  `ROLE_EDITOR` o `ROLE_SOLO_LECTURA`, pero las reglas de permiso siguen aplicándose en
+- **HU-02 (administración de usuarios): resuelta.** El administrador ya crea usuarios dentro de su
+  empresa, les cambia el rol y los desactiva, y esas cuentas inician sesión con esta misma cadena de
+  seguridad. Ver [HU-02 · Registro y administración de usuarios](HU-02-registro-usuario.md).
+- **Autorización por rol en las rutas: parcial.** Con HU-02, `/usuarios/**` ya exige
+  `ROLE_ADMINISTRADOR` en el `SecurityFilterChain`. Para procesos, en cambio, las reglas de permiso
+  siguen aplicándose en
   `ProcesoService` (`puedeEditar`, `validarRolEditor`). No se añadieron reglas por rol en el
   `SecurityFilterChain` para no duplicar la lógica que ya funciona y está probada.
 - **Recuperación de contraseña y cambio de contraseña.** No forman parte de HU-03.

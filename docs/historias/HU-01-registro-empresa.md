@@ -201,13 +201,14 @@ consultar ni listar la empresa de otra.
 
 ### Sigue pendiente
 
-- **Campo de correo propio en `Usuario` (HU-02).** Se decidió **no** añadirlo: `username` ya es el
-  correo normalizado y su restricción `uk_usuario_username` es la unicidad global que HU-02
-  necesita. Duplicar el mismo valor en dos columnas obligaría a mantener dos restricciones
-  sincronizadas sin aportar información nueva. Si en el futuro hiciera falta un nombre de acceso
-  distinto del correo, se añadiría `correo` en ese momento sin cambiar el significado de la
-  restricción actual.
-- **Alta de usuarios dentro de la empresa (HU-02).** Solo existe el administrador inicial. No hay
-  invitación de usuarios, cambio de rol ni activación/desactivación desde la interfaz.
 - **Pruebas de repositorio contra PostgreSQL.** La unicidad del NIT está verificada en el servicio,
   pero la restricción `uk_empresa_nit` a nivel de tabla se validará en la máquina virtual del curso.
+
+### Resuelto en el bloque de HU-02
+
+- **Campo de correo propio en `Usuario`.** La decisión de **no** añadirlo se confirmó al implementar
+  HU-02: `username` ya es el correo normalizado y su restricción `uk_usuario_username` es la
+  unicidad global que la administración de usuarios necesita, así que no hubo que duplicar el valor
+  en una segunda columna.
+- **Alta de usuarios dentro de la empresa.** El administrador ya crea usuarios, les asigna rol y los
+  desactiva. Ver [HU-02 · Registro y administración de usuarios](HU-02-registro-usuario.md).

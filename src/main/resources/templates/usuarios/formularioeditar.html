@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cambiar rol</title>
+    <link rel="stylesheet" th:href="@{/css/empresas.css}">
+    <link rel="stylesheet" th:href="@{/css/usuarios.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="panel" aria-labelledby="form-title">
+        <p class="eyebrow">Administracion</p>
+        <h1 id="form-title">Cambiar rol de acceso</h1>
+        <p class="intro">
+            Usuario: <strong th:text="${correo}">correo</strong>. El rol define si puede editar
+            procesos o solo consultarlos.
+        </p>
+
+        <form th:action="@{/usuarios/{id}(id=${usuarioId})}" th:object="${usuario}" method="post" novalidate>
+            <label for="rol">Rol de acceso</label>
+            <select id="rol" th:field="*{rol}">
+                <option value="">Seleccione un rol</option>
+                <option th:each="rol : ${roles}" th:value="${rol}" th:text="${rol}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('rol')}" th:errors="*{rol}"></small>
+
+            <button type="submit">Guardar rol</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/usuarios/{id}(id=${usuarioId})}">Ver usuario</a>
+            <a th:href="@{/usuarios}">Volver a los usuarios</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>
