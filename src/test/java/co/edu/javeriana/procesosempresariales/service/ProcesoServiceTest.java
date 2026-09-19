@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -31,6 +32,7 @@ import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -379,7 +381,7 @@ class ProcesoServiceTest {
 
         assertThatThrownBy(() -> procesoService.editar(5L, formularioEdicion(), USERNAME))
                 .isInstanceOf(UsuarioSinPermisoException.class)
-                .hasMessage("Solo un administrador o editor puede modificar procesos");
+                .hasMessage("Solo un administrador o editor puede crear o modificar procesos");
 
         verify(procesoRepository, never()).save(any(Proceso.class));
         verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
@@ -541,14 +543,229 @@ class ProcesoServiceTest {
     }
 
     @Test
-    void editarResumeLosValoresAnterioresYNuevosEnElHistorial() {
+    void editarResumeLosValoresAnterioresYNuevosDeTodosLosCamposModificados() {
         autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
         existeElProceso(procesoExistente(EMPRESA_PROPIA));
 
         procesoService.editar(5L, formularioEdicion(), USERNAME);
 
         assertThat(historialGuardado().getCambiosRealizados())
-                .isEqualTo("nombre: 'Ventas' -> 'Ventas Corporativas'; descripcion actualizada; "
+                .isEqualTo("nombre: 'Ventas' -> 'Ventas Corporativas'; "
+                        + "descripcion: 'Proceso comercial' -> 'Descripcion actualizada'; "
                         + "categoria: 'Comercial' -> 'Operaciones'; estado: 'BORRADOR' -> 'PUBLICADO'");
+    }
+
+    @Test
+    void crearRechazaAlUsuarioDeSoloLectura() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+
+        assertThatThrownBy(() -> procesoService.crear(formularioCreacion(), USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+    }
+
+    @Test
+    void crearCompruebaElRolAntesDeBuscarNombresDuplicados() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+
+        assertThatThrownBy(() -> procesoService.crear(formularioCreacion(), USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(procesoRepository, never()).existsByEmpresaIdAndNombreIgnoreCase(anyLong(), anyString());
+    }
+
+    @Test
+    void crearPermiteAlAdministrador() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        ProcesoRespuestaDto respuesta = procesoService.crear(formularioCreacion(), USERNAME);
+
+        assertThat(respuesta.getId()).isEqualTo(30L);
+    }
+
+    @Test
+    void crearPermiteAlEditor() {
+        autenticar(usuarioAutenticado(RolUsuario.EDITOR));
+        asignarIdentificadoresAlGuardar(31L, 81L);
+
+        ProcesoRespuestaDto respuesta = procesoService.crear(formularioCreacion(), USERNAME);
+
+        assertThat(respuesta.getId()).isEqualTo(31L);
+        assertThat(procesoGuardado().getEstado()).isEqualTo(EstadoProceso.BORRADOR);
+        assertThat(procesoGuardado().getPool()).isNotNull();
+    }
+
+    @Test
+    void editarSinNingunCambioNoRegistraHistorial() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas", "Proceso comercial", "Comercial",
+                EstadoProceso.BORRADOR), USERNAME);
+
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void editarSinNingunCambioTampocoVuelveAGuardarElProceso() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("  Ventas  ", "Proceso comercial", "Comercial",
+                EstadoProceso.BORRADOR), USERNAME);
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+    }
+
+    @Test
+    void editarSinNingunCambioDevuelveElProcesoTalComoEsta() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.editar(5L, new EditarProcesoDto("Ventas",
+                "Proceso comercial", "Comercial", EstadoProceso.BORRADOR), USERNAME);
+
+        assertThat(respuesta.getNombre()).isEqualTo("Ventas");
+        assertThat(respuesta.getEstado()).isEqualTo(EstadoProceso.BORRADOR);
+    }
+
+    @Test
+    void editarSoloElNombreResumeUnicamenteElNombre() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas Corporativas", "Proceso comercial", "Comercial",
+                EstadoProceso.BORRADOR), USERNAME);
+
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("nombre: 'Ventas' -> 'Ventas Corporativas'");
+    }
+
+    @Test
+    void editarSoloLaDescripcionResumeUnicamenteLaDescripcion() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas", "Descripcion actualizada", "Comercial",
+                EstadoProceso.BORRADOR), USERNAME);
+
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("descripcion: 'Proceso comercial' -> 'Descripcion actualizada'");
+    }
+
+    @Test
+    void editarSoloLaCategoriaResumeUnicamenteLaCategoria() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas", "Proceso comercial", "Operaciones",
+                EstadoProceso.BORRADOR), USERNAME);
+
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("categoria: 'Comercial' -> 'Operaciones'");
+    }
+
+    @Test
+    void editarSoloElEstadoResumeUnicamenteElEstado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas", "Proceso comercial", "Comercial",
+                EstadoProceso.PUBLICADO), USERNAME);
+
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("estado: 'BORRADOR' -> 'PUBLICADO'");
+    }
+
+    @Test
+    void elHistorialDeUnCambioParcialConservaUsuarioFechaYEstadoAnterior() {
+        Usuario editor = usuarioAutenticado(RolUsuario.EDITOR);
+        autenticar(editor);
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+        LocalDateTime antes = LocalDateTime.now();
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas", "Proceso comercial", "Comercial",
+                EstadoProceso.PUBLICADO), USERNAME);
+
+        HistorialProceso historial = historialGuardado();
+        assertThat(historial.getUsuario()).isSameAs(editor);
+        assertThat(historial.getEstadoAnterior()).isEqualTo("BORRADOR");
+        assertThat(historial.getFecha()).isBetween(antes, LocalDateTime.now());
+    }
+
+    @Test
+    void consultarHistorialDevuelveLasEntradasDelProcesoDeLaEmpresaDelUsuario() {
+        Usuario editor = usuarioAutenticado(RolUsuario.EDITOR);
+        autenticar(editor);
+        Proceso proceso = procesoExistente(EMPRESA_PROPIA);
+        existeElProceso(proceso);
+        when(historialProcesoRepository.findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(5L, EMPRESA_PROPIA))
+                .thenReturn(List.of(
+                        new HistorialProceso(2L, proceso, editor, LocalDateTime.now(),
+                                "estado: 'BORRADOR' -> 'PUBLICADO'", "BORRADOR"),
+                        new HistorialProceso(1L, proceso, editor, LocalDateTime.now().minusDays(1),
+                                "nombre: 'Ventas' -> 'Ventas Corporativas'", "BORRADOR")));
+
+        List<HistorialProcesoRespuestaDto> historial = procesoService.consultarHistorial(5L, USERNAME);
+
+        assertThat(historial).hasSize(2);
+        assertThat(historial.get(0).getCambiosRealizados()).isEqualTo("estado: 'BORRADOR' -> 'PUBLICADO'");
+        assertThat(historial.get(0).getUsuarioCorreo()).isEqualTo(USERNAME);
+        assertThat(historial.get(0).getEstadoAnterior()).isEqualTo("BORRADOR");
+        assertThat(historial.get(0).getFecha()).isNotNull();
+    }
+
+    @Test
+    void consultarHistorialPideLasEntradasOrdenadasPorFechaDescendenteYAcotadasALaEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+        when(historialProcesoRepository.findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(5L, EMPRESA_PROPIA))
+                .thenReturn(List.of());
+
+        procesoService.consultarHistorial(5L, USERNAME);
+
+        verify(historialProcesoRepository).findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(5L, EMPRESA_PROPIA);
+        verify(historialProcesoRepository, never()).findAll();
+    }
+
+    @Test
+    void consultarHistorialEstaPermitidoParaUnUsuarioDeSoloLectura() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+        when(historialProcesoRepository.findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(5L, EMPRESA_PROPIA))
+                .thenReturn(List.of());
+
+        assertThat(procesoService.consultarHistorial(5L, USERNAME)).isEmpty();
+    }
+
+    @Test
+    void consultarHistorialRechazaUnProcesoDeOtraEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_AJENA));
+
+        assertThatThrownBy(() -> procesoService.consultarHistorial(5L, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(historialProcesoRepository, never())
+                .findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(anyLong(), anyLong());
+    }
+
+    @Test
+    void consultarHistorialRechazaUnProcesoInexistente() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        when(procesoRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> procesoService.consultarHistorial(404L, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
+    void consultarHistorialRechazaUnUsuarioAutenticadoQueNoExiste() {
+        sinUsuarioAutenticado();
+
+        assertThatThrownBy(() -> procesoService.consultarHistorial(5L, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
     }
 }

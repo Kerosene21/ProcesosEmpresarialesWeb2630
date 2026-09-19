@@ -1,6 +1,9 @@
 package co.edu.javeriana.procesosempresariales.service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -15,6 +18,7 @@ import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -25,7 +29,9 @@ import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 
 @Service
 public class ProcesoService {
-    
+
+    private static final String NOMBRE_DUPLICADO = "Ya existe un proceso con ese nombre en la empresa";
+
     private final ProcesoRepository procesoRepository;
     // repo relacionar al usuario autenticado con su empresa
     private final UsuarioRepository usuarioRepository;
@@ -43,123 +49,131 @@ public class ProcesoService {
         this.modelMapper = modelMapper;
     }
 
-    // La creación y la creación del pool deben confirmarse juntas o fallar juntas.
     @Transactional
     public ProcesoRespuestaDto crear(CrearProcesoDto dto, String username) {
-        // La empresa sale del usuario el cliente no puede escoger otra porque solo puede trabajar en la suya obviamenete xd
-        Usuario usuario = usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
-        // revisar que la consulta de duplicados se haga dentro de la empresa correcta
+        Usuario usuario = usuarioAutenticado(username);
+        validarRolDeEscritura(usuario);
         Long empresaId = usuario.getEmpresa().getId();
+        String nombre = dto.getNombre().trim();
 
-        // manda error si el nombre ya está ocupado.
-        if (procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(empresaId, dto.getNombre().trim())) {
-            throw new NombreProcesoDuplicadoException("Ya existe un proceso con ese nombre en la empresa");
+        if (procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(empresaId, nombre)) {
+            throw new NombreProcesoDuplicadoException(NOMBRE_DUPLICADO);
         }
 
-        // el dto solo trae los datos permitidos por el usuario
         Proceso proceso = modelMapper.map(dto, Proceso.class);
-        // quitamos espacios al inicio y al final para que no se creen nombres iguales pero con espacios
-        proceso.setNombre(dto.getNombre().trim());
-        // proceso nuevo comienza como borrador
+        proceso.setNombre(nombre);
         proceso.setEstado(EstadoProceso.BORRADOR);
-        // la empresa se toma del usuario autenticado 
         proceso.setEmpresa(usuario.getEmpresa());
-        // El pool inicial deja preparada la estructura mínima del diagrama
         proceso.setPool(new Pool(null, usuario.getEmpresa().getNombre()));
         try {
-            // CascadeType.ALL guarda el pool asociado al proceso
             return toDto(procesoRepository.save(proceso));
         } catch (DataIntegrityViolationException exception) {
-            //manda error si el nombre ya está ocupado aunque la base de datos se encarga de evitarlo se supone xd
-            throw new NombreProcesoDuplicadoException("Ya existe un proceso con ese nombre en la empresa");
+            throw new NombreProcesoDuplicadoException(NOMBRE_DUPLICADO);
         }
     }
 
-    // convierte la entidad en un dto para no exponer relaciones JPA en las respuestas por seguridad y para que el cliente reciba solo lo que necesita
+    @Transactional(readOnly = true)
+    public ProcesoRespuestaDto obtener(Long procesoId, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        return toDto(procesoDeLaEmpresa(procesoId, usuario));
+    }
+
+    public boolean puedeEditar(String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        return tieneRolDeEscritura(usuario);
+    }
+
+    @Transactional
+    public ProcesoRespuestaDto editar(Long procesoId, EditarProcesoDto dto, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        validarRolDeEscritura(usuario);
+
+        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
+        String nombreNuevo = dto.getNombre().trim();
+        if (!proceso.getNombre().equalsIgnoreCase(nombreNuevo)
+                && procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(usuario.getEmpresa().getId(), nombreNuevo)) {
+            throw new NombreProcesoDuplicadoException(NOMBRE_DUPLICADO);
+        }
+
+        String cambios = construirCambios(proceso, dto, nombreNuevo);
+        if (cambios.isEmpty()) {
+            return toDto(proceso);
+        }
+
+        String estadoAnterior = proceso.getEstado().name();
+        proceso.setNombre(nombreNuevo);
+        proceso.setDescripcion(dto.getDescripcion());
+        proceso.setCategoria(dto.getCategoria());
+        proceso.setEstado(dto.getEstado());
+        procesoRepository.save(proceso);
+
+        historialProcesoRepository.save(new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
+                estadoAnterior));
+        return toDto(proceso);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HistorialProcesoRespuestaDto> consultarHistorial(Long procesoId, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
+        return historialProcesoRepository
+                .findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(proceso.getId(), usuario.getEmpresa().getId())
+                .stream()
+                .map(this::toHistorialDto)
+                .toList();
+    }
+
+    private Usuario usuarioAutenticado(String username) {
+        return usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
+    }
+
+    private Proceso procesoDeLaEmpresa(Long procesoId, Usuario usuario) {
+        Proceso proceso = procesoRepository.findById(procesoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("El proceso no existe"));
+        if (!proceso.getEmpresa().getId().equals(usuario.getEmpresa().getId())) {
+            throw new UsuarioSinPermisoException("El proceso no pertenece a la empresa del usuario");
+        }
+        return proceso;
+    }
+
+    private boolean tieneRolDeEscritura(Usuario usuario) {
+        return usuario.getRol() == RolUsuario.ADMINISTRADOR || usuario.getRol() == RolUsuario.EDITOR;
+    }
+
+    private void validarRolDeEscritura(Usuario usuario) {
+        if (!tieneRolDeEscritura(usuario)) {
+            throw new UsuarioSinPermisoException("Solo un administrador o editor puede crear o modificar procesos");
+        }
+    }
+
+    private String construirCambios(Proceso proceso, EditarProcesoDto dto, String nombreNuevo) {
+        List<String> cambios = new ArrayList<>();
+        agregarCambio(cambios, "nombre", proceso.getNombre(), nombreNuevo);
+        agregarCambio(cambios, "descripcion", proceso.getDescripcion(), dto.getDescripcion());
+        agregarCambio(cambios, "categoria", proceso.getCategoria(), dto.getCategoria());
+        agregarCambio(cambios, "estado", proceso.getEstado().name(), dto.getEstado().name());
+        return String.join("; ", cambios);
+    }
+
+    private void agregarCambio(List<String> cambios, String campo, String anterior, String nuevo) {
+        if (!Objects.equals(anterior, nuevo)) {
+            cambios.add(campo + ": '" + anterior + "' -> '" + nuevo + "'");
+        }
+    }
+
     private ProcesoRespuestaDto toDto(Proceso proceso) {
         ProcesoRespuestaDto response = modelMapper.map(proceso, ProcesoRespuestaDto.class);
-        // ModelMapper no necesita recorrer el pool completo; solo devolvemos su identificador.
         response.setPoolId(proceso.getPool().getId());
         return response;
     }
 
-        @Transactional(readOnly = true)
-    public ProcesoRespuestaDto obtener(Long procesoId, String username) {
-        // identificar usuario para conocer su empresa
-        Usuario usuario = usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
-        // el proceso se busca por id y se informa si no existe o no se encuentra
-        Proceso proceso = procesoRepository.findById(procesoId)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El proceso no existe"));
-        // evitar que un usuario consulte procesos de otra empresa
-        if (!proceso.getEmpresa().getId().equals(usuario.getEmpresa().getId())) {
-            throw new UsuarioSinPermisoException("El proceso no pertenece a la empresa del usuario");
-        }
-        return toDto(proceso);
-    }
-
-    public boolean puedeEditar(String username) {
-        // el rol se consulta en el servidor
-        Usuario usuario = usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
-        // solo rol administrador o editor puede modificar procesos
-        return usuario.getRol() == RolUsuario.ADMINISTRADOR || usuario.getRol() == RolUsuario.EDITOR;
-    }
-
-        // actualiza los datos básicos y guarda su historial dentro de la misma transaccion
-    @Transactional
-    public ProcesoRespuestaDto editar(Long procesoId, EditarProcesoDto dto, String username) {
-        // permisos y empresa del usuario autenticado se toman de la sesion
-        Usuario usuario = usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
-        // edición no esta permitida a usuarios con rol de solo lectura
-        validarRolEditor(usuario);
-
-        // se carga la entidad existente para modificarla sin crear un proceso nuevo
-        Proceso proceso = procesoRepository.findById(procesoId)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El proceso no existe"));
-        // qunque alguien conozca el id solo puede modificar procesos de su empresa
-        if (!proceso.getEmpresa().getId().equals(usuario.getEmpresa().getId())) {
-            throw new UsuarioSinPermisoException("El proceso no pertenece a la empresa del usuario");
-        }
-        // si el nombre cambió debe seguir siendo único dentro de la empresa
-        if (!proceso.getNombre().equalsIgnoreCase(dto.getNombre().trim())
-                && procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(usuario.getEmpresa().getId(), dto.getNombre().trim())) {
-            throw new NombreProcesoDuplicadoException("Ya existe un proceso con ese nombre en la empresa");
-        }
-
-        // guardamos el valor anterior antes de sobrescribirlo en el historial 
-        String estadoAnterior = proceso.getEstado().name();
-        // resumen permite saber qué información se modificó en esta operación
-        String cambios = construirCambios(proceso, dto);
-        // solo se actualizan los campos básicos solicitados 
-        proceso.setNombre(dto.getNombre().trim());
-        proceso.setDescripcion(dto.getDescripcion());
-        proceso.setCategoria(dto.getCategoria());
-        proceso.setEstado(dto.getEstado());
-        // no se toca el pool ni la empresa porque no se pueden cambiar desde la edición básica
-        procesoRepository.save(proceso);
-
-        // el historial queda ligado al proceso y al usuario que hizo el cambio
-        HistorialProceso historial = new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
-                estadoAnterior);
-        // proceso e historial se guardan juntos por la transacción
-        historialProcesoRepository.save(historial);
-        return toDto(proceso);
-    }
-
-    // centraliza la regla de permisos para que no dependa de algo mas que solo del rol del usuario
-    private void validarRolEditor(Usuario usuario) {
-        if (usuario.getRol() != RolUsuario.ADMINISTRADOR && usuario.getRol() != RolUsuario.EDITOR) {
-            throw new UsuarioSinPermisoException("Solo un administrador o editor puede modificar procesos");
-        }
-    }
-
-    private String construirCambios(Proceso proceso, EditarProcesoDto dto) {
-        // Se conserva un resumen y los valores estructurados siguen en las tablas principales
-        return "nombre: '" + proceso.getNombre() + "' -> '" + dto.getNombre().trim()
-                + "'; descripcion actualizada; categoria: '" + proceso.getCategoria() + "' -> '"
-                + dto.getCategoria() + "'; estado: '" + proceso.getEstado() + "' -> '" + dto.getEstado() + "'";
+    private HistorialProcesoRespuestaDto toHistorialDto(HistorialProceso historial) {
+        HistorialProcesoRespuestaDto respuesta = new HistorialProcesoRespuestaDto();
+        respuesta.setFecha(historial.getFecha());
+        respuesta.setUsuarioCorreo(historial.getUsuario().getUsername());
+        respuesta.setEstadoAnterior(historial.getEstadoAnterior());
+        respuesta.setCambiosRealizados(historial.getCambiosRealizados());
+        return respuesta;
     }
 }

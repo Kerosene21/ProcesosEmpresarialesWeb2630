@@ -45,14 +45,18 @@ public class ProcesoController {
     @GetMapping("/{id}/editar")
     public String editar(@PathVariable("id") Long procesoId, Principal principal, Model model) {
         ProcesoRespuestaDto proceso = procesoService.obtener(procesoId, principal.getName());
-        if (!procesoService.puedeEditar(principal.getName())) {
-            return "redirect:/procesos/" + procesoId;
-        }
         model.addAttribute("proceso", new EditarProcesoDto(proceso.getNombre(), proceso.getDescripcion(),
                 proceso.getCategoria(), proceso.getEstado()));
         model.addAttribute("procesoId", procesoId);
         model.addAttribute("estados", EstadoProceso.values());
         return "procesos/formularioprocesoseditar";
+    }
+
+    @GetMapping("/{id}/historial")
+    public String historial(@PathVariable("id") Long procesoId, Principal principal, Model model) {
+        model.addAttribute("proceso", procesoService.obtener(procesoId, principal.getName()));
+        model.addAttribute("historial", procesoService.consultarHistorial(procesoId, principal.getName()));
+        return "procesos/historial";
     }
 
     @PostMapping("/{id}")
@@ -76,9 +80,9 @@ public class ProcesoController {
         if (result.hasErrors()) {
             return "procesos/formularioprocesos";
         }
-        procesoService.crear(dto, principal.getName());
+        ProcesoRespuestaDto creado = procesoService.crear(dto, principal.getName());
         // Después de guardar redirigimos para que recargar la página no repita el POST.
         redirectAttributes.addFlashAttribute("mensaje", "Proceso creado en estado borrador");
-        return "redirect:/procesos/nuevo";
+        return "redirect:/procesos/" + creado.getId();
     }
 }

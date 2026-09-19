@@ -17,6 +17,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
 import java.security.Principal;
+import java.time.LocalDateTime;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 
@@ -97,18 +100,8 @@ class ProcesoControllerTest {
     }
 
     @Test
-    void elFormularioDeEdicionDevuelveAlDetalleCuandoElUsuarioNoPuedeEditar() throws Exception {
-        when(procesoService.obtener(5L, USERNAME)).thenReturn(procesoExistente());
-        when(procesoService.puedeEditar(USERNAME)).thenReturn(false);
-
-        mockMvc.perform(get("/procesos/5/editar").principal(PRINCIPAL))
-                .andExpect(redirectedUrl("/procesos/5"));
-    }
-
-    @Test
     void elFormularioDeEdicionSePrecargaConLosDatosActualesDelProceso() throws Exception {
         when(procesoService.obtener(5L, USERNAME)).thenReturn(procesoExistente());
-        when(procesoService.puedeEditar(USERNAME)).thenReturn(true);
 
         MvcResult resultado = mockMvc.perform(get("/procesos/5/editar").principal(PRINCIPAL))
                 .andExpect(status().isOk())
@@ -177,7 +170,7 @@ class ProcesoControllerTest {
     }
 
     @Test
-    void crearDelegaEnElServicioYRedirigeAlFormularioConElMensajeDeConfirmacion() throws Exception {
+    void crearDelegaEnElServicioYRedirigeAlDetalleDelProcesoCreado() throws Exception {
         when(procesoService.crear(any(CrearProcesoDto.class), anyString())).thenReturn(procesoExistente());
 
         mockMvc.perform(post("/procesos")
@@ -185,7 +178,7 @@ class ProcesoControllerTest {
                 .param("nombre", "Ventas")
                 .param("descripcion", "Proceso comercial")
                 .param("categoria", "Comercial"))
-                .andExpect(redirectedUrl("/procesos/nuevo"))
+                .andExpect(redirectedUrl("/procesos/5"))
                 .andExpect(flash().attribute("mensaje", "Proceso creado en estado borrador"));
 
         ArgumentCaptor<CrearProcesoDto> enviado = ArgumentCaptor.forClass(CrearProcesoDto.class);
@@ -193,5 +186,52 @@ class ProcesoControllerTest {
         assertThat(enviado.getValue().getNombre()).isEqualTo("Ventas");
         assertThat(enviado.getValue().getDescripcion()).isEqualTo("Proceso comercial");
         assertThat(enviado.getValue().getCategoria()).isEqualTo("Comercial");
+    }
+
+    @Test
+    void elHistorialMuestraLasEntradasDelProcesoConSuUsuarioYSuFecha() throws Exception {
+        when(procesoService.obtener(5L, USERNAME)).thenReturn(procesoExistente());
+        when(procesoService.consultarHistorial(5L, USERNAME)).thenReturn(List.of(
+                entradaHistorial("estado: 'BORRADOR' -> 'PUBLICADO'", "BORRADOR"),
+                entradaHistorial("nombre: 'Ventas' -> 'Ventas Corporativas'", "BORRADOR")));
+
+        MvcResult resultado = mockMvc.perform(get("/procesos/5/historial").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(view().name("procesos/historial"))
+                .andExpect(model().attributeExists("proceso"))
+                .andReturn();
+
+        @SuppressWarnings("unchecked")
+        List<HistorialProcesoRespuestaDto> historial =
+                (List<HistorialProcesoRespuestaDto>) resultado.getModelAndView().getModel().get("historial");
+        assertThat(historial).hasSize(2);
+        assertThat(historial.get(0).getCambiosRealizados()).isEqualTo("estado: 'BORRADOR' -> 'PUBLICADO'");
+        assertThat(historial.get(0).getUsuarioCorreo()).isEqualTo(USERNAME);
+        assertThat(historial.get(0).getFecha()).isNotNull();
+    }
+
+    @Test
+    void elHistorialVacioSeMuestraSinEntradas() throws Exception {
+        when(procesoService.obtener(5L, USERNAME)).thenReturn(procesoExistente());
+        when(procesoService.consultarHistorial(5L, USERNAME)).thenReturn(List.of());
+
+        MvcResult resultado = mockMvc.perform(get("/procesos/5/historial").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(view().name("procesos/historial"))
+                .andReturn();
+
+        @SuppressWarnings("unchecked")
+        List<HistorialProcesoRespuestaDto> historial =
+                (List<HistorialProcesoRespuestaDto>) resultado.getModelAndView().getModel().get("historial");
+        assertThat(historial).isEmpty();
+    }
+
+    private HistorialProcesoRespuestaDto entradaHistorial(String cambios, String estadoAnterior) {
+        HistorialProcesoRespuestaDto entrada = new HistorialProcesoRespuestaDto();
+        entrada.setFecha(LocalDateTime.now());
+        entrada.setUsuarioCorreo(USERNAME);
+        entrada.setEstadoAnterior(estadoAnterior);
+        entrada.setCambiosRealizados(cambios);
+        return entrada;
     }
 }

@@ -15,20 +15,24 @@ Criterios de aceptación:
 
 ## Qué implementamos
 
-La vertical de creación ya existía en el repositorio (commit `fc03261`). En este bloque **no se
-modificó código de producción**: se escribieron pruebas de caracterización que documentan y
-verifican el comportamiento real, y se detalla abajo lo que quedó comprobado.
+La vertical de creación ya existía en el repositorio (commit `fc03261`). El primer bloque no
+modificó código de producción: solo añadió pruebas de caracterización. El bloque de cierre de
+HU-04/HU-05 **sí lo modificó**, para tapar dos huecos reales: la falta de comprobación de rol al
+crear y la redirección posterior al alta. Ambos se detallan al final del documento.
 
-La ruta completa es:
+La ruta completa, ya con los cambios aplicados, es:
 
 ```
 GET  /procesos/nuevo  → formularioprocesos.html        (CrearProcesoDto vacío)
+                         └─ requiere rol ADMINISTRADOR o EDITOR
 POST /procesos        → ProcesoController.crear
+                         ├─ requiere rol ADMINISTRADOR o EDITOR
                          ├─ BindingResult con errores → vuelve a formularioprocesos.html
-                         ├─ sin Principal             → redirect:/login
                          └─ ProcesoService.crear(dto, username)
                               ├─ UsuarioRepository.findByUsername(username)
                               │    └─ si no existe → RecursoNoEncontradoException
+                              ├─ validarRolDeEscritura(usuario)
+                              │    └─ SOLO_LECTURA → UsuarioSinPermisoException
                               ├─ empresaId = usuario.getEmpresa().getId()
                               ├─ existsByEmpresaIdAndNombreIgnoreCase(empresaId, nombre.trim())
                               │    └─ si existe → NombreProcesoDuplicadoException
@@ -36,14 +40,18 @@ POST /procesos        → ProcesoController.crear
                               ├─ pool nuevo con el nombre de la empresa
                               └─ ProcesoRepository.save(proceso)   → PostgreSQL (cascade al pool)
                                    └─ DataIntegrityViolationException → NombreProcesoDuplicadoException
-                         → redirect (Post/Redirect/Get) a /procesos/nuevo
+                         → redirect (Post/Redirect/Get) a /procesos/{id}
 ```
 
 Existe además una ruta REST equivalente: `POST /api/procesos`, que responde `201 Created` con la
-cabecera `Location` del proceso nuevo, o `401` si no hay usuario autenticado.
+cabecera `Location` del proceso nuevo, `401` si no hay usuario autenticado y `403` si el usuario
+no tiene rol de escritura.
 
 ## Reglas verificadas
 
+- **Solo `ADMINISTRADOR` y `EDITOR` pueden crear.** `SOLO_LECTURA` recibe `UsuarioSinPermisoException`
+  desde `ProcesoService` y `403` desde el `SecurityFilterChain`. Se detalla en la actualización del
+  final de este documento.
 - **La empresa sale del usuario autenticado, nunca del formulario.** El DTO de entrada solo lleva
   nombre, descripción y categoría; no existe forma de que el cliente elija otra empresa.
 - **Nombre único por empresa, sin distinguir mayúsculas.** Se comprueba con
@@ -122,11 +130,14 @@ autenticación; `400` con cuerpo inválido; y `409` cuando el nombre está dupli
 4. Enviar el formulario vacío: aparecen los tres mensajes de campo obligatorio.
 5. Enviar un nombre de más de 150 caracteres: aparece el mensaje de longitud.
 
-A partir del punto 6 hace falta un usuario autenticado, que todavía no existe (ver pendientes). El
-comportamiento se demuestra por ahora con las pruebas:
+6. Registrar una empresa, iniciar sesión con su administrador y crear un proceso con datos
+   correctos: la aplicación lleva al **detalle del proceso recién creado**, en estado `BORRADOR`.
+7. Crear otro proceso con el mismo nombre: aparece el error de nombre duplicado.
+8. Crear un usuario `SOLO_LECTURA` desde `/usuarios`, iniciar sesión con él y abrir
+   `http://localhost:8080/procesos/nuevo`: aparece la página de acceso denegado.
 
 ```bash
-./mvnw -Dtest=ProcesoServiceTest,CrearProcesoDtoTest,ProcesoControllerTest,ProcesoRestControllerTest test
+./mvnw -Dtest=ProcesoServiceTest,CrearProcesoDtoTest,ProcesoControllerTest,ProcesoRestControllerTest,SeguridadProcesosTest test
 ```
 
 ## Qué quedó pendiente
@@ -161,3 +172,43 @@ Con Spring Security en marcha, dos de los pendientes de arriba quedaron resuelto
 
 El resto de pendientes (listado de procesos por empresa, redirección tras crear, unicidad a nivel
 de tabla) sigue igual. El detalle está en [HU-03 · Inicio de sesión](HU-03-inicio-sesion.md).
+
+## Actualización tras el cierre de HU-04/HU-05
+
+### Permiso de creación (hueco corregido)
+
+`ProcesoService.crear` **no comprobaba el rol**: cualquier usuario autenticado, incluido un
+`SOLO_LECTURA`, podía crear procesos. La regla ya existía para editar (`validarRolEditor`), así que
+**se reutilizó en lugar de duplicarla**: el método pasó a llamarse `validarRolDeEscritura` —porque
+ahora guarda creación y edición— y su mensaje cubre las dos operaciones.
+
+La comprobación ocurre **antes** de buscar duplicados, de modo que un `SOLO_LECTURA` ni siquiera
+provoca una consulta a la tabla de procesos.
+
+La regla se aplica en dos capas:
+
+| Capa | Mecanismo | Alcance |
+|---|---|---|
+| Filtro | `GET /procesos/nuevo`, `GET /procesos/*/editar`, `POST /procesos`, `POST /procesos/*` con `hasAnyRole("ADMINISTRADOR", "EDITOR")` | Rutas MVC |
+| Negocio | `ProcesoService.validarRolDeEscritura` | Toda llamada al servicio, incluida la API REST |
+
+**Las rutas `/api/**` no llevan regla de rol en el filtro a propósito.** Si la llevaran, el
+`accessDeniedPage` respondería HTML y rompería el contrato JSON de la API. Como el servicio aplica
+la misma regla, un `SOLO_LECTURA` que use la API sigue recibiendo
+`403 {"codigo":"USUARIO_SIN_PERMISO"}`, que es lo que ya estaba documentado y probado.
+
+`GET /procesos/{id}` y `GET /procesos/{id}/historial` **siguen abiertos a `SOLO_LECTURA`**: ese rol
+consulta, no escribe.
+
+### Redirección tras crear (hueco corregido)
+
+Antes, crear un proceso redirigía de nuevo a `/procesos/nuevo` y el proceso recién creado quedaba
+fuera de la vista. Ahora redirige a **`/procesos/{id}`**, el detalle del proceso creado, que ya
+existía y funciona. Se mantiene el patrón Post/Redirect/Get, así que recargar no repite el alta.
+
+### Qué sigue pendiente de HU-04
+
+- **No hay listado de procesos por empresa.** Sigue sin existir una pantalla con todos los procesos
+  de la empresa; se llega al detalle por el enlace que deja la creación o por URL directa.
+- **Unicidad a nivel de tabla.** `uk_proceso_empresa_nombre` se ejercita en CI a través de las
+  pruebas de integración, pero no hay una prueba dedicada que la fuerce con dos altas simultáneas.

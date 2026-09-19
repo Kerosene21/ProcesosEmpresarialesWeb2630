@@ -15,34 +15,38 @@ Criterios de aceptación:
 
 ## Qué implementamos
 
-La vertical de edición ya existía en el repositorio (commit `fc03261`). En este bloque **no se
-modificó código de producción**: se escribieron pruebas de caracterización que documentan y
-verifican el comportamiento real.
+La vertical de edición ya existía en el repositorio (commit `fc03261`). El primer bloque no modificó
+código de producción: solo añadió pruebas de caracterización. El bloque de cierre de HU-04/HU-05
+**sí lo modificó**, para tapar dos huecos reales: el historial era demasiado grueso y no se podía
+consultar. Se detalla al final del documento.
 
-La ruta completa es:
+La ruta completa, ya con los cambios aplicados, es:
 
 ```
 GET  /procesos/{id}        → ProcesoController.ver
-                              ├─ sin Principal → redirect:/login
                               └─ proceso.html con el atributo puedeEditar
 
+GET  /procesos/{id}/historial → ProcesoController.historial
+                              └─ historial.html (cualquier rol de la empresa)
+
 GET  /procesos/{id}/editar → ProcesoController.editar
-                              ├─ sin Principal        → redirect:/login
-                              ├─ sin permiso de edición → redirect:/procesos/{id}
+                              ├─ requiere rol ADMINISTRADOR o EDITOR
                               └─ formularioprocesoseditar.html precargado
 
 POST /procesos/{id}        → ProcesoController.actualizar
+                              ├─ requiere rol ADMINISTRADOR o EDITOR
                               ├─ BindingResult con errores → vuelve al formulario
-                              ├─ sin Principal             → redirect:/login
                               └─ ProcesoService.editar(id, dto, username)
                                    ├─ UsuarioRepository.findByUsername(username)
                                    │    └─ si no existe → RecursoNoEncontradoException
-                                   ├─ validarRolEditor(usuario)
+                                   ├─ validarRolDeEscritura(usuario)
                                    │    └─ SOLO_LECTURA → UsuarioSinPermisoException
                                    ├─ ProcesoRepository.findById(id)
                                    │    └─ si no existe → RecursoNoEncontradoException
                                    ├─ proceso de otra empresa → UsuarioSinPermisoException
                                    ├─ si el nombre cambió y ya existe → NombreProcesoDuplicadoException
+                                   ├─ construirCambios(proceso, dto)
+                                   │    └─ si no cambió nada → devuelve el proceso sin guardar nada
                                    ├─ ProcesoRepository.save(proceso)
                                    └─ HistorialProcesoRepository.save(historial)
                               → redirect a /procesos/{id}
@@ -53,9 +57,10 @@ autenticación, `403` sin permisos, `404` si el proceso no existe y `409` si el 
 
 ## Reglas verificadas
 
-- **Solo `ADMINISTRADOR` o `EDITOR` editan.** La regla está centralizada en `validarRolEditor` y se
-  comprueba **antes** de cargar el proceso, de modo que un usuario sin permisos no puede siquiera
-  averiguar si un identificador existe.
+- **Solo `ADMINISTRADOR` o `EDITOR` editan.** La regla está centralizada en `validarRolDeEscritura`
+  y se comprueba **antes** de cargar el proceso, de modo que un usuario sin permisos no puede
+  siquiera averiguar si un identificador existe. Desde el cierre de HU-04/HU-05 ese mismo método
+  guarda también la creación.
 - **`SOLO_LECTURA` consulta pero no edita.** `obtener` no aplica ninguna restricción de rol; `editar`
   la rechaza; y la vista recibe `puedeEditar` para ocultar la acción.
 - **Aislamiento entre empresas.** Tanto `obtener` como `editar` comparan la empresa del proceso con
@@ -67,9 +72,12 @@ autenticación, `403` sin permisos, `404` si el proceso no existe y `409` si el 
   un orden de transición.
 - **Unicidad del nombre al editar.** Solo se consulta el duplicado **si el nombre cambió**. Guardar
   el mismo nombre, o cambiar únicamente mayúsculas y minúsculas, no produce un falso duplicado.
-- **Historial por cada edición.** Se guarda un `HistorialProceso` con el proceso, el usuario que lo
-  modificó, la fecha (`LocalDateTime.now()`), el estado anterior y un resumen de los cambios. Los
-  valores anteriores se leen antes de sobrescribir los campos.
+- **Historial por cada edición que cambia algo.** Se guarda un `HistorialProceso` con el proceso, el
+  usuario que lo modificó, la fecha (`LocalDateTime.now()`), el estado anterior y un resumen que
+  lista **solo los campos modificados**. Una edición que no cambia ningún valor no genera entrada
+  ni vuelve a guardar el proceso. Los valores anteriores se leen antes de sobrescribir los campos.
+- **El historial se puede consultar.** `GET /procesos/{id}/historial` lo muestra de la edición más
+  reciente a la más antigua, y está acotado a la empresa del usuario autenticado.
 - **Todo o nada.** `editar` es `@Transactional`: el proceso y su entrada de historial se confirman
   juntos o no se confirma ninguno.
 - **Mismas validaciones que la creación.** `EditarProcesoDto` repite las restricciones de
@@ -198,3 +206,69 @@ Con Spring Security en marcha, tres de los pendientes de arriba quedaron resuelt
 
 El resto de pendientes (resumen del historial, pantalla de historial, transiciones de estado) sigue
 igual. El detalle está en [HU-03 · Inicio de sesión](HU-03-inicio-sesion.md).
+
+## Actualización tras el cierre de HU-04/HU-05
+
+### Historial granular (hueco corregido)
+
+Antes, `construirCambios` escribía **siempre los cuatro campos**, incluido el literal fijo
+`descripcion actualizada`, aunque la descripción no hubiera cambiado. Además, guardar el formulario
+sin tocar nada generaba igualmente una entrada de historial.
+
+Ahora `construirCambios` compara valor anterior contra valor nuevo campo por campo y solo añade los
+que realmente cambiaron:
+
+| Edición | Resumen guardado |
+|---|---|
+| Solo el estado | `estado: 'BORRADOR' -> 'PUBLICADO'` |
+| Solo el nombre | `nombre: 'Ventas' -> 'Ventas Corporativas'` |
+| Solo la categoría | `categoria: 'Comercial' -> 'Operaciones'` |
+| Nombre y estado | `nombre: 'Ventas' -> 'Ventas Corporativas'; estado: 'BORRADOR' -> 'PUBLICADO'` |
+| Nada | *(no se crea entrada y no se vuelve a guardar el proceso)* |
+
+La comparación del nombre se hace sobre el valor ya recortado, así que añadir espacios alrededor no
+cuenta como cambio. Sí cuenta un cambio de mayúsculas, porque es un valor distinto.
+
+`estadoAnterior` se sigue guardando siempre en cada entrada, aunque el estado no haya sido uno de
+los campos modificados: es el estado en que se encontraba el proceso cuando se hizo esa edición.
+
+### Consulta de historial (hueco corregido)
+
+Antes el historial se escribía pero no había forma de leerlo. Ahora:
+
+- `HistorialProcesoRepository.findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(procesoId, empresaId)`
+  ordena por fecha descendente y **acota la consulta a la empresa**.
+- `ProcesoService.consultarHistorial(procesoId, username)` comprueba primero que el proceso sea de
+  la empresa del usuario —así un proceso ajeno devuelve `UsuarioSinPermisoException` en vez de una
+  lista vacía— y después consulta. Que el `empresaId` viaje también en la consulta es defensa en
+  profundidad: aunque alguien quitara la comprobación previa, la consulta seguiría sin poder cruzar
+  empresas.
+- `HistorialProcesoRespuestaDto` expone únicamente fecha, correo del usuario, estado anterior y
+  resumen de cambios. No expone identificadores internos ni datos sensibles.
+
+### Vista de historial
+
+`GET /procesos/{id}/historial` muestra una tabla con fecha, usuario, estado anterior y cambios, y se
+enlaza desde el detalle del proceso. **Es accesible para cualquier rol de la empresa**, incluido
+`SOLO_LECTURA`, porque consultar no es editar.
+
+Esto **no es HU-07**: es solo la evidencia funcional del criterio de historial de HU-05. No hay
+comparación entre versiones, ni restauración, ni paginación.
+
+### Transiciones de estado: sin restricciones nuevas
+
+Se revisaron los criterios oficiales de HU-04 y HU-05. HU-04 dice que «el estado inicial es
+`BORRADOR` y luego puede pasar a `PUBLICADO`», y ninguna de las dos historias prohíbe volver de
+`PUBLICADO` a `BORRADOR`.
+
+Por eso **no se implementó ninguna máquina de estados**: volver a `BORRADOR` sigue siendo posible.
+Si el curso quiere restringirlo, es una decisión funcional que debe pedirse explícitamente; el
+punto donde se aplicaría es `ProcesoService.editar`, justo antes de `construirCambios`.
+
+### Qué sigue pendiente de HU-05
+
+- **El historial no se pagina.** Un proceso con muchas ediciones devuelve la lista completa.
+- **No hay comparación ni restauración de versiones.** El historial es un registro de auditoría en
+  texto, no un control de versiones.
+- **No se registra quién creó el proceso.** El historial solo cubre ediciones; el alta no deja
+  entrada.
