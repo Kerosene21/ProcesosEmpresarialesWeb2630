@@ -55,6 +55,7 @@ co.edu.javeriana.procesosempresariales
 | HU-03 · Inicio de sesión | Implementada |
 | HU-04 · Crear proceso | Implementada |
 | HU-05 · Editar proceso | Implementada |
+| HU-06 · Eliminar proceso | Implementada |
 
 Con la autenticación en marcha, las pantallas de proceso que dependen del usuario autenticado ya
 son accesibles de extremo a extremo: se registra una empresa, se inicia sesión con las credenciales
@@ -66,17 +67,32 @@ poder iniciar sesión, pero su cuenta y su historial de ediciones se conservan, 
 empresa siguen disponibles. La invitación se hace creando la cuenta con el correo como identificador
 de acceso: **no hay envío de correo ni integración SMTP**.
 
-Sobre los procesos, el rol decide qué se puede hacer: `ADMINISTRADOR` y `EDITOR` crean y editan;
-`SOLO_LECTURA` consulta el proceso y su historial, pero no puede crear ni modificar. Cada edición
-que cambia algún dato deja una entrada de historial con la fecha, el usuario, el estado anterior y
-**solo los campos modificados**; se consulta en `GET /procesos/{id}/historial`.
+Sobre los procesos, el rol decide qué se puede hacer:
 
-HU-06 y HU-07 no están implementadas. La vista de historial es la evidencia del criterio de HU-05,
-no HU-07.
+| Rol | Crear | Editar | Eliminar | Consultar proceso e historial |
+|---|---|---|---|---|
+| `ADMINISTRADOR` | ✅ | ✅ | ✅ | ✅ |
+| `EDITOR` | ✅ | ✅ | ❌ | ✅ |
+| `SOLO_LECTURA` | ❌ | ❌ | ❌ | ✅ |
+
+Cada edición que cambia algún dato deja una entrada de historial con la fecha, el usuario, el estado
+anterior y **solo los campos modificados**; se consulta en `GET /procesos/{id}/historial`.
+
+**Solo el administrador de la empresa elimina procesos, y siempre con confirmación previa**: la
+acción abre una página que muestra el proceso y advierte del efecto, y solo el envío de ese
+formulario ejecuta la eliminación. La eliminación es **lógica** (`eliminado = true`, la
+representación persistente del estado inactivo): el proceso permanece en la base de datos con su
+pool, su empresa y todo su historial, la eliminación queda registrada como una entrada más, y el
+proceso pasa a ser solo consultable —no se puede editar ni volver a eliminar—. El nombre de un
+proceso eliminado **sigue reservado** dentro de su empresa.
+
+HU-07 no está implementada: no hay listado, búsqueda, filtros ni paginación de procesos. Cuando se
+implemente, el listado por defecto excluirá los procesos inactivos y tendrá un filtro para
+consultarlos. La vista de historial es la evidencia del criterio de HU-05, no HU-07.
 
 ## Historias en desarrollo
 
-El bloque actual cubre HU-01 a HU-05. La documentación de cada historia está en
+El bloque actual cubre HU-01 a HU-06. La documentación de cada historia está en
 [`docs/historias/`](docs/historias/).
 
 ## Requisitos para ejecutar
@@ -112,6 +128,9 @@ La URL de la base de pruebas es fija y no se puede redirigir por variables de en
 > esquema o migrar de forma aditiva) están en
 > [HU-03 · Migración de base de datos](docs/historias/HU-03-inicio-sesion.md#migración-de-base-de-datos).
 > En CI no ocurre: el perfil de pruebas usa `create-drop` sobre un contenedor limpio.
+>
+> La columna `eliminado` que añadió HU-06 a `proceso` **no** tiene ese problema: se declara con
+> valor por defecto, así que `ddl-auto=update` la añade sola aunque la tabla ya tenga filas.
 
 ### Ejecutar
 
@@ -127,12 +146,13 @@ Las pruebas que no levantan el contexto completo tampoco necesitan base de datos
 de seguridad, que usan `@WebMvcTest` y sí ejecutan los filtros de Spring Security:
 
 ```bash
-./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest' test
+./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest,!EliminacionProcesosIntegracionTest' test
 ```
 
-La suite completa incluye cuatro clases que levantan el contexto de Spring
+La suite completa incluye cinco clases que levantan el contexto de Spring
 (`ProcesosEmpresarialesWeb2630ApplicationTests`, `RegistroYLoginIntegracionTest`,
-`GestionUsuariosIntegracionTest` y `ProcesosYHistorialIntegracionTest`) y sí requieren que
+`GestionUsuariosIntegracionTest`, `ProcesosYHistorialIntegracionTest` y
+`EliminacionProcesosIntegracionTest`) y sí requieren que
 PostgreSQL esté disponible con las credenciales configuradas. En CI corren todas contra el
 contenedor `postgres:16-alpine` del workflow.
 
@@ -170,3 +190,4 @@ Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs
 - [HU-03 · Inicio de sesión](docs/historias/HU-03-inicio-sesion.md)
 - [HU-04 · Crear proceso](docs/historias/HU-04-crear-proceso.md)
 - [HU-05 · Editar proceso](docs/historias/HU-05-editar-proceso.md)
+- [HU-06 · Eliminar proceso](docs/historias/HU-06-eliminar-proceso.md)

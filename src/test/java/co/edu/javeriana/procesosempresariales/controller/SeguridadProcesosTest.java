@@ -193,6 +193,89 @@ class SeguridadProcesosTest {
     }
 
     @Test
+    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
+    void unAdministradorEliminaUnProceso() throws Exception {
+        when(procesoService.eliminar(5L, USERNAME)).thenReturn(proceso());
+
+        mockMvc.perform(post("/procesos/5/eliminar").with(csrf()))
+                .andExpect(redirectedUrl("/procesos/5"));
+
+        verify(procesoService).eliminar(5L, USERNAME);
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "EDITOR")
+    void unEditorNoPuedeEliminarUnProceso() throws Exception {
+        mockMvc.perform(post("/procesos/5/eliminar").with(csrf()))
+                .andExpect(status().isForbidden());
+
+        verify(procesoService, never()).eliminar(anyLong(), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "SOLO_LECTURA")
+    void unUsuarioDeSoloLecturaNoPuedeEliminarUnProceso() throws Exception {
+        mockMvc.perform(post("/procesos/5/eliminar").with(csrf()))
+                .andExpect(status().isForbidden());
+
+        verify(procesoService, never()).eliminar(anyLong(), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
+    void unAdministradorAbreLaPaginaDeConfirmacionSinEliminarNada() throws Exception {
+        when(procesoService.obtenerParaEliminar(5L, USERNAME)).thenReturn(proceso());
+
+        mockMvc.perform(get("/procesos/5/eliminar")).andExpect(status().isOk());
+
+        verify(procesoService).obtenerParaEliminar(5L, USERNAME);
+        verify(procesoService, never()).eliminar(anyLong(), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "EDITOR")
+    void unEditorNoAbreLaPaginaDeConfirmacion() throws Exception {
+        mockMvc.perform(get("/procesos/5/eliminar")).andExpect(status().isForbidden());
+
+        verify(procesoService, never()).obtenerParaEliminar(anyLong(), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "SOLO_LECTURA")
+    void unUsuarioDeSoloLecturaNoAbreLaPaginaDeConfirmacion() throws Exception {
+        mockMvc.perform(get("/procesos/5/eliminar")).andExpect(status().isForbidden());
+
+        verify(procesoService, never()).obtenerParaEliminar(anyLong(), anyString());
+    }
+
+    @Test
+    void laPaginaDeConfirmacionExigeSesion() throws Exception {
+        mockMvc.perform(get("/procesos/5/eliminar"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+
+        verify(procesoService, never()).obtenerParaEliminar(anyLong(), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
+    void eliminarUnProcesoSinTokenCsrfSeRechaza() throws Exception {
+        mockMvc.perform(post("/procesos/5/eliminar"))
+                .andExpect(status().isForbidden());
+
+        verify(procesoService, never()).eliminar(anyLong(), anyString());
+    }
+
+    @Test
+    void eliminarUnProcesoExigeSesion() throws Exception {
+        mockMvc.perform(post("/procesos/5/eliminar").with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+
+        verify(procesoService, never()).eliminar(anyLong(), anyString());
+    }
+
+    @Test
     void elHistorialExigeSesion() throws Exception {
         mockMvc.perform(get("/procesos/5/historial"))
                 .andExpect(status().is3xxRedirection())

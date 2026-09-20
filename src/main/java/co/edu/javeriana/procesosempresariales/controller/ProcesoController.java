@@ -39,6 +39,7 @@ public class ProcesoController {
     public String ver(@PathVariable("id") Long procesoId, Principal principal, Model model) {
         model.addAttribute("proceso", procesoService.obtener(procesoId, principal.getName()));
         model.addAttribute("puedeEditar", procesoService.puedeEditar(principal.getName()));
+        model.addAttribute("puedeEliminar", procesoService.puedeEliminar(principal.getName()));
         return "procesos/proceso";
     }
 
@@ -70,6 +71,21 @@ public class ProcesoController {
         }
         procesoService.editar(procesoId, dto, principal.getName());
         redirectAttributes.addFlashAttribute("mensaje", "Proceso actualizado correctamente");
+        return "redirect:/procesos/" + procesoId;
+    }
+
+    @GetMapping("/{id}/eliminar")
+    public String confirmarEliminacion(@PathVariable("id") Long procesoId, Principal principal, Model model) {
+        model.addAttribute("proceso", procesoService.obtenerParaEliminar(procesoId, principal.getName()));
+        return "procesos/confirmareliminacion";
+    }
+
+    @PostMapping("/{id}/eliminar")
+    public String eliminar(@PathVariable("id") Long procesoId, Principal principal,
+            RedirectAttributes redirectAttributes) {
+        ProcesoRespuestaDto eliminado = procesoService.eliminar(procesoId, principal.getName());
+        redirectAttributes.addFlashAttribute("mensaje",
+                "El proceso " + eliminado.getNombre() + " quedo eliminado y conserva su historial");
         return "redirect:/procesos/" + procesoId;
     }
 

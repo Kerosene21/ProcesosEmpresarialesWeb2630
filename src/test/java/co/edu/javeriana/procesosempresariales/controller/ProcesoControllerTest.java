@@ -226,6 +226,73 @@ class ProcesoControllerTest {
         assertThat(historial).isEmpty();
     }
 
+    @Test
+    void laConfirmacionDeEliminacionMuestraElProcesoYNoEliminaNada() throws Exception {
+        when(procesoService.obtenerParaEliminar(5L, USERNAME)).thenReturn(procesoExistente());
+
+        MvcResult resultado = mockMvc.perform(get("/procesos/5/eliminar").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(view().name("procesos/confirmareliminacion"))
+                .andReturn();
+
+        ProcesoRespuestaDto proceso = (ProcesoRespuestaDto) resultado.getModelAndView().getModel().get("proceso");
+        assertThat(proceso.getNombre()).isEqualTo("Ventas");
+        assertThat(proceso.isEliminado()).isFalse();
+        verify(procesoService, never()).eliminar(anyLong(), anyString());
+    }
+
+    @Test
+    void elDetalleIndicaSiElUsuarioPuedeEliminarElProceso() throws Exception {
+        when(procesoService.obtener(5L, USERNAME)).thenReturn(procesoExistente());
+        when(procesoService.puedeEditar(USERNAME)).thenReturn(true);
+        when(procesoService.puedeEliminar(USERNAME)).thenReturn(true);
+
+        mockMvc.perform(get("/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("puedeEliminar", true));
+    }
+
+    @Test
+    void elDetalleMarcaComoNoEliminableAQuienNoEsAdministrador() throws Exception {
+        when(procesoService.obtener(5L, USERNAME)).thenReturn(procesoExistente());
+        when(procesoService.puedeEditar(USERNAME)).thenReturn(true);
+        when(procesoService.puedeEliminar(USERNAME)).thenReturn(false);
+
+        mockMvc.perform(get("/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("puedeEditar", true))
+                .andExpect(model().attribute("puedeEliminar", false));
+    }
+
+    @Test
+    void eliminarDelegaEnElServicioYRedirigeAlDetalleDelProceso() throws Exception {
+        ProcesoRespuestaDto eliminado = procesoExistente();
+        eliminado.setEliminado(true);
+        when(procesoService.eliminar(5L, USERNAME)).thenReturn(eliminado);
+
+        mockMvc.perform(post("/procesos/5/eliminar").principal(PRINCIPAL))
+                .andExpect(redirectedUrl("/procesos/5"))
+                .andExpect(flash().attributeExists("mensaje"));
+
+        verify(procesoService).eliminar(5L, USERNAME);
+    }
+
+    @Test
+    void elDetalleIndicaCuandoElProcesoEstaEliminado() throws Exception {
+        ProcesoRespuestaDto eliminado = procesoExistente();
+        eliminado.setEliminado(true);
+        when(procesoService.obtener(5L, USERNAME)).thenReturn(eliminado);
+        when(procesoService.puedeEditar(USERNAME)).thenReturn(true);
+
+        MvcResult resultado = mockMvc.perform(get("/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(view().name("procesos/proceso"))
+                .andReturn();
+
+        ProcesoRespuestaDto proceso = (ProcesoRespuestaDto) resultado.getModelAndView().getModel().get("proceso");
+        assertThat(proceso.isEliminado()).isTrue();
+    }
+
     private HistorialProcesoRespuestaDto entradaHistorial(String cambios, String estadoAnterior) {
         HistorialProcesoRespuestaDto entrada = new HistorialProcesoRespuestaDto();
         entrada.setFecha(LocalDateTime.now());

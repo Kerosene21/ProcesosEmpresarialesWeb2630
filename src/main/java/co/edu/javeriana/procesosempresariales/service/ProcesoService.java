@@ -83,12 +83,17 @@ public class ProcesoService {
         return tieneRolDeEscritura(usuario);
     }
 
+    public boolean puedeEliminar(String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        return esAdministrador(usuario);
+    }
+
     @Transactional
     public ProcesoRespuestaDto editar(Long procesoId, EditarProcesoDto dto, String username) {
         Usuario usuario = usuarioAutenticado(username);
         validarRolDeEscritura(usuario);
 
-        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = procesoActivoDeLaEmpresa(procesoId, usuario);
         String nombreNuevo = dto.getNombre().trim();
         if (!proceso.getNombre().equalsIgnoreCase(nombreNuevo)
                 && procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(usuario.getEmpresa().getId(), nombreNuevo)) {
@@ -107,8 +112,28 @@ public class ProcesoService {
         proceso.setEstado(dto.getEstado());
         procesoRepository.save(proceso);
 
-        historialProcesoRepository.save(new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
-                estadoAnterior));
+        registrarHistorial(proceso, usuario, cambios, estadoAnterior);
+        return toDto(proceso);
+    }
+
+    @Transactional(readOnly = true)
+    public ProcesoRespuestaDto obtenerParaEliminar(Long procesoId, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        validarRolAdministrador(usuario);
+        return toDto(procesoActivoDeLaEmpresa(procesoId, usuario));
+    }
+
+    @Transactional
+    public ProcesoRespuestaDto eliminar(Long procesoId, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        validarRolAdministrador(usuario);
+
+        Proceso proceso = procesoActivoDeLaEmpresa(procesoId, usuario);
+        String estadoAnterior = proceso.getEstado().name();
+        proceso.setEliminado(true);
+        procesoRepository.save(proceso);
+
+        registrarHistorial(proceso, usuario, "proceso eliminado", estadoAnterior);
         return toDto(proceso);
     }
 
@@ -137,6 +162,19 @@ public class ProcesoService {
         return proceso;
     }
 
+    private Proceso procesoActivoDeLaEmpresa(Long procesoId, Usuario usuario) {
+        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
+        if (proceso.isEliminado()) {
+            throw new RecursoNoEncontradoException("El proceso ya fue eliminado");
+        }
+        return proceso;
+    }
+
+    private void registrarHistorial(Proceso proceso, Usuario usuario, String cambios, String estadoAnterior) {
+        historialProcesoRepository.save(new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
+                estadoAnterior));
+    }
+
     private boolean tieneRolDeEscritura(Usuario usuario) {
         return usuario.getRol() == RolUsuario.ADMINISTRADOR || usuario.getRol() == RolUsuario.EDITOR;
     }
@@ -144,6 +182,16 @@ public class ProcesoService {
     private void validarRolDeEscritura(Usuario usuario) {
         if (!tieneRolDeEscritura(usuario)) {
             throw new UsuarioSinPermisoException("Solo un administrador o editor puede crear o modificar procesos");
+        }
+    }
+
+    private boolean esAdministrador(Usuario usuario) {
+        return usuario.getRol() == RolUsuario.ADMINISTRADOR;
+    }
+
+    private void validarRolAdministrador(Usuario usuario) {
+        if (!esAdministrador(usuario)) {
+            throw new UsuarioSinPermisoException("Solo un administrador puede eliminar procesos");
         }
     }
 

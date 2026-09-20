@@ -5,6 +5,7 @@ import java.security.Principal;
 
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,5 +42,11 @@ public class ProcesoRestController {
     public ResponseEntity<ProcesoRespuestaDto> editar(@PathVariable("id") Long procesoId,
             @Valid @RequestBody EditarProcesoDto dto, Principal principal) {
         return ResponseEntity.ok(procesoService.editar(procesoId, dto, principal.getName()));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable("id") Long procesoId, Principal principal) {
+        procesoService.eliminar(procesoId, principal.getName());
+        return ResponseEntity.noContent().build();
     }
 }

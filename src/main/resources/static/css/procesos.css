@@ -25,3 +25,7 @@ button { margin-top: 16px; padding: 10px 16px; border: 1px solid #000; border-ra
 button:hover { color: #000; background: #fff; }
 .error { color: #000; font-weight: bold; }
 .success { padding: 8px; border: 1px solid #000; font-weight: bold; }
+.acciones { margin-top: 24px; display: flex; gap: 16px; flex-wrap: wrap; }
+dl { margin: 0; }
+dt { margin-top: 12px; font-weight: bold; }
+dd { margin: 4px 0 0; }

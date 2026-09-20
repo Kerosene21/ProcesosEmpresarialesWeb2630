@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -201,6 +202,15 @@ class SeguridadRutasTest {
                 .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
 
         verify(procesoService, never()).editar(anyLong(), any(EditarProcesoDto.class), anyString());
+    }
+
+    @Test
+    void laApiDeEliminacionDeProcesosResponde401EnJsonSinAutenticacion() throws Exception {
+        mockMvc.perform(delete("/api/procesos/5").with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
+
+        verify(procesoService, never()).eliminar(anyLong(), anyString());
     }
 
     @Test

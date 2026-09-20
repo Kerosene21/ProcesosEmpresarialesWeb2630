@@ -92,8 +92,12 @@ class ProcesoServiceTest {
     }
 
     private Proceso procesoExistente(Long empresaId) {
+        return procesoExistente(empresaId, false);
+    }
+
+    private Proceso procesoExistente(Long empresaId, boolean eliminado) {
         return new Proceso(5L, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
-                empresa(empresaId, "Alpes Logistica"), new Pool(80L, "Alpes Logistica"));
+                empresa(empresaId, "Alpes Logistica"), new Pool(80L, "Alpes Logistica"), eliminado);
     }
 
     private void existeElProceso(Proceso proceso) {
@@ -767,5 +771,277 @@ class ProcesoServiceTest {
 
         assertThatThrownBy(() -> procesoService.consultarHistorial(5L, USERNAME))
                 .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
+    void unProcesoNuevoNaceSinEstarEliminado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        ProcesoRespuestaDto respuesta = procesoService.crear(formularioCreacion(), USERNAME);
+
+        assertThat(procesoGuardado().isEliminado()).isFalse();
+        assertThat(respuesta.isEliminado()).isFalse();
+    }
+
+    @Test
+    void unAdministradorEliminaUnProceso() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.eliminar(5L, USERNAME);
+
+        assertThat(respuesta.isEliminado()).isTrue();
+    }
+
+    @Test
+    void unEditorNoPuedeEliminarUnProcesoAunqueSiPuedaEditarlo() {
+        autenticar(usuarioAutenticado(RolUsuario.EDITOR));
+
+        assertThatThrownBy(() -> procesoService.eliminar(5L, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage("Solo un administrador puede eliminar procesos");
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void unUsuarioDeSoloLecturaNoPuedeEliminarUnProceso() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+
+        assertThatThrownBy(() -> procesoService.eliminar(5L, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void eliminarCompruebaElRolAntesDeBuscarElProceso() {
+        autenticar(usuarioAutenticado(RolUsuario.EDITOR));
+
+        assertThatThrownBy(() -> procesoService.eliminar(5L, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(procesoRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    void obtenerParaEliminarDevuelveElProcesoActivoAlAdministrador() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.obtenerParaEliminar(5L, USERNAME);
+
+        assertThat(respuesta.getNombre()).isEqualTo("Ventas");
+        assertThat(respuesta.isEliminado()).isFalse();
+        verify(procesoRepository, never()).save(any(Proceso.class));
+    }
+
+    @Test
+    void obtenerParaEliminarExigeRolAdministrador() {
+        autenticar(usuarioAutenticado(RolUsuario.EDITOR));
+
+        assertThatThrownBy(() -> procesoService.obtenerParaEliminar(5L, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(procesoRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    void obtenerParaEliminarRechazaUnProcesoYaEliminado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA, true));
+
+        assertThatThrownBy(() -> procesoService.obtenerParaEliminar(5L, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El proceso ya fue eliminado");
+    }
+
+    @Test
+    void obtenerParaEliminarRechazaUnProcesoDeOtraEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_AJENA));
+
+        assertThatThrownBy(() -> procesoService.obtenerParaEliminar(5L, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+    }
+
+    @Test
+    void puedeEliminarSoloAutorizaAlAdministrador() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+
+        assertThat(procesoService.puedeEliminar(USERNAME)).isTrue();
+    }
+
+    @Test
+    void puedeEliminarNiegaAlEditor() {
+        autenticar(usuarioAutenticado(RolUsuario.EDITOR));
+
+        assertThat(procesoService.puedeEliminar(USERNAME)).isFalse();
+    }
+
+    @Test
+    void puedeEliminarNiegaAlUsuarioDeSoloLectura() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+
+        assertThat(procesoService.puedeEliminar(USERNAME)).isFalse();
+    }
+
+    @Test
+    void unEditorSiguePudiendoCrearYEditarAunqueNoPuedaEliminar() {
+        autenticar(usuarioAutenticado(RolUsuario.EDITOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        assertThat(respuesta.getNombre()).isEqualTo("Ventas Corporativas");
+        assertThat(procesoService.puedeEditar(USERNAME)).isTrue();
+    }
+
+    @Test
+    void eliminarMarcaElProcesoComoEliminadoSinTocarSusDatos() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.eliminar(5L, USERNAME);
+
+        Proceso guardado = procesoGuardado();
+        assertThat(guardado.isEliminado()).isTrue();
+        assertThat(guardado.getId()).isEqualTo(5L);
+        assertThat(guardado.getNombre()).isEqualTo("Ventas");
+        assertThat(guardado.getDescripcion()).isEqualTo("Proceso comercial");
+        assertThat(guardado.getCategoria()).isEqualTo("Comercial");
+        assertThat(guardado.getEstado()).isEqualTo(EstadoProceso.BORRADOR);
+        assertThat(guardado.getEmpresa().getId()).isEqualTo(EMPRESA_PROPIA);
+        assertThat(guardado.getPool().getId()).isEqualTo(80L);
+    }
+
+    @Test
+    void eliminarNuncaBorraFisicamenteElProceso() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.eliminar(5L, USERNAME);
+
+        verify(procesoRepository, never()).delete(any(Proceso.class));
+        verify(procesoRepository, never()).deleteById(anyLong());
+        verify(procesoRepository).save(any(Proceso.class));
+    }
+
+    @Test
+    void eliminarRechazaUnProcesoDeOtraEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_AJENA));
+
+        assertThatThrownBy(() -> procesoService.eliminar(5L, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void eliminarRechazaUnProcesoInexistente() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        when(procesoRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> procesoService.eliminar(404L, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
+    void eliminarRechazaUnUsuarioAutenticadoQueNoExiste() {
+        sinUsuarioAutenticado();
+
+        assertThatThrownBy(() -> procesoService.eliminar(5L, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
+    void eliminarRegistraLaEliminacionEnElHistorialConUsuarioFechaYEstadoAnterior() {
+        Usuario administrador = usuarioAutenticado(RolUsuario.ADMINISTRADOR);
+        autenticar(administrador);
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+        LocalDateTime antes = LocalDateTime.now();
+
+        procesoService.eliminar(5L, USERNAME);
+
+        HistorialProceso historial = historialGuardado();
+        assertThat(historial.getProceso().getId()).isEqualTo(5L);
+        assertThat(historial.getUsuario()).isSameAs(administrador);
+        assertThat(historial.getFecha()).isBetween(antes, LocalDateTime.now());
+        assertThat(historial.getEstadoAnterior()).isEqualTo("BORRADOR");
+        assertThat(historial.getCambiosRealizados()).isEqualTo("proceso eliminado");
+    }
+
+    @Test
+    void eliminarDosVecesRechazaLaSegundaEliminacion() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA, true));
+
+        assertThatThrownBy(() -> procesoService.eliminar(5L, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El proceso ya fue eliminado");
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void editarRechazaUnProcesoEliminado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA, true));
+
+        assertThatThrownBy(() -> procesoService.editar(5L, formularioEdicion(), USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El proceso ya fue eliminado");
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void obtenerDevuelveElProcesoEliminadoMarcadoComoTalParaPoderAuditarlo() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA, true));
+
+        ProcesoRespuestaDto respuesta = procesoService.obtener(5L, USERNAME);
+
+        assertThat(respuesta.getId()).isEqualTo(5L);
+        assertThat(respuesta.getNombre()).isEqualTo("Ventas");
+        assertThat(respuesta.isEliminado()).isTrue();
+    }
+
+    @Test
+    void consultarHistorialSigueDisponibleParaUnProcesoEliminado() {
+        Usuario editor = usuarioAutenticado(RolUsuario.EDITOR);
+        autenticar(editor);
+        Proceso eliminado = procesoExistente(EMPRESA_PROPIA, true);
+        existeElProceso(eliminado);
+        when(historialProcesoRepository.findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(5L, EMPRESA_PROPIA))
+                .thenReturn(List.of(
+                        new HistorialProceso(2L, eliminado, editor, LocalDateTime.now(), "proceso eliminado",
+                                "BORRADOR"),
+                        new HistorialProceso(1L, eliminado, editor, LocalDateTime.now().minusDays(1),
+                                "estado: 'BORRADOR' -> 'PUBLICADO'", "BORRADOR")));
+
+        List<HistorialProcesoRespuestaDto> historial = procesoService.consultarHistorial(5L, USERNAME);
+
+        assertThat(historial).hasSize(2);
+        assertThat(historial.get(0).getCambiosRealizados()).isEqualTo("proceso eliminado");
+        assertThat(historial.get(1).getCambiosRealizados()).isEqualTo("estado: 'BORRADOR' -> 'PUBLICADO'");
+    }
+
+    @Test
+    void elNombreDeUnProcesoEliminadoSigueReservadoEnLaEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        when(procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(EMPRESA_PROPIA, "Ventas")).thenReturn(true);
+
+        assertThatThrownBy(() -> procesoService.crear(formularioCreacion(), USERNAME))
+                .isInstanceOf(NombreProcesoDuplicadoException.class);
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
     }
 }

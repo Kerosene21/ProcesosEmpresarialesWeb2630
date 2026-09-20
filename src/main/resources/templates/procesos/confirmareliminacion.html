@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confirmar eliminación</title>
+    <link rel="stylesheet" th:href="@{/css/empresas.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="panel" aria-labelledby="confirmar-title">
+        <p class="eyebrow">Eliminar proceso</p>
+        <h1 id="confirmar-title">¿Eliminar este proceso?</h1>
+
+        <p class="error">
+            El proceso pasara a estado inactivo y dejara de aparecer en los listados. No se borra de
+            la base de datos: se conservan su diagrama, su empresa y todo su historial de cambios.
+        </p>
+
+        <dl>
+            <dt>Nombre</dt>
+            <dd th:text="${proceso.nombre}">Nombre del proceso</dd>
+
+            <dt>Categoría</dt>
+            <dd th:text="${proceso.categoria}">Categoría</dd>
+
+            <dt>Estado</dt>
+            <dd th:text="${proceso.estado}">BORRADOR</dd>
+        </dl>
+
+        <form th:action="@{/procesos/{id}/eliminar(id=${proceso.id})}" method="post">
+            <button type="submit">Confirmar eliminación</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{id}(id=${proceso.id})}">Cancelar y volver al proceso</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>
