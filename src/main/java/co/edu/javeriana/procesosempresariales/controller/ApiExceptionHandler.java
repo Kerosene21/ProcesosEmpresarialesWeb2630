@@ -10,7 +10,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
+import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException;
@@ -36,6 +38,18 @@ public class ApiExceptionHandler {
     ResponseEntity<Map<String, String>> correoEnUso(CorreoAdministradorEnUsoException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("codigo", "USUARIO_CORREO_EN_USO", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(NombreActividadDuplicadoException.class)
+    ResponseEntity<Map<String, String>> actividadDuplicada(NombreActividadDuplicadoException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("codigo", "ACTIVIDAD_NOMBRE_DUPLICADO", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(LaneNoValidaException.class)
+    ResponseEntity<Map<String, String>> laneNoValida(LaneNoValidaException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("codigo", "LANE_NO_VALIDA", "mensaje", exception.getMessage()));
     }
 
     @ExceptionHandler(RecursoNoEncontradoException.class)
