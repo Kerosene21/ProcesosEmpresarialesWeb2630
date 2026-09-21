@@ -272,3 +272,20 @@ punto donde se aplicaría es `ProcesoService.editar`, justo antes de `construirC
   texto, no un control de versiones.
 - **No se registra quién creó el proceso.** El historial solo cubre ediciones; el alta no deja
   entrada.
+
+## Actualización tras el bloque de HU-11 a HU-15
+
+`editar` ganó una única comprobación nueva: **cuando la edición saca el proceso de `BORRADOR`**, se
+valida antes el modelo del diagrama con `ValidacionModeloService.validarParaSalirDeBorrador`. Si
+algún gateway activo incumple las reglas de HU-14 —una sola salida, salidas sin condición en un
+`EXCLUSIVO`/`INCLUSIVO`, o condiciones en un `PARALELO`— se lanza
+`ModeloDeProcesoNoValidoException` y **no se guarda nada ni se registra historial**.
+
+Lo demás no cambió:
+
+- editar sin tocar el estado, o volver de `PUBLICADO` a `BORRADOR`, **no valida** el modelo;
+- sigue sin haber restricción de orden en las transiciones;
+- el resto de reglas de esta historia (unicidad del nombre, historial granular, edición sin cambios)
+  funcionan igual.
+
+El detalle está en [HU-14 · Crear gateway](HU-14-crear-gateway.md#bloqueo-al-salir-de-borrador).

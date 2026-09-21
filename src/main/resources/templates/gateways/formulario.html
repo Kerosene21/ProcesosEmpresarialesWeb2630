@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nuevo gateway</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">Diagrama del proceso</p>
+        <h1 id="form-title">Nuevo gateway</h1>
+        <p class="intro">
+            El gateway se dibuja como un rombo y su tipo define el símbolo interno: EXCLUSIVO usa X,
+            PARALELO usa + e INCLUSIVO usa O. Un gateway recién creado todavía no tiene arcos de
+            salida; se añaden después y el detalle del proceso avisa mientras la divergencia esté
+            incompleta.
+        </p>
+
+        <form th:action="@{/procesos/{procesoId}/gateways(procesoId=${procesoId})}"
+              th:object="${gateway}" method="post" novalidate>
+            <label for="tipo">Tipo</label>
+            <select id="tipo" th:field="*{tipo}" required autofocus>
+                <option value="">Seleccione un tipo</option>
+                <option th:each="tipo : ${tipos}" th:value="${tipo}"
+                        th:text="${tipo} + ' (' + ${tipo.simbolo} + ')'"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('tipo')}" th:errors="*{tipo}"></small>
+
+            <label for="posicionX">Posición X</label>
+            <input id="posicionX" type="number" th:field="*{posicionX}" required>
+            <small class="error" th:if="${#fields.hasErrors('posicionX')}" th:errors="*{posicionX}"></small>
+
+            <label for="posicionY">Posición Y</label>
+            <input id="posicionY" type="number" th:field="*{posicionY}" required>
+            <small class="error" th:if="${#fields.hasErrors('posicionY')}" th:errors="*{posicionY}"></small>
+
+            <button type="submit">Crear gateway</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}(procesoId=${procesoId})}">Cancelar y volver al proceso</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

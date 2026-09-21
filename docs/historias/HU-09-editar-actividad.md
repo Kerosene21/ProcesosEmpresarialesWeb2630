@@ -18,6 +18,10 @@ Criterios de aceptación:
 Por coherencia con el resto del proyecto: el nombre sigue siendo único dentro del proceso, una
 actividad eliminada no se edita, y un proceso eliminado (HU-06) no admite cambios.
 
+> **Todos los criterios están cumplidos.** El de los arcos quedó abierto en el bloque HU-08 a HU-10
+> porque la entidad `Arco` no existía; con HU-11 existe y este bloque lo cierra con pruebas reales.
+> Ver «Los arcos conectados se conservan».
+
 ## Qué se edita y qué no
 
 ```java
@@ -83,10 +87,19 @@ Editar **no toca la identidad de la actividad**: se modifica la fila existente, 
 nunca se borra ni se recrea. Cualquier arco que la referencie como origen o destino seguirá
 apuntando al mismo identificador después de cambiar su nombre, su tipo o su lane.
 
-**La entidad `Arco` todavía no existe**: llega con HU-11. Por eso este criterio está cubierto *por
-construcción del modelo* —la edición es una actualización en sitio— pero **no hay prueba que lo
-verifique con arcos reales**, porque no hay arcos que conectar. Cuando HU-11 introduzca `Arco`, este
-criterio se podrá verificar sin cambiar nada de `ActividadService.editar`.
+**Desde HU-11 existe la entidad `Arco`, y este criterio está verificado con arcos reales.** Un arco
+referencia a la actividad por su tipo y su identificador (`origenTipo` + `origenId`,
+`destinoTipo` + `destinoId`), así que una edición en sitio no lo afecta: no hay clave que se
+invalide ni fila que se recree. `ActividadService.editar` **no llama a `ConexionesService`**, y hay
+una prueba que lo comprueba con `verifyNoInteractions`.
+
+Contra PostgreSQL se verifica lo mismo de extremo a extremo: una actividad con un arco entrante y
+uno saliente se edita —nombre, tipo y lane— y los dos arcos siguen activos, con el mismo
+identificador y los mismos extremos. **Cambiar de lane tampoco los toca**, porque la lane no
+participa en la referencia del arco.
+
+> `ActividadService.editar` no cambió ni una línea para cerrar este criterio: el diseño de HU-08 a
+> HU-10 ya lo cumplía por construcción, y lo que faltaba era poder demostrarlo.
 
 ## El historial registra solo lo que cambió
 
@@ -174,6 +187,9 @@ de empresa llega del cliente.
   REST, formulario MVC, roles y CSRF.
 - `ActividadesIntegracionTest`: contra PostgreSQL, el cambio de lane conserva el `id` de la
   actividad, el detalle la dibuja bajo la banda nueva, y una edición sin cambios no añade historial.
+- Conservación de arcos: `ActividadServiceTest` comprueba que editar y cambiar de lane no tocan las
+  conexiones, y `ArcosYGatewaysIntegracionTest` lo verifica contra PostgreSQL con arcos reales,
+  entrantes y salientes.
 
 ## Cómo demostrarla
 
@@ -186,7 +202,6 @@ de empresa llega del cliente.
 
 ## Qué quedó pendiente
 
-- **Verificar la conservación de arcos con arcos reales**: depende de `Arco`, que llega con HU-11.
 - **Cambio de lane demostrable en la interfaz con más de una banda**: depende de la gestión de lanes
   de HU-22. El modelo, la vista y las pruebas ya lo soportan.
 - **Edición de la posición**: fuera de los criterios de esta historia.

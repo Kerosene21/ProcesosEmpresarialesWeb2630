@@ -35,6 +35,8 @@ import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.RegistroEmpresaDto;
 import co.edu.javeriana.procesosempresariales.service.EmpresaService;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
+import co.edu.javeriana.procesosempresariales.service.ArcoService;
+import co.edu.javeriana.procesosempresariales.service.GatewayService;
 import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 
 @WebMvcTest(controllers = { AutenticacionController.class, EmpresaController.class, ProcesoController.class,
@@ -65,6 +67,12 @@ class SeguridadRutasTest {
 
     @MockitoBean
     private ProcesoService procesoService;
+
+    @MockitoBean
+    private ArcoService arcoService;
+
+    @MockitoBean
+    private GatewayService gatewayService;
 
     @MockitoBean
     private UserDetailsService userDetailsService;

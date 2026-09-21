@@ -11,10 +11,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.javeriana.procesosempresariales.domain.Actividad;
+import co.edu.javeriana.procesosempresariales.domain.Arco;
 import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
 import co.edu.javeriana.procesosempresariales.domain.Lane;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
+import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
@@ -43,16 +45,19 @@ public class ActividadService {
     private final LaneRepository laneRepository;
     private final UsuarioRepository usuarioRepository;
     private final HistorialProcesoRepository historialProcesoRepository;
+    private final ConexionesService conexionesService;
     private final ModelMapper modelMapper;
 
     public ActividadService(ActividadRepository actividadRepository, ProcesoRepository procesoRepository,
             LaneRepository laneRepository, UsuarioRepository usuarioRepository,
-            HistorialProcesoRepository historialProcesoRepository, ModelMapper modelMapper) {
+            HistorialProcesoRepository historialProcesoRepository, ConexionesService conexionesService,
+            ModelMapper modelMapper) {
         this.actividadRepository = actividadRepository;
         this.procesoRepository = procesoRepository;
         this.laneRepository = laneRepository;
         this.usuarioRepository = usuarioRepository;
         this.historialProcesoRepository = historialProcesoRepository;
+        this.conexionesService = conexionesService;
         this.modelMapper = modelMapper;
     }
 
@@ -160,8 +165,23 @@ public class ActividadService {
         actividad.setActivo(false);
         actividadRepository.save(actividad);
 
-        registrarHistorial(proceso, usuario, "actividad eliminada: '" + actividad.getNombre() + "'");
-        return toDto(actividad);
+        List<Arco> desactivados = conexionesService.desactivarConectadosA(proceso, TipoNodoFlujo.ACTIVIDAD,
+                actividad.getId());
+        registrarHistorial(proceso, usuario, "actividad eliminada: '" + actividad.getNombre() + "'"
+                + resumenDeConexiones(desactivados));
+
+        ActividadRespuestaDto respuesta = toDto(actividad);
+        respuesta.setArcosDesactivados(desactivados.size());
+        respuesta.setAdvertencias(conexionesService.advertenciasTrasDesactivar(proceso, desactivados,
+                TipoNodoFlujo.ACTIVIDAD, actividad.getId()));
+        return respuesta;
+    }
+
+    private String resumenDeConexiones(List<Arco> desactivados) {
+        if (desactivados.isEmpty()) {
+            return "";
+        }
+        return "; arcos desactivados: " + desactivados.size();
     }
 
     private Usuario usuarioAutenticado(String username) {

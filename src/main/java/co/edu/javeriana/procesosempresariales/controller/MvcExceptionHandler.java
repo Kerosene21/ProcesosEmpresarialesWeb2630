@@ -7,6 +7,10 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.servlet.ModelAndView;
 
+import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
@@ -26,6 +30,19 @@ public class MvcExceptionHandler {
     @ResponseStatus(HttpStatus.FORBIDDEN)
     ModelAndView sinPermiso(UsuarioSinPermisoException exception) {
         return vista("No tienes permiso para ver esta informacion", exception.getMessage());
+    }
+
+    @ExceptionHandler(ModeloDeProcesoNoValidoException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    ModelAndView modeloNoValido(ModeloDeProcesoNoValidoException exception) {
+        return vista("El modelo del proceso todavia no esta completo", exception.getMessage());
+    }
+
+    @ExceptionHandler({ NodoFlujoNoValidoException.class, ArcoDuplicadoException.class,
+            CondicionArcoNoValidaException.class })
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    ModelAndView conexionNoValida(RuntimeException exception) {
+        return vista("La conexion del diagrama no es valida", exception.getMessage());
     }
 
     private ModelAndView vista(String titulo, String detalle) {

@@ -215,4 +215,31 @@ class ActividadControllerTest {
 
         verify(actividadService).eliminar(5L, 30L, USERNAME);
     }
+
+    @Test
+    void eliminarLlevaLasAdvertenciasDeDesconexionAlDetalleDelProceso() throws Exception {
+        ActividadRespuestaDto eliminada = actividad();
+        eliminada.setActivo(false);
+        eliminada.setArcosDesactivados(2);
+        eliminada.setAdvertencias(List.of("'Aprobar solicitud' quedó sin arcos de entrada",
+                "'Cobrar factura' quedó sin arcos de salida"));
+        when(actividadService.eliminar(5L, 30L, USERNAME)).thenReturn(eliminada);
+
+        mockMvc.perform(post(RUTA_ELIMINAR).principal(PRINCIPAL))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl(DETALLE_DEL_PROCESO))
+                .andExpect(flash().attributeExists("mensaje"))
+                .andExpect(flash().attribute("advertencias",
+                        List.of("'Aprobar solicitud' quedó sin arcos de entrada",
+                                "'Cobrar factura' quedó sin arcos de salida")));
+    }
+
+    @Test
+    void eliminarSinArcosConectadosNoAnadeAdvertencias() throws Exception {
+        when(actividadService.eliminar(5L, 30L, USERNAME)).thenReturn(actividad());
+
+        mockMvc.perform(post(RUTA_ELIMINAR).principal(PRINCIPAL))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("advertencias", List.of()));
+    }
 }

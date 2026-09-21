@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nuevo arco</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">Diagrama del proceso</p>
+        <h1 id="form-title">Nuevo arco</h1>
+        <p class="intro">
+            El arco conecta dos nodos del mismo proceso: actividades o gateways. El origen y el
+            destino deben ser distintos y no puede repetirse una conexión que ya existe. La
+            condición solo se usa cuando el arco sale de un gateway exclusivo o inclusivo.
+        </p>
+
+        <p class="error" th:if="${#lists.isEmpty(nodos)}">
+            Este proceso todavía no tiene nodos activos, así que no se puede dibujar un arco.
+        </p>
+
+        <form th:action="@{/procesos/{procesoId}/arcos(procesoId=${procesoId})}"
+              th:object="${arco}" method="post" novalidate>
+            <label for="origenTipo">Tipo del nodo origen</label>
+            <select id="origenTipo" th:field="*{origenTipo}" required>
+                <option value="">Seleccione un tipo</option>
+                <option th:each="tipo : ${tiposDeNodo}" th:value="${tipo}" th:text="${tipo}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('origenTipo')}" th:errors="*{origenTipo}"></small>
+
+            <label for="origenId">Nodo origen</label>
+            <select id="origenId" th:field="*{origenId}" required>
+                <option value="">Seleccione un nodo</option>
+                <option th:each="nodo : ${nodos}" th:value="${nodo.id}"
+                        th:text="${nodo.tipo} + ' · ' + ${nodo.nombre}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('origenId')}" th:errors="*{origenId}"></small>
+
+            <label for="destinoTipo">Tipo del nodo destino</label>
+            <select id="destinoTipo" th:field="*{destinoTipo}" required>
+                <option value="">Seleccione un tipo</option>
+                <option th:each="tipo : ${tiposDeNodo}" th:value="${tipo}" th:text="${tipo}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('destinoTipo')}" th:errors="*{destinoTipo}"></small>
+
+            <label for="destinoId">Nodo destino</label>
+            <select id="destinoId" th:field="*{destinoId}" required>
+                <option value="">Seleccione un nodo</option>
+                <option th:each="nodo : ${nodos}" th:value="${nodo.id}"
+                        th:text="${nodo.tipo} + ' · ' + ${nodo.nombre}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('destinoId')}" th:errors="*{destinoId}"></small>
+
+            <label for="etiqueta">Etiqueta</label>
+            <input id="etiqueta" type="text" th:field="*{etiqueta}" maxlength="150">
+            <small class="error" th:if="${#fields.hasErrors('etiqueta')}" th:errors="*{etiqueta}"></small>
+
+            <label for="condicion">Condición</label>
+            <input id="condicion" type="text" th:field="*{condicion}" maxlength="200">
+            <small class="error" th:if="${#fields.hasErrors('condicion')}" th:errors="*{condicion}"></small>
+
+            <button type="submit">Crear arco</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}(procesoId=${procesoId})}">Cancelar y volver al proceso</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

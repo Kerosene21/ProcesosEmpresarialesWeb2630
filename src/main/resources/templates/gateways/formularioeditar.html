@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Editar gateway</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">Diagrama del proceso</p>
+        <h1 id="form-title">Editar gateway</h1>
+        <p class="intro">
+            Cambiar el tipo cambia el símbolo del rombo y también las condiciones de sus arcos de
+            salida: PARALELO las elimina, mientras que EXCLUSIVO e INCLUSIVO exigen una condición en
+            cada salida.
+        </p>
+
+        <div class="advertencias" th:if="${!#lists.isEmpty(advertencias)}">
+            <p class="error">Advertencias de consistencia:</p>
+            <ul>
+                <li th:each="advertencia : ${advertencias}" th:text="${advertencia}">Advertencia</li>
+            </ul>
+        </div>
+
+        <form th:action="@{/procesos/{procesoId}/gateways/{gatewayId}(procesoId=${procesoId},gatewayId=${gatewayId})}"
+              th:object="${gateway}" method="post" novalidate>
+            <label for="tipo">Tipo</label>
+            <select id="tipo" th:field="*{tipo}" required autofocus>
+                <option value="">Seleccione un tipo</option>
+                <option th:each="tipo : ${tipos}" th:value="${tipo}"
+                        th:text="${tipo} + ' (' + ${tipo.simbolo} + ')'"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('tipo')}" th:errors="*{tipo}"></small>
+
+            <p class="intro" th:if="${#lists.isEmpty(salientes)}">
+                Este gateway todavía no tiene arcos de salida.
+            </p>
+
+            <div th:each="saliente : ${salientes}">
+                <label th:for="'condicion-' + ${saliente.id}"
+                       th:text="'Condición hacia ' + ${saliente.destinoNombre}">Condición</label>
+                <input type="text" th:id="'condicion-' + ${saliente.id}"
+                       th:field="*{condiciones[__${saliente.id}__]}" maxlength="200">
+            </div>
+
+            <button type="submit">Guardar cambios</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}(procesoId=${procesoId})}">Cancelar y volver al proceso</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

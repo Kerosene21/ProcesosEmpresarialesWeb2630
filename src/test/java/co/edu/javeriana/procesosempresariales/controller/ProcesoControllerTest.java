@@ -46,6 +46,8 @@ import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
+import co.edu.javeriana.procesosempresariales.service.ArcoService;
+import co.edu.javeriana.procesosempresariales.service.GatewayService;
 import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,11 +62,18 @@ class ProcesoControllerTest {
     @Mock
     private ActividadService actividadService;
 
+    @Mock
+    private ArcoService arcoService;
+
+    @Mock
+    private GatewayService gatewayService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void inicializar() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new ProcesoController(procesoService, actividadService)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(
+                new ProcesoController(procesoService, actividadService, arcoService, gatewayService)).build();
     }
 
     private ProcesoRespuestaDto procesoExistente() {

@@ -9,9 +9,13 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
 import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -50,6 +54,30 @@ public class ApiExceptionHandler {
     ResponseEntity<Map<String, String>> laneNoValida(LaneNoValidaException exception) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("codigo", "LANE_NO_VALIDA", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ArcoDuplicadoException.class)
+    ResponseEntity<Map<String, String>> arcoDuplicado(ArcoDuplicadoException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("codigo", "ARCO_DUPLICADO", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(NodoFlujoNoValidoException.class)
+    ResponseEntity<Map<String, String>> nodoNoValido(NodoFlujoNoValidoException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("codigo", "NODO_NO_VALIDO", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(CondicionArcoNoValidaException.class)
+    ResponseEntity<Map<String, String>> condicionNoValida(CondicionArcoNoValidaException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("codigo", "CONDICION_NO_VALIDA", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(ModeloDeProcesoNoValidoException.class)
+    ResponseEntity<Map<String, String>> modeloNoValido(ModeloDeProcesoNoValidoException exception) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("codigo", "MODELO_NO_VALIDO", "mensaje", exception.getMessage()));
     }
 
     @ExceptionHandler(RecursoNoEncontradoException.class)

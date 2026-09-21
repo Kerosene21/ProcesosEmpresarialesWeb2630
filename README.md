@@ -56,10 +56,15 @@ co.edu.javeriana.procesosempresariales
 | HU-04 · Crear proceso | Implementada |
 | HU-05 · Editar proceso | Implementada |
 | HU-06 · Eliminar proceso | Implementada |
-| HU-07 · Consultar procesos | Implementada, salvo la visualización del diagrama BPMN completo (faltan arcos, gateways y eventos) |
+| HU-07 · Consultar procesos | Implementada, salvo la visualización del diagrama BPMN completo (faltan los eventos) |
 | HU-08 · Crear actividad | Implementada |
-| HU-09 · Editar actividad | Implementada, salvo la verificación con arcos reales (depende de HU-11) |
-| HU-10 · Eliminar actividad | Implementada en permisos, confirmación, eliminación lógica e historial; los criterios de arcos y desconexión dependen de HU-11 |
+| HU-09 · Editar actividad | Implementada |
+| HU-10 · Eliminar actividad | Implementada |
+| HU-11 · Crear arco | Implementada para actividades y gateways; los eventos dependen de HU-25 y HU-27 |
+| HU-12 · Editar arco | Implementada |
+| HU-13 · Eliminar arco | Implementada |
+| HU-14 · Crear gateway | Implementada |
+| HU-15 · Editar gateway | Implementada |
 
 Con la autenticación en marcha, las pantallas de proceso que dependen del usuario autenticado ya
 son accesibles de extremo a extremo: se registra una empresa, se inicia sesión con las credenciales
@@ -112,10 +117,41 @@ Eliminar una actividad también exige **confirmación previa** y también es **l
 en el historial del proceso. Crear, editar y eliminar actividades se registra en ese mismo historial,
 y la edición solo anota los campos que de verdad cambiaron.
 
-**El criterio de HU-07 sobre visualizar el diagrama BPMN completo sigue abierto.** Avanzó: el detalle
-muestra el **pool**, sus **lanes** y las **actividades activas** en su posición. Faltan los **arcos**
-(HU-11), los **gateways** y los **eventos**, y la vista lo advierte. Dos criterios de HU-10 —eliminar
-los arcos conectados y avisar de elementos desconectados— también esperan a HU-11.
+El flujo del proceso se modela con **arcos** y **gateways**. Un arco conecta dos nodos del mismo
+proceso —hoy actividades y gateways— guardando el **tipo y el identificador** de cada extremo, de
+modo que admitirá eventos sin cambiar el modelo. No puede unir un nodo consigo mismo, no puede
+repetir un par origen-destino ya conectado y no puede salir del proceso. Un gateway es `EXCLUSIVO`
+(**X**), `PARALELO` (**+**) o `INCLUSIVO` (**O**), guarda su posición y decide si sus arcos de
+salida llevan condición: los dos primeros tipos la exigen en cada salida y el paralelo no la admite.
+Cambiar el tipo de un gateway a `PARALELO` **elimina** las condiciones de sus salidas; cambiarlo a
+`EXCLUSIVO` o `INCLUSIVO` obliga a que todas terminen con una.
+
+| Rol | Crear arco | Editar arco | Eliminar arco | Crear gateway | Editar gateway |
+|---|---|---|---|---|---|
+| `ADMINISTRADOR` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `EDITOR` | ✅ | ✅ | ❌ | ✅ | ✅ |
+| `SOLO_LECTURA` | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+Eliminar un arco exige **confirmación previa**, es **lógica** (`activo = false`) y **advierte** si
+deja algún nodo sin entradas o sin salidas. Eliminar una actividad desactiva además, en la misma
+transacción, todos sus arcos conectados. En los dos casos las advertencias llegan al detalle del
+proceso y se muestran bajo el mensaje de éxito. Ninguna de ellas bloquea la operación: son
+informativas. **La eliminación de gateways es HU-16** y no está hecha.
+
+Las configuraciones intermedias sí se toleran mientras el proceso está en `BORRADOR` —un gateway
+recién creado no tiene salidas—, pero **pasar el proceso a `PUBLICADO` valida el modelo**: un
+gateway con una sola salida, un `EXCLUSIVO` o `INCLUSIVO` con salidas sin condición o un `PARALELO`
+que conserve condiciones impiden publicar, y el proceso se queda en borrador.
+
+El detalle del proceso dibuja ahora dos vistas: el **Diagrama** con el pool, sus lanes y las
+actividades dentro de su banda, y el **Flujo**, un SVG con las actividades, los gateways como rombos
+con su símbolo y los arcos como líneas continuas con punta sólida, más las advertencias de
+consistencia del modelo (gateways con menos de dos salidas, salidas sin condición o condiciones
+repetidas).
+
+**El criterio de HU-07 sobre visualizar el diagrama BPMN completo sigue abierto por un solo
+elemento.** Ya se muestran el pool, las lanes, las actividades, los gateways y los arcos; faltan los
+**eventos** (HU-25 y HU-27), y la vista lo advierte.
 
 **Las lanes son mínimas a propósito.** HU-08 obliga a que una actividad pertenezca a una lane, así
 que cada proceso nace con una lane `General` dentro de su pool. **La gestión de lanes es HU-22** y no
@@ -123,7 +159,7 @@ está hecha: no se crean, renombran, reordenan ni eliminan lanes desde la aplica
 
 ## Historias en desarrollo
 
-El bloque actual cubre HU-01 a HU-10. La documentación de cada historia está en
+El bloque actual cubre HU-01 a HU-15. La documentación de cada historia está en
 [`docs/historias/`](docs/historias/).
 
 ## Requisitos para ejecutar
@@ -172,6 +208,10 @@ La URL de la base de pruebas es fija y no se puede redirigir por variables de en
 > SELECT 'General', p.id FROM pool p
 > WHERE NOT EXISTS (SELECT 1 FROM lane l WHERE l.pool_id = p.id);
 > ```
+>
+> Las tablas `arco` y `gateway` que añadió el bloque HU-11 a HU-15 también son nuevas y
+> `ddl-auto=update` las crea solas, con sus índices. **No necesitan migración**: un proceso anterior
+> a este bloque simplemente no tiene arcos ni gateways, y se le pueden añadir desde la aplicación.
 
 ### Ejecutar
 
@@ -187,14 +227,14 @@ Las pruebas que no levantan el contexto completo tampoco necesitan base de datos
 de seguridad, que usan `@WebMvcTest` y sí ejecutan los filtros de Spring Security:
 
 ```bash
-./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest,!EliminacionProcesosIntegracionTest,!ConsultaProcesosIntegracionTest,!ActividadesIntegracionTest' test
+./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest,!EliminacionProcesosIntegracionTest,!ConsultaProcesosIntegracionTest,!ActividadesIntegracionTest,!ArcosYGatewaysIntegracionTest' test
 ```
 
-La suite completa incluye siete clases que levantan el contexto de Spring
+La suite completa incluye ocho clases que levantan el contexto de Spring
 (`ProcesosEmpresarialesWeb2630ApplicationTests`, `RegistroYLoginIntegracionTest`,
 `GestionUsuariosIntegracionTest`, `ProcesosYHistorialIntegracionTest`,
 `EliminacionProcesosIntegracionTest`, `ConsultaProcesosIntegracionTest` y
-`ActividadesIntegracionTest`) y sí requieren que PostgreSQL esté disponible con las credenciales
+`ActividadesIntegracionTest` y `ArcosYGatewaysIntegracionTest`) y sí requieren que PostgreSQL esté disponible con las credenciales
 configuradas. En CI corren todas contra el contenedor `postgres:16-alpine` del workflow.
 
 ## Calidad de código
@@ -236,3 +276,8 @@ Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs
 - [HU-08 · Crear actividad](docs/historias/HU-08-crear-actividad.md)
 - [HU-09 · Editar actividad](docs/historias/HU-09-editar-actividad.md)
 - [HU-10 · Eliminar actividad](docs/historias/HU-10-eliminar-actividad.md)
+- [HU-11 · Crear arco](docs/historias/HU-11-crear-arco.md)
+- [HU-12 · Editar arco](docs/historias/HU-12-editar-arco.md)
+- [HU-13 · Eliminar arco](docs/historias/HU-13-eliminar-arco.md)
+- [HU-14 · Crear gateway](docs/historias/HU-14-crear-gateway.md)
+- [HU-15 · Editar gateway](docs/historias/HU-15-editar-gateway.md)

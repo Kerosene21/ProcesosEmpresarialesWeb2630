@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -42,6 +43,7 @@ import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
@@ -66,12 +68,15 @@ class ProcesoServiceTest {
     @Mock
     private HistorialProcesoRepository historialProcesoRepository;
 
+    @Mock
+    private ValidacionModeloService validacionModeloService;
+
     private ProcesoService procesoService;
 
     @BeforeEach
     void inicializar() {
         procesoService = new ProcesoService(procesoRepository, usuarioRepository, historialProcesoRepository,
-                new ModelMapper());
+                validacionModeloService, new ModelMapper());
     }
 
     private Empresa empresa(Long id, String nombre) {
@@ -1317,5 +1322,57 @@ class ProcesoServiceTest {
         procesoService.consultarProcesos(filtro, USERNAME);
 
         assertThat(filtro.getCategoria()).isEqualTo(categoriaPersistida);
+    }
+
+    @Test
+    void salirDeBorradorValidaElModeloDelProceso() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        Proceso proceso = procesoExistente(EMPRESA_PROPIA);
+        existeElProceso(proceso);
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        verify(validacionModeloService).validarParaSalirDeBorrador(proceso);
+        assertThat(procesoGuardado().getEstado()).isEqualTo(EstadoProceso.PUBLICADO);
+    }
+
+    @Test
+    void unModeloIncompletoImpideSalirDeBorradorYNoGuardaNada() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        Proceso proceso = procesoExistente(EMPRESA_PROPIA);
+        existeElProceso(proceso);
+        doThrow(new ModeloDeProcesoNoValidoException("El proceso no puede salir de borrador: Gateway EXCLUSIVO #12"))
+                .when(validacionModeloService).validarParaSalirDeBorrador(proceso);
+
+        assertThatThrownBy(() -> procesoService.editar(5L, formularioEdicion(), USERNAME))
+                .isInstanceOf(ModeloDeProcesoNoValidoException.class);
+
+        assertThat(proceso.getEstado()).isEqualTo(EstadoProceso.BORRADOR);
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void editarSinSacarElProcesoDeBorradorNoValidaElModelo() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas Corporativas", "Descripcion actualizada",
+                "Operaciones", EstadoProceso.BORRADOR), USERNAME);
+
+        verify(validacionModeloService, never()).validarParaSalirDeBorrador(any(Proceso.class));
+        verify(procesoRepository).save(any(Proceso.class));
+    }
+
+    @Test
+    void editarUnProcesoYaPublicadoNoVuelveAValidarElModelo() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        Proceso proceso = procesoExistente(EMPRESA_PROPIA);
+        proceso.setEstado(EstadoProceso.PUBLICADO);
+        existeElProceso(proceso);
+
+        procesoService.editar(5L, formularioEdicion(), USERNAME);
+
+        verify(validacionModeloService, never()).validarParaSalirDeBorrador(any(Proceso.class));
     }
 }

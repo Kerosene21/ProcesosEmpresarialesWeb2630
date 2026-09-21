@@ -12,12 +12,12 @@ Criterios de aceptación:
 | Se solicita **confirmación previa** | **Cumplido** |
 | La eliminación es **lógica** | **Cumplido** |
 | Queda **registrada en el historial** | **Cumplido** |
-| Se eliminan también los **arcos entrantes y salientes** | **Pendiente: depende de HU-11** |
-| Se **advierte si el flujo queda con elementos desconectados** | **Pendiente: depende de HU-11** |
+| Se eliminan también los **arcos entrantes y salientes** | **Cumplido con HU-11** |
+| Se **advierte si el flujo queda con elementos desconectados** | **Cumplido con HU-11** |
 
-> **Los dos últimos criterios no están implementados y no se declaran cerrados.** La entidad `Arco`
-> no existe todavía en el proyecto: nace con HU-11. No se creó una implementación ficticia de arcos
-> solo para poder marcar esos criterios; ver «Dependencia con HU-11» más abajo.
+> **Los dos últimos criterios quedaron abiertos en el bloque HU-08 a HU-10** porque la entidad
+> `Arco` no existía y no se quiso inventar una tabla ficticia solo para marcarlos. Con HU-11 la
+> entidad existe, y este bloque los cierra con pruebas reales; ver «Arcos y desconexiones».
 
 ## Eliminación lógica
 
@@ -136,34 +136,73 @@ DELETE /api/procesos/{procesoId}/actividades/{actividadId}
 | No es administrador, o proceso de otra empresa | `403` `USUARIO_SIN_PERMISO` |
 | Actividad o proceso inexistente, ya eliminado | `404` `RECURSO_NO_ENCONTRADO` |
 
-## Dependencia con HU-11: arcos y desconexiones
+## Arcos y desconexiones
 
-Dos criterios de esta historia hablan de **arcos**:
+Desde HU-11 existe `Arco`, y eliminar una actividad hace dos cosas más, **dentro de la misma
+transacción** que ya marcaba la fila como inactiva:
 
-- eliminar los arcos entrantes y salientes de la actividad;
-- advertir si el flujo queda con elementos desconectados.
+```java
+actividad.setActivo(false);
+actividadRepository.save(actividad);
 
-**`Arco` no existe en el dominio**: es la entidad que introduce HU-11, y este bloque cubre HU-08,
-HU-09 y HU-10 únicamente. Inventar aquí una tabla de arcos para poder marcar los criterios daría un
-modelo que HU-11 tendría que rehacer, y una prueba verde que no demuestra nada real. Por eso:
+List<Arco> desactivados = conexionesService.desactivarConectadosA(proceso, TipoNodoFlujo.ACTIVIDAD,
+        actividad.getId());
+registrarHistorial(proceso, usuario, "actividad eliminada: '" + actividad.getNombre() + "'"
+        + resumenDeConexiones(desactivados));
+```
 
-- **no se implementaron**, y se declaran **pendientes**;
-- **no se dejó código muerto ni comentarios** anticipando la solución;
-- el diseño **queda preparado** para completarlos sin rehacer nada.
+1. **Desactiva todos sus arcos activos**, entrantes y salientes, con una sola consulta
+   (`conectadosAlNodo`) y un `saveAll`. Son eliminaciones **lógicas**: `activo = false`, la fila se
+   conserva. `ConexionesService` tampoco llama nunca a `delete`, `deleteById` ni `deleteAll`, y hay
+   pruebas contra PostgreSQL que cuentan filas antes y después.
+2. **Calcula qué vecinos quedaron desconectados** y los devuelve como advertencias en el
+   `ActividadRespuestaDto`, junto con `arcosDesactivados`.
 
-Qué hará falta cuando exista `Arco`, sin tocar el resto de HU-10:
+`ActividadController.eliminar` las propaga como `RedirectAttributes.addFlashAttribute("advertencias", ...)`,
+igual que hace `ArcoController`, y el detalle del proceso las pinta en el bloque **Advertencias de la
+última operación**. Hay pruebas de los dos tramos: que el controlador las coloca en el flash y que
+`proceso.html` las renderiza.
 
-1. Un `ArcoRepository` con la consulta de los arcos activos que referencian la actividad como origen
-   o como destino.
-2. Dentro de `ActividadService.eliminar`, y **en la misma transacción** que ya existe, marcar esos
-   arcos como inactivos con la misma eliminación lógica.
-3. Registrar esos arcos en el mismo resumen de historial que ya se escribe.
-4. Calcular, después de desactivarlos, qué actividades del proceso quedan sin arcos y devolver esa
-   advertencia junto al resultado —`eliminar` ya devuelve un `ActividadRespuestaDto` en lugar de
-   `void`, así que hay dónde colgarla— para mostrarla en el detalle y en la respuesta de la API.
+> El `DELETE` de la API sigue devolviendo **204 sin cuerpo**, así que por REST la advertencia no
+> viaja. Es el mismo contrato que en HU-13.
 
-Hasta entonces, **HU-10 está cerrada en permisos, confirmación, eliminación lógica e historial, y
-abierta en arcos y desconexiones**.
+La actividad eliminada **no se advierte a sí misma**: se excluye del cálculo, porque desaparecer es
+justo lo que se pidió. Lo que se advierte son sus vecinos:
+
+```
+'Aprobar solicitud' quedó sin arcos de salida
+'Rechazar solicitud' quedó sin arcos de entrada
+```
+
+El alcance del cálculo es el mismo de HU-13: mira los extremos de los arcos afectados, no recorre el
+grafo. La advertencia es informativa y **no bloquea** la eliminación.
+
+### Sin dependencias circulares
+
+`ActividadService` necesitaba lógica de arcos, y `ArcoService` necesita saber de actividades. Para
+no cruzarlos, la lógica de conexiones vive en un colaborador propio:
+
+```
+NodoFlujoResolver   (ActividadRepository, GatewayRepository)
+        ▲
+ConexionesService   (ArcoRepository, NodoFlujoResolver)
+        ▲                  ▲                  ▲
+ActividadService     ArcoService        GatewayService
+```
+
+`ConexionesService` no conoce a ninguno de los tres servicios que lo usan, así que el grafo de
+dependencias sigue siendo acíclico. `ActividadService` ganó **un** parámetro en su constructor y
+diez líneas en `eliminar`; el resto de la historia no cambió.
+
+### El historial solo crece cuando hay algo que contar
+
+```
+actividad eliminada: 'Revisar solicitud'
+actividad eliminada: 'Revisar solicitud'; arcos desactivados: 2
+```
+
+El sufijo aparece **solo si de verdad se desactivó algún arco**, así que una actividad sin
+conexiones deja exactamente la misma entrada que antes de HU-11.
 
 ## Pruebas
 
@@ -179,6 +218,15 @@ abierta en arcos y desconexiones**.
 - `ActividadesIntegracionTest`: contra PostgreSQL, la fila se conserva y solo cambia `activo`, la
   actividad desaparece de `activasDelProceso` y del detalle renderizado, la segunda eliminación se
   rechaza, el historial queda persistido y un editor no llega a la confirmación.
+- Arcos y desconexiones: `ActividadServiceTest` verifica que se delega en `ConexionesService`, que
+  el historial anota los arcos desactivados solo cuando los hay y que las advertencias llegan al
+  DTO; `ConexionesServiceTest` cubre la desactivación y el cálculo de vecinos;
+  `ArcosYGatewaysIntegracionTest` lo comprueba contra PostgreSQL con dos arcos reales, contando
+  filas antes y después.
+- Advertencias en la interfaz: `ActividadControllerTest.eliminarLlevaLasAdvertenciasDeDesconexionAlDetalleDelProceso`
+  comprueba el flash (y `eliminarSinArcosConectadosNoAnadeAdvertencias` el caso vacío);
+  `DiagramaFlujoTest.elDetalleMuestraLasAdvertenciasQueLleganTrasEliminarUnaActividad` comprueba que
+  `proceso.html` las pinta de verdad, y `ArcosYGatewaysIntegracionTest` recorre el POST completo.
 
 ## Cómo demostrarla
 
@@ -187,12 +235,14 @@ abierta en arcos y desconexiones**.
 3. Pulsar **Cancelar**: se vuelve al proceso y la actividad **sigue ahí**.
 4. Repetir y pulsar **Confirmar eliminación**: se vuelve al proceso y la actividad **ya no aparece**
    en el diagrama.
+   Si tenía arcos, desaparecen con ella y el detalle muestra, bajo el mensaje de éxito, la lista de
+   vecinos que quedaron sueltos.
 5. Entrar al historial: la eliminación aparece como una entrada más, con su autor y su fecha.
 6. Comprobar en la base de datos que la fila sigue existiendo con `activo = false`.
 7. Iniciar sesión como **editor**: el enlace de eliminar no aparece y la ruta directa responde 403.
 
 ## Qué quedó pendiente
 
-- **Eliminar los arcos entrantes y salientes** de la actividad: depende de `Arco` (HU-11).
-- **Advertir si el flujo queda con elementos desconectados**: depende de `Arco` (HU-11).
+- **Análisis global de conectividad del flujo** (componentes inconexas, caminos rotos): fuera del
+  alcance de esta historia; la advertencia mira solo los extremos de los arcos afectados.
 - **Restaurar una actividad eliminada**: no lo pide ningún criterio.

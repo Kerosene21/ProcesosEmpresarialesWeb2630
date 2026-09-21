@@ -20,6 +20,8 @@ import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
+import co.edu.javeriana.procesosempresariales.service.ArcoService;
+import co.edu.javeriana.procesosempresariales.service.GatewayService;
 import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 
 @Controller
@@ -27,10 +29,15 @@ import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 public class ProcesoController {
     private final ProcesoService procesoService;
     private final ActividadService actividadService;
+    private final ArcoService arcoService;
+    private final GatewayService gatewayService;
 
-    public ProcesoController(ProcesoService procesoService, ActividadService actividadService) {
+    public ProcesoController(ProcesoService procesoService, ActividadService actividadService,
+            ArcoService arcoService, GatewayService gatewayService) {
         this.procesoService = procesoService;
         this.actividadService = actividadService;
+        this.arcoService = arcoService;
+        this.gatewayService = gatewayService;
     }
 
     @GetMapping
@@ -55,6 +62,9 @@ public class ProcesoController {
         model.addAttribute("puedeEliminar", procesoService.puedeEliminar(principal.getName()));
         model.addAttribute("lanes", actividadService.lanesDelProceso(procesoId, principal.getName()));
         model.addAttribute("actividades", actividadService.consultarActivas(procesoId, principal.getName()));
+        model.addAttribute("gateways", gatewayService.consultarActivos(procesoId, principal.getName()));
+        model.addAttribute("arcos", arcoService.consultarActivos(procesoId, principal.getName()));
+        model.addAttribute("consistencia", gatewayService.advertenciasDelProceso(procesoId, principal.getName()));
         return "procesos/proceso";
     }
 

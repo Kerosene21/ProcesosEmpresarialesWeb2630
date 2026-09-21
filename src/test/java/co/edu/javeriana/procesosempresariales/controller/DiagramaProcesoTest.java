@@ -28,6 +28,8 @@ import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.LaneRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
+import co.edu.javeriana.procesosempresariales.service.ArcoService;
+import co.edu.javeriana.procesosempresariales.service.GatewayService;
 import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 
 @WebMvcTest(controllers = ProcesoController.class)
@@ -45,6 +47,12 @@ class DiagramaProcesoTest {
 
     @MockitoBean
     private ActividadService actividadService;
+
+    @MockitoBean
+    private ArcoService arcoService;
+
+    @MockitoBean
+    private GatewayService gatewayService;
 
     @MockitoBean
     private UserDetailsService userDetailsService;
