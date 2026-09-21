@@ -15,6 +15,8 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
+import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.service.ProcesoService;
@@ -26,6 +28,15 @@ public class ProcesoController {
 
     public ProcesoController(ProcesoService procesoService) {
         this.procesoService = procesoService;
+    }
+
+    @GetMapping
+    public String lista(@ModelAttribute("filtro") FiltroProcesosDto filtro, Principal principal, Model model) {
+        model.addAttribute("procesos", procesoService.consultarProcesos(filtro, principal.getName()));
+        model.addAttribute("categorias", procesoService.categoriasDisponibles(principal.getName()));
+        model.addAttribute("estados", EstadoProceso.values());
+        model.addAttribute("visibilidades", VisibilidadProceso.values());
+        return "procesos/lista";
     }
 
     @GetMapping("/nuevo")

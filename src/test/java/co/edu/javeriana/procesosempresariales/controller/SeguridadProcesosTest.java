@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,6 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -27,6 +30,7 @@ import co.edu.javeriana.procesosempresariales.config.SecurityConfig;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 
@@ -54,6 +58,61 @@ class SeguridadProcesosTest {
         proceso.setEstado(EstadoProceso.BORRADOR);
         proceso.setPoolId(80L);
         return proceso;
+    }
+
+    private void devolverListadoVacio() {
+        when(procesoService.consultarProcesos(any(FiltroProcesosDto.class), anyString()))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
+        when(procesoService.categoriasDisponibles(USERNAME)).thenReturn(List.of());
+    }
+
+    @Test
+    void elListadoDeProcesosExigeSesion() throws Exception {
+        mockMvc.perform(get("/procesos"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+
+        verify(procesoService, never()).consultarProcesos(any(FiltroProcesosDto.class), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
+    void unAdministradorConsultaElListadoDeProcesos() throws Exception {
+        devolverListadoVacio();
+
+        mockMvc.perform(get("/procesos")).andExpect(status().isOk());
+
+        verify(procesoService).consultarProcesos(any(FiltroProcesosDto.class), eq(USERNAME));
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "EDITOR")
+    void unEditorConsultaElListadoDeProcesos() throws Exception {
+        devolverListadoVacio();
+
+        mockMvc.perform(get("/procesos")).andExpect(status().isOk());
+
+        verify(procesoService).consultarProcesos(any(FiltroProcesosDto.class), eq(USERNAME));
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "SOLO_LECTURA")
+    void unUsuarioDeSoloLecturaConsultaElListadoDeProcesos() throws Exception {
+        devolverListadoVacio();
+
+        mockMvc.perform(get("/procesos")).andExpect(status().isOk());
+
+        verify(procesoService).consultarProcesos(any(FiltroProcesosDto.class), eq(USERNAME));
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "SOLO_LECTURA")
+    void unUsuarioDeSoloLecturaPuedeFiltrarPorInactivosSinPerderElAcceso() throws Exception {
+        devolverListadoVacio();
+
+        mockMvc.perform(get("/procesos").param("visibilidad", "INACTIVOS")).andExpect(status().isOk());
+
+        verify(procesoService).consultarProcesos(any(FiltroProcesosDto.class), eq(USERNAME));
     }
 
     @Test

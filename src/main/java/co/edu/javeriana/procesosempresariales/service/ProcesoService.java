@@ -7,6 +7,10 @@ import java.util.Objects;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,19 +22,25 @@ import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
 import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
+import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
+import co.edu.javeriana.procesosempresariales.repository.ProcesoSpecifications;
 import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 
 @Service
 public class ProcesoService {
 
     private static final String NOMBRE_DUPLICADO = "Ya existe un proceso con ese nombre en la empresa";
+    private static final int TAMANO_PAGINA = 10;
+    private static final int LONGITUD_RESUMEN = 120;
 
     private final ProcesoRepository procesoRepository;
     // repo relacionar al usuario autenticado con su empresa
@@ -76,6 +86,23 @@ public class ProcesoService {
     public ProcesoRespuestaDto obtener(Long procesoId, String username) {
         Usuario usuario = usuarioAutenticado(username);
         return toDto(procesoDeLaEmpresa(procesoId, usuario));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProcesoResumenDto> consultarProcesos(FiltroProcesosDto filtro, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        normalizar(filtro);
+        Pageable paginacion = PageRequest.of(filtro.getPage(), TAMANO_PAGINA,
+                Sort.by(Sort.Direction.ASC, "nombre"));
+        return procesoRepository
+                .findAll(ProcesoSpecifications.deLaEmpresaCon(usuario.getEmpresa().getId(), filtro), paginacion)
+                .map(this::toResumen);
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> categoriasDisponibles(String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        return procesoRepository.categoriasDeLaEmpresa(usuario.getEmpresa().getId());
     }
 
     public boolean puedeEditar(String username) {
@@ -210,9 +237,39 @@ public class ProcesoService {
         }
     }
 
+    private void normalizar(FiltroProcesosDto filtro) {
+        filtro.setQ(textoONulo(filtro.getQ()));
+        filtro.setCategoria(textoONulo(filtro.getCategoria()));
+        if (filtro.getVisibilidad() == null) {
+            filtro.setVisibilidad(VisibilidadProceso.ACTIVOS);
+        }
+        filtro.setPage(filtro.getPage() == null ? 0 : Math.max(filtro.getPage(), 0));
+    }
+
+    private String textoONulo(String valor) {
+        if (valor == null || valor.isBlank()) {
+            return null;
+        }
+        return valor.trim();
+    }
+
+    private ProcesoResumenDto toResumen(Proceso proceso) {
+        ProcesoResumenDto resumen = modelMapper.map(proceso, ProcesoResumenDto.class);
+        resumen.setDescripcion(resumir(proceso.getDescripcion()));
+        return resumen;
+    }
+
+    private String resumir(String descripcion) {
+        if (descripcion == null || descripcion.length() <= LONGITUD_RESUMEN) {
+            return descripcion;
+        }
+        return descripcion.substring(0, LONGITUD_RESUMEN) + "...";
+    }
+
     private ProcesoRespuestaDto toDto(Proceso proceso) {
         ProcesoRespuestaDto response = modelMapper.map(proceso, ProcesoRespuestaDto.class);
         response.setPoolId(proceso.getPool().getId());
+        response.setPoolNombre(proceso.getPool().getNombre());
         return response;
     }
 

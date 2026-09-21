@@ -18,10 +18,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
@@ -32,7 +37,10 @@ import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
 import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
+import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -1043,5 +1051,195 @@ class ProcesoServiceTest {
                 .isInstanceOf(NombreProcesoDuplicadoException.class);
 
         verify(procesoRepository, never()).save(any(Proceso.class));
+    }
+
+    private void devolverPagina(Proceso... procesos) {
+        when(procesoRepository.findAll(ArgumentMatchers.<Specification<Proceso>>any(), any(Pageable.class)))
+                .thenAnswer(invocacion -> new PageImpl<>(List.of(procesos), invocacion.getArgument(1),
+                        procesos.length));
+    }
+
+    private Pageable paginacionUsada() {
+        ArgumentCaptor<Pageable> capturada = ArgumentCaptor.forClass(Pageable.class);
+        verify(procesoRepository).findAll(ArgumentMatchers.<Specification<Proceso>>any(), capturada.capture());
+        return capturada.getValue();
+    }
+
+    @Test
+    void consultarProcesosDevuelveLosProcesosDeLaEmpresaDelUsuarioComoResumen() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+        devolverPagina(procesoExistente(EMPRESA_PROPIA));
+
+        Page<ProcesoResumenDto> pagina = procesoService.consultarProcesos(new FiltroProcesosDto(), USERNAME);
+
+        assertThat(pagina.getContent()).hasSize(1);
+        ProcesoResumenDto resumen = pagina.getContent().get(0);
+        assertThat(resumen.getId()).isEqualTo(5L);
+        assertThat(resumen.getNombre()).isEqualTo("Ventas");
+        assertThat(resumen.getCategoria()).isEqualTo("Comercial");
+        assertThat(resumen.getEstado()).isEqualTo(EstadoProceso.BORRADOR);
+        assertThat(resumen.isEliminado()).isFalse();
+        assertThat(resumen.getDescripcion()).isEqualTo("Proceso comercial");
+    }
+
+    @Test
+    void consultarProcesosNuncaUsaUnListadoSinFiltroDeEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        devolverPagina();
+
+        procesoService.consultarProcesos(new FiltroProcesosDto(), USERNAME);
+
+        verify(procesoRepository, never()).findAll();
+        verify(procesoRepository).findAll(ArgumentMatchers.<Specification<Proceso>>any(), any(Pageable.class));
+    }
+
+    @Test
+    void consultarProcesosExigeUnUsuarioAutenticadoReal() {
+        sinUsuarioAutenticado();
+
+        assertThatThrownBy(() -> procesoService.consultarProcesos(new FiltroProcesosDto(), USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
+    void consultarProcesosEstaPermitidoParaLosTresRoles() {
+        devolverPagina(procesoExistente(EMPRESA_PROPIA));
+
+        for (RolUsuario rol : RolUsuario.values()) {
+            autenticar(usuarioAutenticado(rol));
+
+            assertThat(procesoService.consultarProcesos(new FiltroProcesosDto(), USERNAME).getContent()).hasSize(1);
+        }
+    }
+
+    @Test
+    void consultarProcesosUsaLaPaginaSolicitadaConUnTamanoEstable() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        devolverPagina();
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setPage(2);
+
+        procesoService.consultarProcesos(filtro, USERNAME);
+
+        Pageable paginacion = paginacionUsada();
+        assertThat(paginacion.getPageNumber()).isEqualTo(2);
+        assertThat(paginacion.getPageSize()).isEqualTo(10);
+        assertThat(paginacion.getSort().isSorted()).isTrue();
+    }
+
+    @Test
+    void consultarProcesosCorrigeUnNumeroDePaginaNegativoEnLugarDeFallar() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        devolverPagina();
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setPage(-3);
+
+        Page<ProcesoResumenDto> pagina = procesoService.consultarProcesos(filtro, USERNAME);
+
+        assertThat(paginacionUsada().getPageNumber()).isZero();
+        assertThat(pagina.getContent()).isEmpty();
+    }
+
+    @Test
+    void consultarProcesosDevuelvePaginaVaciaCuandoSePideUnaPaginaFueraDeRango() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        when(procesoRepository.findAll(ArgumentMatchers.<Specification<Proceso>>any(), any(Pageable.class)))
+                .thenAnswer(invocacion -> new PageImpl<>(List.of(), invocacion.getArgument(1), 3));
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setPage(99);
+
+        Page<ProcesoResumenDto> pagina = procesoService.consultarProcesos(filtro, USERNAME);
+
+        assertThat(pagina.getContent()).isEmpty();
+        assertThat(pagina.getTotalElements()).isEqualTo(3);
+    }
+
+    @Test
+    void consultarProcesosNormalizaLosFiltrosDeTextoEnBlancoComoAusentes() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        devolverPagina();
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setQ("   ");
+        filtro.setCategoria("  ");
+
+        procesoService.consultarProcesos(filtro, USERNAME);
+
+        assertThat(filtro.getQ()).isNull();
+        assertThat(filtro.getCategoria()).isNull();
+    }
+
+    @Test
+    void consultarProcesosRecortaLosFiltrosDeTexto() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        devolverPagina();
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setQ("  ventas  ");
+        filtro.setCategoria("  Comercial  ");
+
+        procesoService.consultarProcesos(filtro, USERNAME);
+
+        assertThat(filtro.getQ()).isEqualTo("ventas");
+        assertThat(filtro.getCategoria()).isEqualTo("Comercial");
+    }
+
+    @Test
+    void consultarProcesosUsaVisibilidadDeActivosCuandoNoSeIndicaNinguna() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        devolverPagina();
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setVisibilidad(null);
+
+        procesoService.consultarProcesos(filtro, USERNAME);
+
+        assertThat(filtro.getVisibilidad()).isEqualTo(VisibilidadProceso.ACTIVOS);
+    }
+
+    @Test
+    void consultarProcesosConservaLaVisibilidadDeInactivosCuandoSePideExplicitamente() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        devolverPagina(procesoExistente(EMPRESA_PROPIA, true));
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setVisibilidad(VisibilidadProceso.INACTIVOS);
+
+        Page<ProcesoResumenDto> pagina = procesoService.consultarProcesos(filtro, USERNAME);
+
+        assertThat(filtro.getVisibilidad()).isEqualTo(VisibilidadProceso.INACTIVOS);
+        assertThat(pagina.getContent().get(0).isEliminado()).isTrue();
+    }
+
+    @Test
+    void elResumenRecortaLasDescripcionesLargasSinPerderElTextoCompletoEnElDetalle() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        Proceso largo = procesoExistente(EMPRESA_PROPIA);
+        largo.setDescripcion("D".repeat(200));
+        devolverPagina(largo);
+
+        Page<ProcesoResumenDto> pagina = procesoService.consultarProcesos(new FiltroProcesosDto(), USERNAME);
+
+        String descripcion = pagina.getContent().get(0).getDescripcion();
+        assertThat(descripcion).hasSizeLessThan(200).endsWith("...");
+    }
+
+    @Test
+    void elDetalleExponeElPoolDelDiagramaQueHoyExiste() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.obtener(5L, USERNAME);
+
+        assertThat(respuesta.getPoolId()).isEqualTo(80L);
+        assertThat(respuesta.getPoolNombre()).isEqualTo("Alpes Logistica");
+    }
+
+    @Test
+    void lasCategoriasDisponiblesSeConsultanSoloParaLaEmpresaDelUsuario() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        when(procesoRepository.categoriasDeLaEmpresa(EMPRESA_PROPIA)).thenReturn(List.of("Comercial", "Operaciones"));
+
+        List<String> categorias = procesoService.categoriasDisponibles(USERNAME);
+
+        assertThat(categorias).containsExactly("Comercial", "Operaciones");
+        verify(procesoRepository).categoriasDeLaEmpresa(EMPRESA_PROPIA);
+        verify(procesoRepository, never()).categoriasDeLaEmpresa(EMPRESA_AJENA);
     }
 }

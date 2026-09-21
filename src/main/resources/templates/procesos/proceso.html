@@ -21,12 +21,21 @@
         <p><strong>Categoría:</strong> <span th:text="${proceso.categoria}">Categoría</span></p>
         <p><strong>Estado:</strong> <span th:text="${proceso.estado}">BORRADOR</span></p>
         <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
+
+        <h2>Diagrama</h2>
+        <p><strong>Pool:</strong> <span th:text="${proceso.poolNombre}">Pool</span></p>
+        <p class="intro">
+            El diagrama arranca con el pool de la empresa. Los demás elementos BPMN (eventos,
+            actividades, arcos, gateways y lanes) todavía no forman parte del modelo: llegan con las
+            historias de modelado posteriores.
+        </p>
         <div class="acciones">
             <a th:if="${puedeEditar and !proceso.eliminado}"
                th:href="@{/procesos/{id}/editar(id=${proceso.id})}">Editar</a>
             <a th:href="@{/procesos/{id}/historial(id=${proceso.id})}">Ver historial de cambios</a>
             <a th:if="${puedeEliminar and !proceso.eliminado}"
                th:href="@{/procesos/{id}/eliminar(id=${proceso.id})}">Eliminar proceso</a>
+            <a th:href="@{/procesos}">Volver al listado</a>
         </div>
 
         <form th:action="@{/logout}" method="post">

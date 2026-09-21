@@ -56,6 +56,7 @@ co.edu.javeriana.procesosempresariales
 | HU-04 · Crear proceso | Implementada |
 | HU-05 · Editar proceso | Implementada |
 | HU-06 · Eliminar proceso | Implementada |
+| HU-07 · Consultar procesos | Implementada, salvo la visualización del diagrama BPMN completo (depende de HU-08+) |
 
 Con la autenticación en marcha, las pantallas de proceso que dependen del usuario autenticado ya
 son accesibles de extremo a extremo: se registra una empresa, se inicia sesión con las credenciales
@@ -86,13 +87,20 @@ pool, su empresa y todo su historial, la eliminación queda registrada como una 
 proceso pasa a ser solo consultable —no se puede editar ni volver a eliminar—. El nombre de un
 proceso eliminado **sigue reservado** dentro de su empresa.
 
-HU-07 no está implementada: no hay listado, búsqueda, filtros ni paginación de procesos. Cuando se
-implemente, el listado por defecto excluirá los procesos inactivos y tendrá un filtro para
-consultarlos. La vista de historial es la evidencia del criterio de HU-05, no HU-07.
+`GET /procesos` lista los procesos **de la empresa del usuario**, con búsqueda parcial por nombre
+(insensible a mayúsculas), filtros por estado y por categoría, filtro de situación
+(activos / inactivos / todos) y paginación de 10 en 10 con Spring Data. Por defecto solo se ven los
+activos; los inactivos se consultan con el filtro de situación. La empresa nunca llega por
+parámetro: sale siempre del usuario autenticado y entra en la consulta.
+
+**El criterio de HU-07 sobre visualizar el diagrama BPMN completo no está cerrado**, y no por falta
+de pantalla: el modelo todavía no tiene eventos, actividades, arcos, gateways ni lanes. Lo único que
+existe hoy es el **pool**, y eso es lo que muestra el detalle, advirtiéndolo en la propia vista. Esos
+elementos llegan con HU-08 en adelante.
 
 ## Historias en desarrollo
 
-El bloque actual cubre HU-01 a HU-06. La documentación de cada historia está en
+El bloque actual cubre HU-01 a HU-07. La documentación de cada historia está en
 [`docs/historias/`](docs/historias/).
 
 ## Requisitos para ejecutar
@@ -146,13 +154,13 @@ Las pruebas que no levantan el contexto completo tampoco necesitan base de datos
 de seguridad, que usan `@WebMvcTest` y sí ejecutan los filtros de Spring Security:
 
 ```bash
-./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest,!EliminacionProcesosIntegracionTest' test
+./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest,!EliminacionProcesosIntegracionTest,!ConsultaProcesosIntegracionTest' test
 ```
 
-La suite completa incluye cinco clases que levantan el contexto de Spring
+La suite completa incluye seis clases que levantan el contexto de Spring
 (`ProcesosEmpresarialesWeb2630ApplicationTests`, `RegistroYLoginIntegracionTest`,
-`GestionUsuariosIntegracionTest`, `ProcesosYHistorialIntegracionTest` y
-`EliminacionProcesosIntegracionTest`) y sí requieren que
+`GestionUsuariosIntegracionTest`, `ProcesosYHistorialIntegracionTest`,
+`EliminacionProcesosIntegracionTest` y `ConsultaProcesosIntegracionTest`) y sí requieren que
 PostgreSQL esté disponible con las credenciales configuradas. En CI corren todas contra el
 contenedor `postgres:16-alpine` del workflow.
 
@@ -191,3 +199,4 @@ Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs
 - [HU-04 · Crear proceso](docs/historias/HU-04-crear-proceso.md)
 - [HU-05 · Editar proceso](docs/historias/HU-05-editar-proceso.md)
 - [HU-06 · Eliminar proceso](docs/historias/HU-06-eliminar-proceso.md)
+- [HU-07 · Consultar procesos](docs/historias/HU-07-consultar-procesos.md)

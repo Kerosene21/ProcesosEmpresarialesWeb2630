@@ -13,5 +13,6 @@ public class ProcesoRespuestaDto {
     private String categoria; 
     private EstadoProceso estado;
     private Long poolId; // Pool asociado al diagrama
+    private String poolNombre;
     private boolean eliminado;
 }
