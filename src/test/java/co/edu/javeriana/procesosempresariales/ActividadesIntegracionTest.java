@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import java.util.Arrays;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -64,6 +65,9 @@ class ActividadesIntegracionTest {
     private static final String LECTOR_ALPES = "lector@alpes-actividades.com";
     private static final String ADMIN_ANDES = "admin@andes-actividades.com";
     private static final String PASSWORD = "Clave-Actividades-2026";
+    private static final String ACTIVIDAD_EN_EL_DIAGRAMA =
+            "<span class=\"actividad-nombre\">Revisar solicitud</span>";
+    private static final String INICIO_DE_LANE = "<div class=\"lane\">";
 
     @Autowired
     private MockMvc mockMvc;
@@ -123,6 +127,13 @@ class ActividadesIntegracionTest {
             String autor) {
         return actividadService.crear(proceso.getId(),
                 new CrearActividadDto(nombre, TipoActividad.TAREA_USUARIO, laneId, 120, 40), autor);
+    }
+
+    private String bloqueDeLaLane(String html, String nombreLane) {
+        return Arrays.stream(html.split(INICIO_DE_LANE))
+                .filter(bloque -> bloque.contains(">" + nombreLane + "</span>"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("El diagrama no dibuja la lane " + nombreLane));
     }
 
     @Test
@@ -370,7 +381,7 @@ class ActividadesIntegracionTest {
         mockMvc.perform(get(detalle).session(sesion))
                 .andExpect(status().isOk())
                 .andExpect(view().name("procesos/proceso"))
-                .andExpect(content().string(containsString("Revisar solicitud")))
+                .andExpect(content().string(containsString(ACTIVIDAD_EN_EL_DIAGRAMA)))
                 .andExpect(content().string(containsString("General")));
 
         Long actividadId = actividadRepository.activasDelProceso(proceso.getId()).get(0).getId();
@@ -384,7 +395,9 @@ class ActividadesIntegracionTest {
 
         mockMvc.perform(get(detalle).session(sesion))
                 .andExpect(status().isOk())
-                .andExpect(content().string(not(containsString("Revisar solicitud"))));
+                .andExpect(content().string(not(containsString(ACTIVIDAD_EN_EL_DIAGRAMA))))
+                .andExpect(content().string(containsString("El diagrama todavía no tiene actividades")))
+                .andExpect(content().string(containsString("La actividad Revisar solicitud quedo eliminada")));
     }
 
     @Test
@@ -405,9 +418,12 @@ class ActividadesIntegracionTest {
 
         assertThat(actividadService.consultarActivas(proceso.getId(), EDITOR_ALPES).get(0).getLaneNombre())
                 .isEqualTo("Cartera");
-        mockMvc.perform(get(detalle).session(sesion))
+        String diagrama = mockMvc.perform(get(detalle).session(sesion))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Cartera")));
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(bloqueDeLaLane(diagrama, "Cartera")).contains(ACTIVIDAD_EN_EL_DIAGRAMA);
+        assertThat(bloqueDeLaLane(diagrama, "General")).doesNotContain(ACTIVIDAD_EN_EL_DIAGRAMA);
     }
 
     @Test
