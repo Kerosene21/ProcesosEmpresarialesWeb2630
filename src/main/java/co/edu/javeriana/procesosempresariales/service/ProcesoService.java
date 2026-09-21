@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,16 +26,14 @@ import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
 import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
-import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
-import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
-import co.edu.javeriana.procesosempresariales.repository.ProcesoSpecifications;
-import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
+import co.edu.javeriana.procesosempresariales.specification.ProcesoSpecifications;
 
 @Service
 public class ProcesoService {
@@ -44,18 +43,21 @@ public class ProcesoService {
     private static final int TAMANO_PAGINA = 10;
     private static final int LONGITUD_RESUMEN = 120;
 
-    private final ProcesoRepository procesoRepository;
-    private final UsuarioRepository usuarioRepository;
-    private final HistorialProcesoRepository historialProcesoRepository;
-    private final ValidacionModeloService validacionModeloService;
-    private final ModelMapper modelMapper;
+    private ProcesoRepository procesoRepository;
+    private UsuarioService usuarioService;
+    private HistorialProcesoService historialProcesoService;
+    private ValidacionModeloService validacionModeloService;
+    private ModelMapper modelMapper;
 
-    public ProcesoService(ProcesoRepository procesoRepository, UsuarioRepository usuarioRepository,
-            HistorialProcesoRepository historialProcesoRepository,
-            ValidacionModeloService validacionModeloService, ModelMapper modelMapper) {
+    @Autowired
+    public ProcesoService(ProcesoRepository procesoRepository,
+                          UsuarioService usuarioService,
+                          HistorialProcesoService historialProcesoService,
+                          ValidacionModeloService validacionModeloService,
+                          ModelMapper modelMapper) {
         this.procesoRepository = procesoRepository;
-        this.usuarioRepository = usuarioRepository;
-        this.historialProcesoRepository = historialProcesoRepository;
+        this.usuarioService = usuarioService;
+        this.historialProcesoService = historialProcesoService;
         this.validacionModeloService = validacionModeloService;
         this.modelMapper = modelMapper;
     }
@@ -63,21 +65,18 @@ public class ProcesoService {
     @Transactional
     public ProcesoRespuestaDto crear(CrearProcesoDto dto, String username) {
         Usuario usuario = usuarioAutenticado(username);
-        validarRolDeEscritura(usuario);
         Long empresaId = usuario.getEmpresa().getId();
-        String nombre = dto.getNombre().trim();
-        String categoria = dto.getCategoria().trim();
 
-        if (procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(empresaId, nombre)) {
+        if (procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(empresaId, dto.getNombre().trim())) {
             throw new NombreProcesoDuplicadoException(NOMBRE_DUPLICADO);
         }
 
         Proceso proceso = modelMapper.map(dto, Proceso.class);
-        proceso.setNombre(nombre);
-        proceso.setCategoria(categoria);
+        proceso.setNombre(dto.getNombre().trim());
         proceso.setEstado(EstadoProceso.BORRADOR);
         proceso.setEmpresa(usuario.getEmpresa());
         proceso.setPool(poolConLaneInicial(usuario.getEmpresa().getNombre()));
+
         try {
             return toDto(procesoRepository.save(proceso));
         } catch (DataIntegrityViolationException exception) {
@@ -176,11 +175,7 @@ public class ProcesoService {
     public List<HistorialProcesoRespuestaDto> consultarHistorial(Long procesoId, String username) {
         Usuario usuario = usuarioAutenticado(username);
         Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
-        return historialProcesoRepository
-                .findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(proceso.getId(), usuario.getEmpresa().getId())
-                .stream()
-                .map(this::toHistorialDto)
-                .toList();
+        return historialProcesoService.consultarPorProcesoYEmpresa(proceso.getId(), usuario.getEmpresa().getId());
     }
 
     private boolean saleDeBorrador(Proceso proceso, EditarProcesoDto dto) {
@@ -194,8 +189,7 @@ public class ProcesoService {
     }
 
     private Usuario usuarioAutenticado(String username) {
-        return usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
+        return usuarioService.buscarPorUsername(username);
     }
 
     private Proceso procesoDeLaEmpresa(Long procesoId, Usuario usuario) {
@@ -216,7 +210,7 @@ public class ProcesoService {
     }
 
     private void registrarHistorial(Proceso proceso, Usuario usuario, String cambios, String estadoAnterior) {
-        historialProcesoRepository.save(new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
+        historialProcesoService.registrarHistorial(new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
                 estadoAnterior));
     }
 
@@ -288,16 +282,7 @@ public class ProcesoService {
     private ProcesoRespuestaDto toDto(Proceso proceso) {
         ProcesoRespuestaDto response = modelMapper.map(proceso, ProcesoRespuestaDto.class);
         response.setPoolId(proceso.getPool().getId());
-        response.setPoolNombre(proceso.getPool().getNombre());
         return response;
     }
-
-    private HistorialProcesoRespuestaDto toHistorialDto(HistorialProceso historial) {
-        HistorialProcesoRespuestaDto respuesta = new HistorialProcesoRespuestaDto();
-        respuesta.setFecha(historial.getFecha());
-        respuesta.setUsuarioCorreo(historial.getUsuario().getUsername());
-        respuesta.setEstadoAnterior(historial.getEstadoAnterior());
-        respuesta.setCambiosRealizados(historial.getCambiosRealizados());
-        return respuesta;
-    }
 }
+
