@@ -9,8 +9,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// HU-09: solo se editan nombre, tipo y lane. La posición no es parte de
-// esta historia (mover el rectángulo en el lienzo sería otra acción).
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class EditarActividadDto {
 

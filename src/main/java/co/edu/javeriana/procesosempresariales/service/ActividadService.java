@@ -19,6 +19,7 @@ import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarActividadDto;
+import co.edu.javeriana.procesosempresariales.dto.LaneRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -34,6 +35,8 @@ public class ActividadService {
 
     private static final String NOMBRE_DUPLICADO = "Ya existe una actividad con ese nombre en el proceso";
     private static final String LANE_INVALIDA = "La lane indicada no existe o no pertenece a este proceso";
+    private static final String PROCESO_ELIMINADO = "El proceso ya fue eliminado";
+    private static final String ACTIVIDAD_ELIMINADA = "La actividad ya fue eliminada";
 
     private final ActividadRepository actividadRepository;
     private final ProcesoRepository procesoRepository;
@@ -57,7 +60,7 @@ public class ActividadService {
     public ActividadRespuestaDto crear(Long procesoId, CrearActividadDto dto, String username) {
         Usuario usuario = usuarioAutenticado(username);
         validarRolDeEscritura(usuario);
-        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = procesoActivoDeLaEmpresa(procesoId, usuario);
 
         String nombre = dto.getNombre().trim();
         if (actividadRepository.existsByProcesoIdAndNombreIgnoreCase(procesoId, nombre)) {
@@ -75,22 +78,47 @@ public class ActividadService {
         actividad.setPosicionY(dto.getPosicionY());
         actividad.setActivo(true);
 
+        Actividad guardada;
         try {
-            actividad = actividadRepository.save(actividad);
+            guardada = actividadRepository.save(actividad);
         } catch (DataIntegrityViolationException exception) {
             throw new NombreActividadDuplicadoException(NOMBRE_DUPLICADO);
         }
 
-        registrarHistorial(proceso, usuario, "Actividad creada: '" + nombre + "'");
-        return toDto(actividad);
+        registrarHistorial(proceso, usuario, "actividad creada: '" + nombre + "'");
+        return toDto(guardada);
+    }
+
+    @Transactional(readOnly = true)
+    public ActividadRespuestaDto obtener(Long procesoId, Long actividadId, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        return toDto(actividadActivaDelProceso(actividadId, procesoDeLaEmpresa(procesoId, usuario)));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ActividadRespuestaDto> consultarActivas(Long procesoId, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
+        return actividadRepository.activasDelProceso(proceso.getId()).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<LaneRespuestaDto> lanesDelProceso(Long procesoId, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
+        return laneRepository.findByPoolIdOrderByIdAsc(proceso.getPool().getId()).stream()
+                .map(lane -> new LaneRespuestaDto(lane.getId(), lane.getNombre()))
+                .toList();
     }
 
     @Transactional
     public ActividadRespuestaDto editar(Long procesoId, Long actividadId, EditarActividadDto dto, String username) {
         Usuario usuario = usuarioAutenticado(username);
         validarRolDeEscritura(usuario);
-        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
-        Actividad actividad = actividadDelProceso(actividadId, proceso);
+        Proceso proceso = procesoActivoDeLaEmpresa(procesoId, usuario);
+        Actividad actividad = actividadActivaDelProceso(actividadId, proceso);
 
         String nombreNuevo = dto.getNombre().trim();
         if (!actividad.getNombre().equalsIgnoreCase(nombreNuevo)
@@ -105,38 +133,35 @@ public class ActividadService {
             return toDto(actividad);
         }
 
-        // Cambiar de lane mueve la actividad a la banda del nuevo rol
-        // responsable (no es solo un dato, es dónde se dibuja en el diagrama).
+        String resumen = "actividad '" + actividad.getNombre() + "': " + cambios;
         actividad.setNombre(nombreNuevo);
         actividad.setTipo(dto.getTipo());
         actividad.setLane(laneNueva);
-        // Los arcos conectados no se tocan: siguen apuntando al mismo id de
-        // actividad, solo cambia la banda donde se dibuja.
         actividadRepository.save(actividad);
 
-        registrarHistorial(proceso, usuario, cambios);
+        registrarHistorial(proceso, usuario, resumen);
         return toDto(actividad);
     }
 
-    @Transactional
-    public void eliminar(Long procesoId, Long actividadId, String username) {
+    @Transactional(readOnly = true)
+    public ActividadRespuestaDto obtenerParaEliminar(Long procesoId, Long actividadId, String username) {
         Usuario usuario = usuarioAutenticado(username);
         validarRolAdministrador(usuario);
-        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
-        Actividad actividad = actividadDelProceso(actividadId, proceso);
+        return toDto(actividadActivaDelProceso(actividadId, procesoActivoDeLaEmpresa(procesoId, usuario)));
+    }
 
-        // Eliminación lógica: la fila se conserva, solo se marca inactiva.
+    @Transactional
+    public ActividadRespuestaDto eliminar(Long procesoId, Long actividadId, String username) {
+        Usuario usuario = usuarioAutenticado(username);
+        validarRolAdministrador(usuario);
+        Proceso proceso = procesoActivoDeLaEmpresa(procesoId, usuario);
+        Actividad actividad = actividadActivaDelProceso(actividadId, proceso);
+
         actividad.setActivo(false);
         actividadRepository.save(actividad);
 
-        // NOTA: aquí falta eliminar (lógicamente) los arcos que entraban y
-        // salían de esta actividad y advertir si el proceso queda con
-        // elementos desconectados, tal como pide HU-10. Esa parte depende
-        // de la entidad Arco, que todavía no existe en el proyecto. Cuando
-        // se implemente Arco, agregar aquí una llamada a un
-        // ArcoRepository para desactivar los arcos que referencien esta
-        // actividad (como origen o destino) y para chequear huérfanos.
-        registrarHistorial(proceso, usuario, "Actividad eliminada: '" + actividad.getNombre() + "'");
+        registrarHistorial(proceso, usuario, "actividad eliminada: '" + actividad.getNombre() + "'");
+        return toDto(actividad);
     }
 
     private Usuario usuarioAutenticado(String username) {
@@ -153,18 +178,24 @@ public class ActividadService {
         return proceso;
     }
 
-    private Actividad actividadDelProceso(Long actividadId, Proceso proceso) {
+    private Proceso procesoActivoDeLaEmpresa(Long procesoId, Usuario usuario) {
+        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
+        if (proceso.isEliminado()) {
+            throw new RecursoNoEncontradoException(PROCESO_ELIMINADO);
+        }
+        return proceso;
+    }
+
+    private Actividad actividadActivaDelProceso(Long actividadId, Proceso proceso) {
         Actividad actividad = actividadRepository.findByIdAndProcesoId(actividadId, proceso.getId())
                 .orElseThrow(() -> new RecursoNoEncontradoException("La actividad no existe en este proceso"));
         if (!actividad.isActivo()) {
-            throw new RecursoNoEncontradoException("La actividad ya fue eliminada");
+            throw new RecursoNoEncontradoException(ACTIVIDAD_ELIMINADA);
         }
         return actividad;
     }
 
     private Lane laneDelProceso(Long laneId, Proceso proceso) {
-        // La lane debe pertenecer al mismo pool del proceso: así la actividad
-        // queda dibujada dentro del pool correcto.
         return laneRepository.findByIdAndPoolId(laneId, proceso.getPool().getId())
                 .orElseThrow(() -> new LaneNoValidaException(LANE_INVALIDA));
     }
@@ -207,9 +238,10 @@ public class ActividadService {
     }
 
     private ActividadRespuestaDto toDto(Actividad actividad) {
-        ActividadRespuestaDto response = modelMapper.map(actividad, ActividadRespuestaDto.class);
-        response.setProcesoId(actividad.getProceso().getId());
-        response.setLaneId(actividad.getLane().getId());
-        return response;
+        ActividadRespuestaDto respuesta = modelMapper.map(actividad, ActividadRespuestaDto.class);
+        respuesta.setProcesoId(actividad.getProceso().getId());
+        respuesta.setLaneId(actividad.getLane().getId());
+        respuesta.setLaneNombre(actividad.getLane().getNombre());
+        return respuesta;
     }
 }

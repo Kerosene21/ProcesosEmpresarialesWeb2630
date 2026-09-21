@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Editar actividad</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">Diagrama del proceso</p>
+        <h1 id="form-title">Editar actividad</h1>
+        <p class="intro">
+            Se pueden cambiar el nombre, el tipo y la lane. Cambiar la lane mueve la actividad a la
+            banda de otro responsable; sus arcos se conservan. La posición no se modifica aquí.
+        </p>
+
+        <form th:action="@{/procesos/{procesoId}/actividades/{actividadId}(procesoId=${procesoId},actividadId=${actividadId})}"
+              th:object="${actividad}" method="post" novalidate>
+            <label for="nombre">Nombre</label>
+            <input id="nombre" type="text" th:field="*{nombre}" required maxlength="150" autofocus>
+            <small class="error" th:if="${#fields.hasErrors('nombre')}" th:errors="*{nombre}"></small>
+
+            <label for="tipo">Tipo</label>
+            <select id="tipo" th:field="*{tipo}" required>
+                <option value="">Seleccione un tipo</option>
+                <option th:each="tipo : ${tipos}" th:value="${tipo}" th:text="${tipo}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('tipo')}" th:errors="*{tipo}"></small>
+
+            <label for="laneId">Lane responsable</label>
+            <select id="laneId" th:field="*{laneId}" required>
+                <option value="">Seleccione una lane</option>
+                <option th:each="lane : ${lanes}" th:value="${lane.id}" th:text="${lane.nombre}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('laneId')}" th:errors="*{laneId}"></small>
+
+            <button type="submit">Guardar cambios</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}(procesoId=${procesoId})}">Cancelar y volver al proceso</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

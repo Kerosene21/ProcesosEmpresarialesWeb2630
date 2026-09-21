@@ -1,6 +1,7 @@
 package co.edu.javeriana.procesosempresariales.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.InstanceOfAssertFactories.LIST;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -34,6 +35,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
+import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
+import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.LaneRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
@@ -41,6 +45,7 @@ import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.service.ActividadService;
 import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,11 +57,14 @@ class ProcesoControllerTest {
     @Mock
     private ProcesoService procesoService;
 
+    @Mock
+    private ActividadService actividadService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void inicializar() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new ProcesoController(procesoService)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new ProcesoController(procesoService, actividadService)).build();
     }
 
     private ProcesoRespuestaDto procesoExistente() {
@@ -92,6 +100,23 @@ class ProcesoControllerTest {
                 .andExpect(view().name("procesos/proceso"))
                 .andExpect(model().attribute("puedeEditar", true))
                 .andExpect(model().attributeExists("proceso"));
+    }
+
+    @Test
+    void verLlevaAlDetalleLasLanesYLasActividadesActivasDelDiagrama() throws Exception {
+        when(procesoService.obtener(5L, USERNAME)).thenReturn(procesoExistente());
+        when(actividadService.lanesDelProceso(5L, USERNAME))
+                .thenReturn(List.of(new LaneRespuestaDto(11L, "General")));
+        when(actividadService.consultarActivas(5L, USERNAME)).thenReturn(List.of(actividadActiva()));
+
+        MvcResult resultado = mockMvc.perform(get("/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(view().name("procesos/proceso"))
+                .andReturn();
+
+        assertThat(resultado.getModelAndView().getModel().get("lanes")).asInstanceOf(LIST).hasSize(1);
+        assertThat(resultado.getModelAndView().getModel().get("actividades")).asInstanceOf(LIST).hasSize(1);
+        verify(actividadService).consultarActivas(5L, USERNAME);
     }
 
     @Test
@@ -297,6 +322,20 @@ class ProcesoControllerTest {
 
         ProcesoRespuestaDto proceso = (ProcesoRespuestaDto) resultado.getModelAndView().getModel().get("proceso");
         assertThat(proceso.isEliminado()).isTrue();
+    }
+
+    private ActividadRespuestaDto actividadActiva() {
+        ActividadRespuestaDto actividad = new ActividadRespuestaDto();
+        actividad.setId(30L);
+        actividad.setNombre("Revisar solicitud");
+        actividad.setTipo(TipoActividad.TAREA_USUARIO);
+        actividad.setProcesoId(5L);
+        actividad.setLaneId(11L);
+        actividad.setLaneNombre("General");
+        actividad.setPosicionX(120);
+        actividad.setPosicionY(40);
+        actividad.setActivo(true);
+        return actividad;
     }
 
     private ProcesoResumenDto resumen(Long id, String nombre, boolean eliminado) {

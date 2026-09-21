@@ -105,7 +105,7 @@ class ProcesoServiceTest {
 
     private Proceso procesoExistente(Long empresaId, boolean eliminado) {
         return new Proceso(5L, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
-                empresa(empresaId, "Alpes Logistica"), new Pool(80L, "Alpes Logistica"), eliminado);
+                empresa(empresaId, "Alpes Logistica"), new Pool(80L, "Alpes Logistica", List.of()), eliminado);
     }
 
     private void existeElProceso(Proceso proceso) {
@@ -184,6 +184,19 @@ class ProcesoServiceTest {
         procesoService.crear(formularioCreacion(), USERNAME);
 
         assertThat(procesoGuardado().getNombre()).isEqualTo("Ventas");
+    }
+
+    @Test
+    void crearDejaElPoolConUnaLaneInicialParaUbicarActividades() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        procesoService.crear(formularioCreacion(), USERNAME);
+
+        Pool pool = procesoGuardado().getPool();
+        assertThat(pool.getLanes()).hasSize(1);
+        assertThat(pool.getLanes().get(0).getNombre()).isEqualTo("General");
+        assertThat(pool.getLanes().get(0).getPool()).isSameAs(pool);
     }
 
     @Test

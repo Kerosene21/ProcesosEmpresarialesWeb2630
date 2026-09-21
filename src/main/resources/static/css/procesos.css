@@ -29,3 +29,13 @@ button:hover { color: #000; background: #fff; }
 dl { margin: 0; }
 dt { margin-top: 12px; font-weight: bold; }
 dd { margin: 4px 0 0; }
+
+.pool { margin: 0 0 16px; padding: 8px; border: 2px solid #000; }
+.pool-nombre { margin: 0 0 8px; }
+.lane { margin: 0 0 8px; border: 1px solid #000; }
+.lane-nombre { margin: 0; padding: 4px 8px; border-bottom: 1px solid #000; }
+.lane-lienzo { position: relative; min-height: 120px; overflow: auto; }
+.actividad { position: absolute; padding: 4px 8px; border: 1px solid #000; background: #fff; }
+.actividad-nombre { display: block; font-weight: bold; }
+.actividad-tipo, .actividad-posicion { display: block; font-size: 12px; }
+.actividad-acciones { display: flex; gap: 8px; margin-top: 4px; font-size: 12px; }

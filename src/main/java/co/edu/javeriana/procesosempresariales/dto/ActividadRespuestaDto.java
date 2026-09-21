@@ -11,6 +11,7 @@ public class ActividadRespuestaDto {
     private TipoActividad tipo;
     private Long procesoId;
     private Long laneId;
+    private String laneNombre;
     private Integer posicionX;
     private Integer posicionY;
     private boolean activo;

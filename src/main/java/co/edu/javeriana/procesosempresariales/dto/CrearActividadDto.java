@@ -9,7 +9,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// Datos que el cliente envía para crear una actividad dentro de un proceso.
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class CrearActividadDto {
 

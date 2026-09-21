@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
+import co.edu.javeriana.procesosempresariales.domain.Lane;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
@@ -39,18 +40,15 @@ import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 public class ProcesoService {
 
     private static final String NOMBRE_DUPLICADO = "Ya existe un proceso con ese nombre en la empresa";
+    private static final String LANE_INICIAL = "General";
     private static final int TAMANO_PAGINA = 10;
     private static final int LONGITUD_RESUMEN = 120;
 
     private final ProcesoRepository procesoRepository;
-    // repo relacionar al usuario autenticado con su empresa
     private final UsuarioRepository usuarioRepository;
-    // Cada modificación del proceso se acompaña de una entrada en historial
     private final HistorialProcesoRepository historialProcesoRepository;
-    // ModelMapper para evitar escribir código repetitivo de conversión entre entidades y DTO
     private final ModelMapper modelMapper;
 
-    // Las dependencias llegan por constructor, lo que hace explícito lo que necesita el servicio.
     public ProcesoService(ProcesoRepository procesoRepository, UsuarioRepository usuarioRepository,
             HistorialProcesoRepository historialProcesoRepository, ModelMapper modelMapper) {
         this.procesoRepository = procesoRepository;
@@ -76,7 +74,7 @@ public class ProcesoService {
         proceso.setCategoria(categoria);
         proceso.setEstado(EstadoProceso.BORRADOR);
         proceso.setEmpresa(usuario.getEmpresa());
-        proceso.setPool(new Pool(null, usuario.getEmpresa().getNombre()));
+        proceso.setPool(poolConLaneInicial(usuario.getEmpresa().getNombre()));
         try {
             return toDto(procesoRepository.save(proceso));
         } catch (DataIntegrityViolationException exception) {
@@ -176,6 +174,12 @@ public class ProcesoService {
                 .stream()
                 .map(this::toHistorialDto)
                 .toList();
+    }
+
+    private Pool poolConLaneInicial(String nombreEmpresa) {
+        Pool pool = new Pool(null, nombreEmpresa, new ArrayList<>());
+        pool.getLanes().add(new Lane(null, LANE_INICIAL, pool));
+        return pool;
     }
 
     private Usuario usuarioAutenticado(String username) {

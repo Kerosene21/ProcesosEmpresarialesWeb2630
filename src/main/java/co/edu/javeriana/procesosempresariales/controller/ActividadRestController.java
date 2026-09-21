@@ -29,7 +29,6 @@ public class ActividadRestController {
         this.actividadService = actividadService;
     }
 
-    // HU-08
     @PostMapping
     public ResponseEntity<ActividadRespuestaDto> crear(@PathVariable("procesoId") Long procesoId,
             @Valid @RequestBody CrearActividadDto dto, Principal principal) {
@@ -39,7 +38,6 @@ public class ActividadRestController {
         return ResponseEntity.created(location).body(creada);
     }
 
-    // HU-09
     @PutMapping("/{actividadId}")
     public ResponseEntity<ActividadRespuestaDto> editar(@PathVariable("procesoId") Long procesoId,
             @PathVariable("actividadId") Long actividadId, @Valid @RequestBody EditarActividadDto dto,
@@ -47,8 +45,6 @@ public class ActividadRestController {
         return ResponseEntity.ok(actividadService.editar(procesoId, actividadId, dto, principal.getName()));
     }
 
-    // HU-10. La confirmación ("¿seguro que quiere eliminar?") es
-    // responsabilidad del cliente antes de llamar a este endpoint.
     @DeleteMapping("/{actividadId}")
     public ResponseEntity<Void> eliminar(@PathVariable("procesoId") Long procesoId,
             @PathVariable("actividadId") Long actividadId, Principal principal) {

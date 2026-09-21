@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confirmar eliminación de actividad</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="confirmar-title">
+        <p class="eyebrow">Eliminar actividad</p>
+        <h1 id="confirmar-title">¿Eliminar esta actividad?</h1>
+
+        <p class="error">
+            La actividad dejara de aparecer en el diagrama. No se borra de la base de datos: la fila
+            se conserva marcada como inactiva y la eliminacion queda registrada en el historial del
+            proceso.
+        </p>
+
+        <dl>
+            <dt>Nombre</dt>
+            <dd th:text="${actividad.nombre}">Nombre de la actividad</dd>
+
+            <dt>Tipo</dt>
+            <dd th:text="${actividad.tipo}">TAREA_USUARIO</dd>
+
+            <dt>Lane</dt>
+            <dd th:text="${actividad.laneNombre}">Lane</dd>
+        </dl>
+
+        <form th:action="@{/procesos/{procesoId}/actividades/{actividadId}/eliminar(procesoId=${procesoId},actividadId=${actividad.id})}"
+              method="post">
+            <button type="submit">Confirmar eliminación</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}(procesoId=${procesoId})}">Cancelar y volver al proceso</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>
