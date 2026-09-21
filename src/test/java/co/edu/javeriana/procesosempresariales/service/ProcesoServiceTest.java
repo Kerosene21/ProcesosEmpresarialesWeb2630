@@ -1242,4 +1242,67 @@ class ProcesoServiceTest {
         verify(procesoRepository).categoriasDeLaEmpresa(EMPRESA_PROPIA);
         verify(procesoRepository, never()).categoriasDeLaEmpresa(EMPRESA_AJENA);
     }
+
+    @Test
+    void crearEliminaLosEspaciosSobrantesDeLaCategoria() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+
+        ProcesoRespuestaDto respuesta = procesoService.crear(
+                new CrearProcesoDto("Ventas", "Proceso comercial", "  Comercial  "), USERNAME);
+
+        assertThat(procesoGuardado().getCategoria()).isEqualTo("Comercial");
+        assertThat(respuesta.getCategoria()).isEqualTo("Comercial");
+    }
+
+    @Test
+    void editarEliminaLosEspaciosSobrantesDeLaCategoria() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.editar(5L, new EditarProcesoDto("Ventas",
+                "Proceso comercial", "  Operaciones  ", EstadoProceso.BORRADOR), USERNAME);
+
+        assertThat(procesoGuardado().getCategoria()).isEqualTo("Operaciones");
+        assertThat(respuesta.getCategoria()).isEqualTo("Operaciones");
+    }
+
+    @Test
+    void elHistorialResumeLaCategoriaYaRecortada() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas", "Proceso comercial", "  Operaciones  ",
+                EstadoProceso.BORRADOR), USERNAME);
+
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("categoria: 'Comercial' -> 'Operaciones'");
+    }
+
+    @Test
+    void anadirEspaciosAlrededorDeLaCategoriaNoCuentaComoCambio() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        procesoService.editar(5L, new EditarProcesoDto("Ventas", "Proceso comercial", "  Comercial  ",
+                EstadoProceso.BORRADOR), USERNAME);
+
+        verify(procesoRepository, never()).save(any(Proceso.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void laCategoriaGuardadaCoincideConLaQueNormalizaElFiltroDeConsulta() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        asignarIdentificadoresAlGuardar(30L, 80L);
+        procesoService.crear(new CrearProcesoDto("Ventas", "Proceso comercial", "  Comercial  "), USERNAME);
+        String categoriaPersistida = procesoGuardado().getCategoria();
+
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setCategoria("  Comercial  ");
+        devolverPagina();
+        procesoService.consultarProcesos(filtro, USERNAME);
+
+        assertThat(filtro.getCategoria()).isEqualTo(categoriaPersistida);
+    }
 }

@@ -65,6 +65,7 @@ public class ProcesoService {
         validarRolDeEscritura(usuario);
         Long empresaId = usuario.getEmpresa().getId();
         String nombre = dto.getNombre().trim();
+        String categoria = dto.getCategoria().trim();
 
         if (procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(empresaId, nombre)) {
             throw new NombreProcesoDuplicadoException(NOMBRE_DUPLICADO);
@@ -72,6 +73,7 @@ public class ProcesoService {
 
         Proceso proceso = modelMapper.map(dto, Proceso.class);
         proceso.setNombre(nombre);
+        proceso.setCategoria(categoria);
         proceso.setEstado(EstadoProceso.BORRADOR);
         proceso.setEmpresa(usuario.getEmpresa());
         proceso.setPool(new Pool(null, usuario.getEmpresa().getNombre()));
@@ -122,12 +124,13 @@ public class ProcesoService {
 
         Proceso proceso = procesoActivoDeLaEmpresa(procesoId, usuario);
         String nombreNuevo = dto.getNombre().trim();
+        String categoriaNueva = dto.getCategoria().trim();
         if (!proceso.getNombre().equalsIgnoreCase(nombreNuevo)
                 && procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(usuario.getEmpresa().getId(), nombreNuevo)) {
             throw new NombreProcesoDuplicadoException(NOMBRE_DUPLICADO);
         }
 
-        String cambios = construirCambios(proceso, dto, nombreNuevo);
+        String cambios = construirCambios(proceso, dto, nombreNuevo, categoriaNueva);
         if (cambios.isEmpty()) {
             return toDto(proceso);
         }
@@ -135,7 +138,7 @@ public class ProcesoService {
         String estadoAnterior = proceso.getEstado().name();
         proceso.setNombre(nombreNuevo);
         proceso.setDescripcion(dto.getDescripcion());
-        proceso.setCategoria(dto.getCategoria());
+        proceso.setCategoria(categoriaNueva);
         proceso.setEstado(dto.getEstado());
         procesoRepository.save(proceso);
 
@@ -222,11 +225,12 @@ public class ProcesoService {
         }
     }
 
-    private String construirCambios(Proceso proceso, EditarProcesoDto dto, String nombreNuevo) {
+    private String construirCambios(Proceso proceso, EditarProcesoDto dto, String nombreNuevo,
+            String categoriaNueva) {
         List<String> cambios = new ArrayList<>();
         agregarCambio(cambios, "nombre", proceso.getNombre(), nombreNuevo);
         agregarCambio(cambios, "descripcion", proceso.getDescripcion(), dto.getDescripcion());
-        agregarCambio(cambios, "categoria", proceso.getCategoria(), dto.getCategoria());
+        agregarCambio(cambios, "categoria", proceso.getCategoria(), categoriaNueva);
         agregarCambio(cambios, "estado", proceso.getEstado().name(), dto.getEstado().name());
         return String.join("; ", cambios);
     }

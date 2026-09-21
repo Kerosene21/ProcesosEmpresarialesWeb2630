@@ -208,7 +208,11 @@ existía y funciona. Se mantiene el patrón Post/Redirect/Get, así que recargar
 
 ### Qué sigue pendiente de HU-04
 
-- **No hay listado de procesos por empresa.** Sigue sin existir una pantalla con todos los procesos
-  de la empresa; se llega al detalle por el enlace que deja la creación o por URL directa.
 - **Unicidad a nivel de tabla.** `uk_proceso_empresa_nombre` se ejercita en CI a través de las
   pruebas de integración, pero no hay una prueba dedicada que la fuerce con dos altas simultáneas.
+
+### Resuelto en el bloque de HU-07
+
+- **Listado de procesos por empresa.** Ya existe: `GET /procesos` muestra los procesos de la empresa
+  del usuario, con búsqueda, filtros y paginación. Ver
+  [HU-07 · Consultar procesos](HU-07-consultar-procesos.md).

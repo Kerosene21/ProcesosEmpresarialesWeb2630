@@ -18,8 +18,9 @@ Criterios de aceptación:
 Además, y por coherencia con el resto del proyecto: un usuario nunca puede eliminar un proceso de
 otra empresa.
 
-> **El criterio del listado por defecto y su filtro corresponde a HU-07** y no se implementa aquí.
-> Lo que HU-06 deja listo para ello está al final del documento.
+> **El criterio del listado por defecto y su filtro se implementó en HU-07**, que es donde nació el
+> listado de procesos. Todos los criterios de HU-06 están cubiertos; el detalle de ese punto está al
+> final del documento.
 
 ## Diseño: qué se añadió al modelo
 
@@ -331,29 +332,28 @@ artificial para cubrirlo. Lo que HU-07 necesita se explica abajo.
 - **No hay restauración.** HU-06 no la pide. Un proceso eliminado lo está de forma definitiva desde
   la interfaz; revertirlo hoy requeriría tocar la base de datos.
 - **El `DELETE` de la API no es idempotente** (ver la decisión de arriba).
-- **No hay listado que excluya eliminados**, porque no hay listado todavía: es trabajo de HU-07.
 - **La migración con `ddl-auto=update` no se pudo verificar en local** por no haber PostgreSQL
   disponible; el valor por defecto de la columna está pensado justo para que funcione sin
   intervención, y CI lo ejercita con `create-drop`.
 
-## Preparación para HU-07
+## El listado y el filtro de inactivos: resueltos en HU-07
 
 El criterio «un proceso inactivo deja de aparecer en el listado por defecto, pero puede consultarse
-con un filtro» **es de HU-07**, porque hoy no existe ningún listado de procesos. HU-06 deja el
-terreno preparado:
+con un filtro» se implementó en [HU-07 · Consultar procesos](HU-07-consultar-procesos.md), que es
+donde nació el listado. Con eso, **HU-06 queda completa también en ese punto**:
 
-- La columna `eliminado` existe, tiene valor en todas las filas y es consultable desde JPA.
-- En el código, «activo» está definido en un único lugar y con ese nombre:
-  `ProcesoService.procesoActivoDeLaEmpresa`, que es lo que distingue un proceso utilizable de uno
-  eliminado.
+1. **El listado por defecto excluye `eliminado = true`.** El filtro de situación usa
+   `VisibilidadProceso.ACTIVOS` por defecto, y el servicio lo normaliza a ese valor incluso si llega
+   vacío o manipulado desde la URL.
+2. **Hay filtro para consultar los inactivos**: `visibilidad=INACTIVOS`, y `TODOS` para ver ambos.
 
-Las dos reglas que HU-07 deberá implementar, ya acordadas:
+Ambas reglas se resuelven **desde la consulta**, nunca trayendo todo y filtrando en Java. La
+implementación final no usó un método derivado sino `ProcesoSpecifications`, que compone los filtros
+opcionales sin generar predicados para los ausentes; el motivo está explicado en la documentación de
+HU-07.
 
-1. **El listado por defecto excluye `eliminado = true`**, resuelto **desde la consulta** con un
-   derivado del estilo `findByEmpresaIdAndEliminadoFalseOrderByNombreAsc(empresaId)`, nunca trayendo
-   todo y filtrando en Java.
-2. **Habrá un filtro para consultar los inactivos**, que usará la variante equivalente sobre
-   `eliminado = true` (o un único método parametrizado por ese valor).
+Lo que HU-06 dejó preparado y HU-07 aprovechó:
 
-Ninguna de las dos se añadió todavía, para no dejar código sin usar. Tampoco se implementó búsqueda
-ni paginación.
+- La columna `eliminado`, con valor en todas las filas y consultable desde JPA.
+- La definición de «activo» en un único lugar del código:
+  `ProcesoService.procesoActivoDeLaEmpresa`, que distingue un proceso utilizable de uno eliminado.

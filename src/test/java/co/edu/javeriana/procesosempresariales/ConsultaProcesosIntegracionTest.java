@@ -203,6 +203,20 @@ class ConsultaProcesosIntegracionTest {
     }
 
     @Test
+    void unaCategoriaEscritaConEspaciosSeGuardaRecortadaYElFiltroLaEncuentra() {
+        registrarAlpes();
+        crear("Ventas", "  Comercial  ", ADMIN_ALPES);
+        crear("Compras", "Operaciones", ADMIN_ALPES);
+
+        assertThat(procesoService.categoriasDisponibles(ADMIN_ALPES)).contains("Comercial");
+
+        FiltroProcesosDto filtro = filtro();
+        filtro.setCategoria("Comercial");
+
+        assertThat(nombresDe(procesoService.consultarProcesos(filtro, ADMIN_ALPES))).containsExactly("Ventas");
+    }
+
+    @Test
     void losFiltrosSeCombinanEntreSi() {
         registrarAlpes();
         ProcesoRespuestaDto ventasComercial = crear("Ventas Corporativas", "Comercial", ADMIN_ALPES);
