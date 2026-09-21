@@ -3,22 +3,23 @@ package co.edu.javeriana.procesosempresariales.controller;
 import java.security.Principal;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
-import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
-import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
+import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
 import co.edu.javeriana.procesosempresariales.service.ArcoService;
 import co.edu.javeriana.procesosempresariales.service.GatewayService;
@@ -27,13 +28,17 @@ import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 @Controller
 @RequestMapping("/procesos")
 public class ProcesoController {
-    private final ProcesoService procesoService;
-    private final ActividadService actividadService;
-    private final ArcoService arcoService;
-    private final GatewayService gatewayService;
 
-    public ProcesoController(ProcesoService procesoService, ActividadService actividadService,
-            ArcoService arcoService, GatewayService gatewayService) {
+    private ProcesoService procesoService;
+    private ActividadService actividadService;
+    private ArcoService arcoService;
+    private GatewayService gatewayService;
+
+    @Autowired
+    public ProcesoController(ProcesoService procesoService,
+                             ActividadService actividadService,
+                             ArcoService arcoService,
+                             GatewayService gatewayService) {
         this.procesoService = procesoService;
         this.actividadService = actividadService;
         this.arcoService = arcoService;
@@ -42,6 +47,9 @@ public class ProcesoController {
 
     @GetMapping
     public String lista(@ModelAttribute("filtro") FiltroProcesosDto filtro, Principal principal, Model model) {
+        if (principal == null) {
+            return "redirect:/login";
+        }
         model.addAttribute("procesos", procesoService.consultarProcesos(filtro, principal.getName()));
         model.addAttribute("categorias", procesoService.categoriasDisponibles(principal.getName()));
         model.addAttribute("estados", EstadoProceso.values());
@@ -57,6 +65,9 @@ public class ProcesoController {
 
     @GetMapping("/{id}")
     public String ver(@PathVariable("id") Long procesoId, Principal principal, Model model) {
+        if (principal == null) {
+            return "redirect:/login";
+        }
         model.addAttribute("proceso", procesoService.obtener(procesoId, principal.getName()));
         model.addAttribute("puedeEditar", procesoService.puedeEditar(principal.getName()));
         model.addAttribute("puedeEliminar", procesoService.puedeEliminar(principal.getName()));
@@ -70,19 +81,18 @@ public class ProcesoController {
 
     @GetMapping("/{id}/editar")
     public String editar(@PathVariable("id") Long procesoId, Principal principal, Model model) {
+        if (principal == null) {
+            return "redirect:/login";
+        }
         ProcesoRespuestaDto proceso = procesoService.obtener(procesoId, principal.getName());
+        if (!procesoService.puedeEditar(principal.getName())) {
+            return "redirect:/procesos/" + procesoId;
+        }
         model.addAttribute("proceso", new EditarProcesoDto(proceso.getNombre(), proceso.getDescripcion(),
                 proceso.getCategoria(), proceso.getEstado()));
         model.addAttribute("procesoId", procesoId);
         model.addAttribute("estados", EstadoProceso.values());
         return "procesos/formularioprocesoseditar";
-    }
-
-    @GetMapping("/{id}/historial")
-    public String historial(@PathVariable("id") Long procesoId, Principal principal, Model model) {
-        model.addAttribute("proceso", procesoService.obtener(procesoId, principal.getName()));
-        model.addAttribute("historial", procesoService.consultarHistorial(procesoId, principal.getName()));
-        return "procesos/historial";
     }
 
     @PostMapping("/{id}")
@@ -94,23 +104,11 @@ public class ProcesoController {
             model.addAttribute("estados", EstadoProceso.values());
             return "procesos/formularioprocesoseditar";
         }
+        if (principal == null) {
+            return "redirect:/login";
+        }
         procesoService.editar(procesoId, dto, principal.getName());
         redirectAttributes.addFlashAttribute("mensaje", "Proceso actualizado correctamente");
-        return "redirect:/procesos/" + procesoId;
-    }
-
-    @GetMapping("/{id}/eliminar")
-    public String confirmarEliminacion(@PathVariable("id") Long procesoId, Principal principal, Model model) {
-        model.addAttribute("proceso", procesoService.obtenerParaEliminar(procesoId, principal.getName()));
-        return "procesos/confirmareliminacion";
-    }
-
-    @PostMapping("/{id}/eliminar")
-    public String eliminar(@PathVariable("id") Long procesoId, Principal principal,
-            RedirectAttributes redirectAttributes) {
-        ProcesoRespuestaDto eliminado = procesoService.eliminar(procesoId, principal.getName());
-        redirectAttributes.addFlashAttribute("mensaje",
-                "El proceso " + eliminado.getNombre() + " quedo eliminado y conserva su historial");
         return "redirect:/procesos/" + procesoId;
     }
 
@@ -120,8 +118,13 @@ public class ProcesoController {
         if (result.hasErrors()) {
             return "procesos/formularioprocesos";
         }
-        ProcesoRespuestaDto creado = procesoService.crear(dto, principal.getName());
+        if (principal == null) {
+            return "redirect:/login";
+        }
+        procesoService.crear(dto, principal.getName());
         redirectAttributes.addFlashAttribute("mensaje", "Proceso creado en estado borrador");
-        return "redirect:/procesos/" + creado.getId();
+        return "redirect:/procesos/nuevo";
     }
 }
+
+

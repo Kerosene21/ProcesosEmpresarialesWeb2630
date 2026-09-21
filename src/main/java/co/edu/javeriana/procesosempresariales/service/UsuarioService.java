@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Locale;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,10 +23,11 @@ import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 @Service
 public class UsuarioService {
 
-    private final UsuarioRepository usuarioRepository;
-    private final ModelMapper modelMapper;
-    private final PasswordEncoder passwordEncoder;
+    private UsuarioRepository usuarioRepository;
+    private ModelMapper modelMapper;
+    private PasswordEncoder passwordEncoder;
 
+    @Autowired 
     public UsuarioService(UsuarioRepository usuarioRepository, ModelMapper modelMapper,
             PasswordEncoder passwordEncoder) {
         this.usuarioRepository = usuarioRepository;
@@ -83,6 +85,12 @@ public class UsuarioService {
         exigirQueNoSeaSuPropiaCuenta(administrador, objetivo);
         objetivo.setActivo(false);
         return toDto(usuarioRepository.save(objetivo));
+    }
+
+    @Transactional(readOnly = true)
+    public Usuario buscarPorUsername(String username) {
+        return usuarioRepository.findByUsername(username)
+            .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
     }
 
     private Usuario exigirAdministrador(String username) {
