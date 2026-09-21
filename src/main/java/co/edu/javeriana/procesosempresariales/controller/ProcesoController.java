@@ -19,15 +19,18 @@ import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
+import co.edu.javeriana.procesosempresariales.service.ActividadService;
 import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 
 @Controller
 @RequestMapping("/procesos")
 public class ProcesoController {
     private final ProcesoService procesoService;
+    private final ActividadService actividadService;
 
-    public ProcesoController(ProcesoService procesoService) {
+    public ProcesoController(ProcesoService procesoService, ActividadService actividadService) {
         this.procesoService = procesoService;
+        this.actividadService = actividadService;
     }
 
     @GetMapping
@@ -41,7 +44,6 @@ public class ProcesoController {
 
     @GetMapping("/nuevo")
     public String nuevo(Model model) {
-        // La vista trabaja con un DTO, no con una entidad de la base de datos.
         model.addAttribute("proceso", new CrearProcesoDto());
         return "procesos/formularioprocesos";
     }
@@ -51,6 +53,8 @@ public class ProcesoController {
         model.addAttribute("proceso", procesoService.obtener(procesoId, principal.getName()));
         model.addAttribute("puedeEditar", procesoService.puedeEditar(principal.getName()));
         model.addAttribute("puedeEliminar", procesoService.puedeEliminar(principal.getName()));
+        model.addAttribute("lanes", actividadService.lanesDelProceso(procesoId, principal.getName()));
+        model.addAttribute("actividades", actividadService.consultarActivas(procesoId, principal.getName()));
         return "procesos/proceso";
     }
 
@@ -103,12 +107,10 @@ public class ProcesoController {
     @PostMapping
     public String crear(@Valid @ModelAttribute("proceso") CrearProcesoDto dto, BindingResult result,
             Principal principal, RedirectAttributes redirectAttributes) {
-        // Si falta algo, volvemos al formulario y mostramos los errores junto a cada campo.
         if (result.hasErrors()) {
             return "procesos/formularioprocesos";
         }
         ProcesoRespuestaDto creado = procesoService.crear(dto, principal.getName());
-        // Después de guardar redirigimos para que recargar la página no repita el POST.
         redirectAttributes.addFlashAttribute("mensaje", "Proceso creado en estado borrador");
         return "redirect:/procesos/" + creado.getId();
     }

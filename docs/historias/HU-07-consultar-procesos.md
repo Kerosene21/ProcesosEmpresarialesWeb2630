@@ -18,10 +18,11 @@ Criterios de aceptación:
 HU-06 añade además que los procesos inactivos no aparezcan por defecto y puedan consultarse con un
 filtro.
 
-> **Aviso sobre el último criterio del diagrama.** Seis de los siete criterios quedan cerrados en
-> este bloque. El de la visualización del diagrama **no**, y no por falta de vista: el modelo de
-> dominio todavía no tiene eventos, actividades, arcos, gateways ni lanes. El detalle muestra lo
-> único que existe hoy —el pool— y lo dice explícitamente. Ver «Estado real del diagrama BPMN».
+> **Aviso sobre el último criterio del diagrama.** Seis de los siete criterios quedaron cerrados en
+> el bloque HU-01 a HU-07. El de la visualización del diagrama **sigue abierto**, aunque avanzó con
+> HU-08 a HU-10: el detalle ya dibuja el pool, sus lanes y las actividades activas en la posición
+> donde se ubicaron, pero el modelo todavía no tiene arcos, gateways ni eventos, y la vista lo
+> advierte de forma explícita. Ver «Estado real del diagrama BPMN».
 
 ## Listado por empresa
 
@@ -182,27 +183,28 @@ mantuvo, porque sigue siendo útil.
 
 ## Detalle del proceso y estado real del diagrama BPMN
 
-Esta es la parte que **no se puede declarar cerrada**, y conviene ser explícito.
+Esta es la parte que **todavía no se puede declarar cerrada**, y conviene ser explícito.
 
-El dominio actual solo contiene:
+El dominio actual contiene:
 
 | Elemento BPMN del criterio | ¿Existe hoy? |
 |---|---|
 | Pools | **Sí**, entidad `Pool` con `id` y `nombre` |
+| Lanes | **Mínima**, entidad `Lane` dentro del pool, añadida por HU-08; su gestión es HU-22 |
+| Actividades | **Sí**, entidad `Actividad` con tipo, lane y posición, de HU-08 a HU-10 |
 | Eventos | No |
-| Actividades | No |
-| Arcos | No |
+| Arcos | No, llegan con HU-11 |
 | Gateways | No |
-| Lanes | No |
 
 El detalle muestra una sección **Diagrama** con el pool del proceso (`poolNombre`, añadido a
-`ProcesoRespuestaDto` en este bloque) y un texto que advierte de que los demás elementos llegarán
-con las historias de modelado. No se creó ninguno de esos dominios aquí, porque pertenecen a
-HU-08 en adelante.
+`ProcesoRespuestaDto` en este bloque), sus **lanes** y las **actividades activas** dibujadas en la
+posición que se les asignó, más un texto que advierte de que los elementos que faltan llegarán con
+las historias de modelado siguientes. El pool venía de HU-04; las lanes y las actividades las
+añadieron HU-08 a HU-10.
 
 > **HU-07 queda completa para consulta de procesos, búsqueda, filtros, paginación, detalle e
-> historial. La visualización del diagrama BPMN completo depende de las historias de modelado
-> HU-08 en adelante y pools/lanes.**
+> historial. La visualización del diagrama BPMN completo sigue abierta: ya muestra pool, lanes y
+> actividades, y le faltan arcos (HU-11), gateways y eventos.**
 
 ## Historial
 
@@ -268,8 +270,9 @@ igual que el resto de pruebas de persistencia del proyecto.
 
 ## Qué quedó pendiente
 
-- **Visualización del diagrama BPMN completo.** Depende de HU-08 en adelante, que deben introducir
-  eventos, actividades, arcos, gateways y lanes en el dominio. Hoy solo existe el pool.
+- **Visualización del diagrama BPMN completo.** Avanzó con HU-08 a HU-10: el detalle ya dibuja el
+  pool, sus lanes y las actividades activas en su posición. Faltan los arcos (HU-11), los gateways y
+  los eventos, y la gestión de lanes (HU-22).
 - **Ordenación configurable.** El listado ordena por nombre ascendente y no es elegible desde la
   interfaz.
 - **Tamaño de página configurable.** Está fijo en 10.

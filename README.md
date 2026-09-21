@@ -56,7 +56,10 @@ co.edu.javeriana.procesosempresariales
 | HU-04 · Crear proceso | Implementada |
 | HU-05 · Editar proceso | Implementada |
 | HU-06 · Eliminar proceso | Implementada |
-| HU-07 · Consultar procesos | Implementada, salvo la visualización del diagrama BPMN completo (depende de HU-08+) |
+| HU-07 · Consultar procesos | Implementada, salvo la visualización del diagrama BPMN completo (faltan arcos, gateways y eventos) |
+| HU-08 · Crear actividad | Implementada |
+| HU-09 · Editar actividad | Implementada, salvo la verificación con arcos reales (depende de HU-11) |
+| HU-10 · Eliminar actividad | Implementada en permisos, confirmación, eliminación lógica e historial; los criterios de arcos y desconexión dependen de HU-11 |
 
 Con la autenticación en marcha, las pantallas de proceso que dependen del usuario autenticado ya
 son accesibles de extremo a extremo: se registra una empresa, se inicia sesión con las credenciales
@@ -93,14 +96,34 @@ proceso eliminado **sigue reservado** dentro de su empresa.
 activos; los inactivos se consultan con el filtro de situación. La empresa nunca llega por
 parámetro: sale siempre del usuario autenticado y entra en la consulta.
 
-**El criterio de HU-07 sobre visualizar el diagrama BPMN completo no está cerrado**, y no por falta
-de pantalla: el modelo todavía no tiene eventos, actividades, arcos, gateways ni lanes. Lo único que
-existe hoy es el **pool**, y eso es lo que muestra el detalle, advirtiéndolo en la propia vista. Esos
-elementos llegan con HU-08 en adelante.
+El diagrama de cada proceso ya tiene **actividades**. Una actividad tiene nombre y tipo, pertenece a
+un proceso y a **exactamente una lane** —la banda que representa a su responsable—, y guarda la
+posición en la que se dibuja. Su nombre es único dentro del proceso. Con las actividades, el rol
+decide así:
+
+| Rol | Crear actividad | Editar actividad | Eliminar actividad | Ver diagrama |
+|---|---|---|---|---|
+| `ADMINISTRADOR` | ✅ | ✅ | ✅ | ✅ |
+| `EDITOR` | ✅ | ✅ | ❌ | ✅ |
+| `SOLO_LECTURA` | ❌ | ❌ | ❌ | ✅ |
+
+Eliminar una actividad también exige **confirmación previa** y también es **lógica**
+(`activo = false`): la fila se conserva, la actividad desaparece del diagrama y la eliminación queda
+en el historial del proceso. Crear, editar y eliminar actividades se registra en ese mismo historial,
+y la edición solo anota los campos que de verdad cambiaron.
+
+**El criterio de HU-07 sobre visualizar el diagrama BPMN completo sigue abierto.** Avanzó: el detalle
+muestra el **pool**, sus **lanes** y las **actividades activas** en su posición. Faltan los **arcos**
+(HU-11), los **gateways** y los **eventos**, y la vista lo advierte. Dos criterios de HU-10 —eliminar
+los arcos conectados y avisar de elementos desconectados— también esperan a HU-11.
+
+**Las lanes son mínimas a propósito.** HU-08 obliga a que una actividad pertenezca a una lane, así
+que cada proceso nace con una lane `General` dentro de su pool. **La gestión de lanes es HU-22** y no
+está hecha: no se crean, renombran, reordenan ni eliminan lanes desde la aplicación.
 
 ## Historias en desarrollo
 
-El bloque actual cubre HU-01 a HU-07. La documentación de cada historia está en
+El bloque actual cubre HU-01 a HU-10. La documentación de cada historia está en
 [`docs/historias/`](docs/historias/).
 
 ## Requisitos para ejecutar
@@ -139,6 +162,16 @@ La URL de la base de pruebas es fija y no se puede redirigir por variables de en
 >
 > La columna `eliminado` que añadió HU-06 a `proceso` **no** tiene ese problema: se declara con
 > valor por defecto, así que `ddl-auto=update` la añade sola aunque la tabla ya tenga filas.
+>
+> La tabla `lane` que añadió HU-08 es nueva y `ddl-auto=update` la crea sola, pero **los pools
+> creados antes de HU-08 se quedan sin lanes** y sus procesos no podrán recibir actividades. Para
+> una base de desarrollo que ya existía:
+>
+> ```sql
+> INSERT INTO lane (nombre, pool_id)
+> SELECT 'General', p.id FROM pool p
+> WHERE NOT EXISTS (SELECT 1 FROM lane l WHERE l.pool_id = p.id);
+> ```
 
 ### Ejecutar
 
@@ -154,15 +187,15 @@ Las pruebas que no levantan el contexto completo tampoco necesitan base de datos
 de seguridad, que usan `@WebMvcTest` y sí ejecutan los filtros de Spring Security:
 
 ```bash
-./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest,!EliminacionProcesosIntegracionTest,!ConsultaProcesosIntegracionTest' test
+./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest,!EliminacionProcesosIntegracionTest,!ConsultaProcesosIntegracionTest,!ActividadesIntegracionTest' test
 ```
 
-La suite completa incluye seis clases que levantan el contexto de Spring
+La suite completa incluye siete clases que levantan el contexto de Spring
 (`ProcesosEmpresarialesWeb2630ApplicationTests`, `RegistroYLoginIntegracionTest`,
 `GestionUsuariosIntegracionTest`, `ProcesosYHistorialIntegracionTest`,
-`EliminacionProcesosIntegracionTest` y `ConsultaProcesosIntegracionTest`) y sí requieren que
-PostgreSQL esté disponible con las credenciales configuradas. En CI corren todas contra el
-contenedor `postgres:16-alpine` del workflow.
+`EliminacionProcesosIntegracionTest`, `ConsultaProcesosIntegracionTest` y
+`ActividadesIntegracionTest`) y sí requieren que PostgreSQL esté disponible con las credenciales
+configuradas. En CI corren todas contra el contenedor `postgres:16-alpine` del workflow.
 
 ## Calidad de código
 
@@ -200,3 +233,6 @@ Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs
 - [HU-05 · Editar proceso](docs/historias/HU-05-editar-proceso.md)
 - [HU-06 · Eliminar proceso](docs/historias/HU-06-eliminar-proceso.md)
 - [HU-07 · Consultar procesos](docs/historias/HU-07-consultar-procesos.md)
+- [HU-08 · Crear actividad](docs/historias/HU-08-crear-actividad.md)
+- [HU-09 · Editar actividad](docs/historias/HU-09-editar-actividad.md)
+- [HU-10 · Eliminar actividad](docs/historias/HU-10-eliminar-actividad.md)

@@ -23,13 +23,46 @@
         <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
 
         <h2>Diagrama</h2>
-        <p><strong>Pool:</strong> <span th:text="${proceso.poolNombre}">Pool</span></p>
-        <p class="intro">
-            El diagrama arranca con el pool de la empresa. Los demás elementos BPMN (eventos,
-            actividades, arcos, gateways y lanes) todavía no forman parte del modelo: llegan con las
-            historias de modelado posteriores.
+        <div class="pool">
+            <p class="pool-nombre"><strong>Pool:</strong> <span th:text="${proceso.poolNombre}">Pool</span></p>
+
+            <p class="intro" th:if="${#lists.isEmpty(lanes)}">
+                El pool todavía no tiene lanes, así que no puede contener actividades.
+            </p>
+
+            <div class="lane" th:each="lane : ${lanes}">
+                <p class="lane-nombre"><strong>Lane:</strong> <span th:text="${lane.nombre}">Lane</span></p>
+                <div class="lane-lienzo">
+                    <div class="actividad" th:each="actividad : ${actividades}"
+                         th:if="${actividad.laneId == lane.id}"
+                         th:style="'left:' + ${actividad.posicionX} + 'px; top:' + ${actividad.posicionY} + 'px'">
+                        <span class="actividad-nombre" th:text="${actividad.nombre}">Actividad</span>
+                        <span class="actividad-tipo" th:text="${actividad.tipo}">TAREA_USUARIO</span>
+                        <span class="actividad-posicion"
+                              th:text="'(' + ${actividad.posicionX} + ', ' + ${actividad.posicionY} + ')'">(0, 0)</span>
+                        <span class="actividad-acciones" th:if="${!proceso.eliminado}">
+                            <a th:if="${puedeEditar}"
+                               th:href="@{/procesos/{procesoId}/actividades/{actividadId}/editar(procesoId=${proceso.id},actividadId=${actividad.id})}">Editar</a>
+                            <a th:if="${puedeEliminar}"
+                               th:href="@{/procesos/{procesoId}/actividades/{actividadId}/eliminar(procesoId=${proceso.id},actividadId=${actividad.id})}">Eliminar</a>
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p class="intro" th:if="${#lists.isEmpty(actividades)}">
+            El diagrama todavía no tiene actividades.
         </p>
+        <p class="intro">
+            El diagrama muestra el pool de la empresa, sus lanes y las actividades activas en la
+            posición donde se ubicaron. Los arcos, los gateways y los eventos todavía no forman
+            parte del modelo: llegan con las historias de modelado posteriores.
+        </p>
+
         <div class="acciones">
+            <a th:if="${puedeEditar and !proceso.eliminado}"
+               th:href="@{/procesos/{procesoId}/actividades/nueva(procesoId=${proceso.id})}">Agregar actividad</a>
             <a th:if="${puedeEditar and !proceso.eliminado}"
                th:href="@{/procesos/{id}/editar(id=${proceso.id})}">Editar</a>
             <a th:href="@{/procesos/{id}/historial(id=${proceso.id})}">Ver historial de cambios</a>
