@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import java.security.Principal;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,10 @@ import co.edu.javeriana.procesosempresariales.service.EmpresaService;
 @ExtendWith(MockitoExtension.class)
 class EmpresaControllerTest {
 
+    private static final String USERNAME = "contacto@alpes.com";
+    private static final String PASSWORD = "Clave-Inicial-2026";
+    private static final Principal PRINCIPAL = () -> USERNAME;
+
     @Mock
     private EmpresaService empresaService;
 
@@ -49,16 +54,16 @@ class EmpresaControllerTest {
         empresa.setId(10L);
         empresa.setNombre("Alpes Logistica");
         empresa.setNit("900123456-7");
-        empresa.setCorreoContacto("contacto@alpes.com");
-        empresa.setAdministradorUsername("contacto@alpes.com");
+        empresa.setCorreoContacto(USERNAME);
+        empresa.setAdministradorUsername(USERNAME);
         return empresa;
     }
 
     @Test
-    void elListadoMuestraLasEmpresasRegistradas() throws Exception {
-        when(empresaService.listar()).thenReturn(List.of(empresaRegistrada()));
+    void elListadoMuestraUnicamenteLaEmpresaDelUsuarioAutenticado() throws Exception {
+        when(empresaService.listarVisiblesPara(USERNAME)).thenReturn(List.of(empresaRegistrada()));
 
-        MvcResult resultado = mockMvc.perform(get("/empresas"))
+        MvcResult resultado = mockMvc.perform(get("/empresas").principal(PRINCIPAL))
                 .andExpect(status().isOk())
                 .andExpect(view().name("empresas/lista"))
                 .andReturn();
@@ -81,6 +86,7 @@ class EmpresaControllerTest {
         RegistroEmpresaDto empresa = (RegistroEmpresaDto) resultado.getModelAndView().getModel().get("empresa");
         assertThat(empresa).isNotNull();
         assertThat(empresa.getNit()).isNull();
+        assertThat(empresa.getPasswordAdministrador()).isNull();
     }
 
     @Test
@@ -90,7 +96,8 @@ class EmpresaControllerTest {
         mockMvc.perform(post("/empresas")
                 .param("nombre", "Alpes Logistica")
                 .param("nit", "900123456-7")
-                .param("correoContacto", "contacto@alpes.com"))
+                .param("correoContacto", USERNAME)
+                .param("passwordAdministrador", PASSWORD))
                 .andExpect(redirectedUrl("/empresas/10"))
                 .andExpect(flash().attribute("mensaje",
                         "Empresa registrada correctamente junto a su usuario administrador inicial"));
@@ -99,7 +106,8 @@ class EmpresaControllerTest {
         verify(empresaService).registrar(enviado.capture());
         assertThat(enviado.getValue().getNombre()).isEqualTo("Alpes Logistica");
         assertThat(enviado.getValue().getNit()).isEqualTo("900123456-7");
-        assertThat(enviado.getValue().getCorreoContacto()).isEqualTo("contacto@alpes.com");
+        assertThat(enviado.getValue().getCorreoContacto()).isEqualTo(USERNAME);
+        assertThat(enviado.getValue().getPasswordAdministrador()).isEqualTo(PASSWORD);
     }
 
     @Test
@@ -107,10 +115,12 @@ class EmpresaControllerTest {
         mockMvc.perform(post("/empresas")
                 .param("nombre", "")
                 .param("nit", "")
-                .param("correoContacto", "no-es-un-correo"))
+                .param("correoContacto", "no-es-un-correo")
+                .param("passwordAdministrador", ""))
                 .andExpect(status().isOk())
                 .andExpect(view().name("empresas/formulario"))
-                .andExpect(model().attributeHasFieldErrors("empresa", "nombre", "nit", "correoContacto"));
+                .andExpect(model().attributeHasFieldErrors("empresa", "nombre", "nit", "correoContacto",
+                        "passwordAdministrador"));
 
         verify(empresaService, never()).registrar(any(RegistroEmpresaDto.class));
     }
@@ -123,7 +133,8 @@ class EmpresaControllerTest {
         mockMvc.perform(post("/empresas")
                 .param("nombre", "Alpes Logistica")
                 .param("nit", "900123456-7")
-                .param("correoContacto", "contacto@alpes.com"))
+                .param("correoContacto", USERNAME)
+                .param("passwordAdministrador", PASSWORD))
                 .andExpect(status().isOk())
                 .andExpect(view().name("empresas/formulario"))
                 .andExpect(model().attributeHasFieldErrors("empresa", "nit"));
@@ -138,17 +149,18 @@ class EmpresaControllerTest {
         mockMvc.perform(post("/empresas")
                 .param("nombre", "Alpes Logistica")
                 .param("nit", "900123456-7")
-                .param("correoContacto", "contacto@alpes.com"))
+                .param("correoContacto", USERNAME)
+                .param("passwordAdministrador", PASSWORD))
                 .andExpect(status().isOk())
                 .andExpect(view().name("empresas/formulario"))
                 .andExpect(model().attributeHasFieldErrors("empresa", "correoContacto"));
     }
 
     @Test
-    void elDetalleMuestraLaEmpresaSolicitada() throws Exception {
-        when(empresaService.obtener(10L)).thenReturn(empresaRegistrada());
+    void elDetalleMuestraLaEmpresaDelUsuarioAutenticado() throws Exception {
+        when(empresaService.obtenerParaUsuario(10L, USERNAME)).thenReturn(empresaRegistrada());
 
-        MvcResult resultado = mockMvc.perform(get("/empresas/10"))
+        MvcResult resultado = mockMvc.perform(get("/empresas/10").principal(PRINCIPAL))
                 .andExpect(status().isOk())
                 .andExpect(view().name("empresas/detalle"))
                 .andReturn();
@@ -156,6 +168,15 @@ class EmpresaControllerTest {
         EmpresaRespuestaDto empresa = (EmpresaRespuestaDto) resultado.getModelAndView().getModel().get("empresa");
         assertThat(empresa.getId()).isEqualTo(10L);
         assertThat(empresa.getNombre()).isEqualTo("Alpes Logistica");
-        assertThat(empresa.getAdministradorUsername()).isEqualTo("contacto@alpes.com");
+        assertThat(empresa.getAdministradorUsername()).isEqualTo(USERNAME);
+    }
+
+    @Test
+    void elDetalleDelegaElAislamientoEnElServicioConElUsuarioAutenticado() throws Exception {
+        when(empresaService.obtenerParaUsuario(10L, USERNAME)).thenReturn(empresaRegistrada());
+
+        mockMvc.perform(get("/empresas/10").principal(PRINCIPAL)).andExpect(status().isOk());
+
+        verify(empresaService).obtenerParaUsuario(10L, USERNAME);
     }
 }

@@ -8,8 +8,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -115,17 +117,6 @@ class ProcesoRestControllerTest {
     }
 
     @Test
-    void crearSinUsuarioAutenticadoDevuelveCuatrocientosUno() throws Exception {
-        mockMvc.perform(post("/api/procesos")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON_CREACION))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
-
-        verify(procesoService, never()).crear(any(CrearProcesoDto.class), anyString());
-    }
-
-    @Test
     void crearConCuerpoInvalidoDevuelveCuatrocientos() throws Exception {
         mockMvc.perform(post("/api/procesos")
                 .principal(PRINCIPAL)
@@ -182,17 +173,6 @@ class ProcesoRestControllerTest {
     }
 
     @Test
-    void editarSinUsuarioAutenticadoDevuelveCuatrocientosUno() throws Exception {
-        mockMvc.perform(put("/api/procesos/5")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(JSON_EDICION))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
-
-        verify(procesoService, never()).editar(anyLong(), any(EditarProcesoDto.class), anyString());
-    }
-
-    @Test
     void editarUnProcesoInexistenteDevuelveCuatrocientosCuatro() throws Exception {
         when(procesoService.editar(anyLong(), any(EditarProcesoDto.class), anyString()))
                 .thenThrow(new RecursoNoEncontradoException("El proceso no existe"));
@@ -216,5 +196,48 @@ class ProcesoRestControllerTest {
                 .content(JSON_EDICION))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.codigo").value("USUARIO_SIN_PERMISO"));
+    }
+
+    @Test
+    void eliminarDevuelveDoscientosCuatroSinCuerpo() throws Exception {
+        ProcesoRespuestaDto eliminado = procesoCreado();
+        eliminado.setEliminado(true);
+        when(procesoService.eliminar(5L, USERNAME)).thenReturn(eliminado);
+
+        mockMvc.perform(delete("/api/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        verify(procesoService).eliminar(5L, USERNAME);
+    }
+
+    @Test
+    void eliminarSinPermisoDevuelveCuatrocientosTres() throws Exception {
+        when(procesoService.eliminar(anyLong(), anyString()))
+                .thenThrow(new UsuarioSinPermisoException("Solo un administrador o editor puede crear o modificar procesos"));
+
+        mockMvc.perform(delete("/api/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("USUARIO_SIN_PERMISO"));
+    }
+
+    @Test
+    void eliminarUnProcesoDeOtraEmpresaDevuelveCuatrocientosTres() throws Exception {
+        when(procesoService.eliminar(anyLong(), anyString()))
+                .thenThrow(new UsuarioSinPermisoException("El proceso no pertenece a la empresa del usuario"));
+
+        mockMvc.perform(delete("/api/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("USUARIO_SIN_PERMISO"));
+    }
+
+    @Test
+    void eliminarUnProcesoYaEliminadoDevuelveCuatrocientosCuatro() throws Exception {
+        when(procesoService.eliminar(anyLong(), anyString()))
+                .thenThrow(new RecursoNoEncontradoException("El proceso ya fue eliminado"));
+
+        mockMvc.perform(delete("/api/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.codigo").value("RECURSO_NO_ENCONTRADO"));
     }
 }

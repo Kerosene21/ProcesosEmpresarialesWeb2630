@@ -1,5 +1,7 @@
 package co.edu.javeriana.procesosempresariales.controller;
 
+import java.security.Principal;
+
 import jakarta.validation.Valid;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -28,8 +30,8 @@ public class EmpresaController {
     }
 
     @GetMapping
-    public String lista(Model model) {
-        model.addAttribute("empresas", empresaService.listar());
+    public String lista(Principal principal, Model model) {
+        model.addAttribute("empresas", empresaService.listarVisiblesPara(principal.getName()));
         return "empresas/lista";
     }
 
@@ -60,8 +62,8 @@ public class EmpresaController {
     }
 
     @GetMapping("/{id}")
-    public String detalle(@PathVariable("id") Long empresaId, Model model) {
-        model.addAttribute("empresa", empresaService.obtener(empresaId));
+    public String detalle(@PathVariable("id") Long empresaId, Principal principal, Model model) {
+        model.addAttribute("empresa", empresaService.obtenerParaUsuario(empresaId, principal.getName()));
         return "empresas/detalle";
     }
 }

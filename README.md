@@ -16,6 +16,7 @@ manteniendo la información de cada organización aislada de las demás.
 - Spring MVC
 - Spring Data JPA
 - Spring Validation
+- Spring Security 7.1.1
 - Thymeleaf
 - PostgreSQL
 - ModelMapper
@@ -49,18 +50,57 @@ co.edu.javeriana.procesosempresariales
 
 | Historia | Estado |
 |---|---|
-| HU-01 · Registro de empresa | Implementada, salvo la credencial del administrador inicial (depende de HU-03) |
-| HU-02 · Registro de usuario en empresa | Pendiente |
-| HU-03 · Inicio de sesión | Pendiente; aún no hay autenticación en el proyecto |
-| HU-04 · Crear proceso | Implementada a nivel de servicio y vistas; pendiente de revisión |
-| HU-05 · Editar proceso | Implementada a nivel de servicio y vistas; pendiente de revisión |
+| HU-01 · Registro de empresa | Implementada |
+| HU-02 · Registro de usuario en empresa | Implementada |
+| HU-03 · Inicio de sesión | Implementada |
+| HU-04 · Crear proceso | Implementada |
+| HU-05 · Editar proceso | Implementada |
+| HU-06 · Eliminar proceso | Implementada |
+| HU-07 · Consultar procesos | Implementada, salvo la visualización del diagrama BPMN completo (depende de HU-08+) |
 
-Como todavía no existe autenticación, las pantallas de proceso que dependen del usuario
-autenticado no son accesibles de extremo a extremo. Las pantallas de empresa sí lo son.
+Con la autenticación en marcha, las pantallas de proceso que dependen del usuario autenticado ya
+son accesibles de extremo a extremo: se registra una empresa, se inicia sesión con las credenciales
+del administrador inicial y desde ahí se administran los usuarios y los procesos de esa empresa.
+
+El administrador de cada empresa crea usuarios con rol `ADMINISTRADOR`, `EDITOR` o `SOLO_LECTURA`,
+cambia su rol y los desactiva. La desactivación es **lógica** (`activo = false`): el usuario deja de
+poder iniciar sesión, pero su cuenta y su historial de ediciones se conservan, y los procesos de la
+empresa siguen disponibles. La invitación se hace creando la cuenta con el correo como identificador
+de acceso: **no hay envío de correo ni integración SMTP**.
+
+Sobre los procesos, el rol decide qué se puede hacer:
+
+| Rol | Crear | Editar | Eliminar | Consultar proceso e historial |
+|---|---|---|---|---|
+| `ADMINISTRADOR` | ✅ | ✅ | ✅ | ✅ |
+| `EDITOR` | ✅ | ✅ | ❌ | ✅ |
+| `SOLO_LECTURA` | ❌ | ❌ | ❌ | ✅ |
+
+Cada edición que cambia algún dato deja una entrada de historial con la fecha, el usuario, el estado
+anterior y **solo los campos modificados**; se consulta en `GET /procesos/{id}/historial`.
+
+**Solo el administrador de la empresa elimina procesos, y siempre con confirmación previa**: la
+acción abre una página que muestra el proceso y advierte del efecto, y solo el envío de ese
+formulario ejecuta la eliminación. La eliminación es **lógica** (`eliminado = true`, la
+representación persistente del estado inactivo): el proceso permanece en la base de datos con su
+pool, su empresa y todo su historial, la eliminación queda registrada como una entrada más, y el
+proceso pasa a ser solo consultable —no se puede editar ni volver a eliminar—. El nombre de un
+proceso eliminado **sigue reservado** dentro de su empresa.
+
+`GET /procesos` lista los procesos **de la empresa del usuario**, con búsqueda parcial por nombre
+(insensible a mayúsculas), filtros por estado y por categoría, filtro de situación
+(activos / inactivos / todos) y paginación de 10 en 10 con Spring Data. Por defecto solo se ven los
+activos; los inactivos se consultan con el filtro de situación. La empresa nunca llega por
+parámetro: sale siempre del usuario autenticado y entra en la consulta.
+
+**El criterio de HU-07 sobre visualizar el diagrama BPMN completo no está cerrado**, y no por falta
+de pantalla: el modelo todavía no tiene eventos, actividades, arcos, gateways ni lanes. Lo único que
+existe hoy es el **pool**, y eso es lo que muestra el detalle, advirtiéndolo en la propia vista. Esos
+elementos llegan con HU-08 en adelante.
 
 ## Historias en desarrollo
 
-El bloque actual cubre HU-01 a HU-05. La documentación de cada historia está en
+El bloque actual cubre HU-01 a HU-07. La documentación de cada historia está en
 [`docs/historias/`](docs/historias/).
 
 ## Requisitos para ejecutar
@@ -89,6 +129,17 @@ cp .env.example .env
 La URL de la base de pruebas es fija y no se puede redirigir por variables de entorno, porque
 `create-drop` destruye el esquema al terminar.
 
+> **Si la base de desarrollo ya existía antes de HU-03**, hay que migrarla antes de arrancar. La
+> tabla `usuario` tiene dos columnas nuevas obligatorias (`password_hash` y `activo`) y `ddl-auto=update`
+> no puede añadirlas si la tabla ya tiene filas: registra el error como advertencia, la aplicación
+> arranca sin las columnas y el fallo aparece más tarde. Los dos caminos posibles (recrear el
+> esquema o migrar de forma aditiva) están en
+> [HU-03 · Migración de base de datos](docs/historias/HU-03-inicio-sesion.md#migración-de-base-de-datos).
+> En CI no ocurre: el perfil de pruebas usa `create-drop` sobre un contenedor limpio.
+>
+> La columna `eliminado` que añadió HU-06 a `proceso` **no** tiene ese problema: se declara con
+> valor por defecto, así que `ddl-auto=update` la añade sola aunque la tabla ya tenga filas.
+
 ### Ejecutar
 
 ```bash
@@ -99,14 +150,19 @@ La aplicación queda disponible en `http://localhost:8080`.
 
 ### Pruebas
 
-Las pruebas unitarias no necesitan base de datos:
+Las pruebas que no levantan el contexto completo tampoco necesitan base de datos. Eso incluye las
+de seguridad, que usan `@WebMvcTest` y sí ejecutan los filtros de Spring Security:
 
 ```bash
-./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests' test
+./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest,!EliminacionProcesosIntegracionTest,!ConsultaProcesosIntegracionTest' test
 ```
 
-La suite completa incluye una prueba que levanta el contexto de Spring y sí requiere que
-PostgreSQL esté disponible con las credenciales configuradas.
+La suite completa incluye seis clases que levantan el contexto de Spring
+(`ProcesosEmpresarialesWeb2630ApplicationTests`, `RegistroYLoginIntegracionTest`,
+`GestionUsuariosIntegracionTest`, `ProcesosYHistorialIntegracionTest`,
+`EliminacionProcesosIntegracionTest` y `ConsultaProcesosIntegracionTest`) y sí requieren que
+PostgreSQL esté disponible con las credenciales configuradas. En CI corren todas contra el
+contenedor `postgres:16-alpine` del workflow.
 
 ## Calidad de código
 
@@ -138,5 +194,9 @@ El detalle está en [`docs/calidad/sonarqube.md`](docs/calidad/sonarqube.md).
 Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs/historias/):
 
 - [HU-01 · Registro de empresa](docs/historias/HU-01-registro-empresa.md)
+- [HU-02 · Registro y administración de usuarios](docs/historias/HU-02-registro-usuario.md)
+- [HU-03 · Inicio de sesión](docs/historias/HU-03-inicio-sesion.md)
 - [HU-04 · Crear proceso](docs/historias/HU-04-crear-proceso.md)
 - [HU-05 · Editar proceso](docs/historias/HU-05-editar-proceso.md)
+- [HU-06 · Eliminar proceso](docs/historias/HU-06-eliminar-proceso.md)
+- [HU-07 · Consultar procesos](docs/historias/HU-07-consultar-procesos.md)

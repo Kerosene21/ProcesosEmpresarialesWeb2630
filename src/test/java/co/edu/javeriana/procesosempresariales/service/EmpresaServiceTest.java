@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,8 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
@@ -26,11 +29,15 @@ import co.edu.javeriana.procesosempresariales.dto.RegistroEmpresaDto;
 import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
 import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
+import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.EmpresaRepository;
 import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 
 @ExtendWith(MockitoExtension.class)
 class EmpresaServiceTest {
+
+    private static final String CORREO = "contacto@alpes.com";
+    private static final String PASSWORD = "Clave-Inicial-2026";
 
     @Mock
     private EmpresaRepository empresaRepository;
@@ -38,15 +45,18 @@ class EmpresaServiceTest {
     @Mock
     private UsuarioRepository usuarioRepository;
 
+    private PasswordEncoder passwordEncoder;
+
     private EmpresaService empresaService;
 
     @BeforeEach
     void inicializar() {
-        empresaService = new EmpresaService(empresaRepository, usuarioRepository, new ModelMapper());
+        passwordEncoder = new BCryptPasswordEncoder();
+        empresaService = new EmpresaService(empresaRepository, usuarioRepository, new ModelMapper(), passwordEncoder);
     }
 
     private RegistroEmpresaDto formularioValido() {
-        return new RegistroEmpresaDto("Alpes Logistica", "900123456-7", "contacto@alpes.com");
+        return new RegistroEmpresaDto("Alpes Logistica", "900123456-7", CORREO, PASSWORD);
     }
 
     private void asignarIdAlGuardarEmpresa(Long id) {
@@ -55,6 +65,16 @@ class EmpresaServiceTest {
             empresa.setId(id);
             return empresa;
         });
+    }
+
+    private Usuario administradorCapturado() {
+        ArgumentCaptor<Usuario> capturado = ArgumentCaptor.forClass(Usuario.class);
+        verify(usuarioRepository).save(capturado.capture());
+        return capturado.getValue();
+    }
+
+    private Usuario usuarioDeLaEmpresa(Empresa empresa) {
+        return new Usuario(3L, CORREO, passwordEncoder.encode(PASSWORD), RolUsuario.ADMINISTRADOR, true, empresa);
     }
 
     @Test
@@ -67,7 +87,7 @@ class EmpresaServiceTest {
         verify(empresaRepository).save(capturada.capture());
         assertThat(capturada.getValue().getNombre()).isEqualTo("Alpes Logistica");
         assertThat(capturada.getValue().getNit()).isEqualTo("900123456-7");
-        assertThat(capturada.getValue().getCorreoContacto()).isEqualTo("contacto@alpes.com");
+        assertThat(capturada.getValue().getCorreoContacto()).isEqualTo(CORREO);
     }
 
     @Test
@@ -75,13 +95,13 @@ class EmpresaServiceTest {
         asignarIdAlGuardarEmpresa(11L);
 
         empresaService.registrar(
-                new RegistroEmpresaDto("  Alpes Logistica  ", "  900123456-7  ", "  Contacto@Alpes.com  "));
+                new RegistroEmpresaDto("  Alpes Logistica  ", "  900123456-7  ", "  Contacto@Alpes.com  ", PASSWORD));
 
         ArgumentCaptor<Empresa> capturada = ArgumentCaptor.forClass(Empresa.class);
         verify(empresaRepository).save(capturada.capture());
         assertThat(capturada.getValue().getNombre()).isEqualTo("Alpes Logistica");
         assertThat(capturada.getValue().getNit()).isEqualTo("900123456-7");
-        assertThat(capturada.getValue().getCorreoContacto()).isEqualTo("contacto@alpes.com");
+        assertThat(capturada.getValue().getCorreoContacto()).isEqualTo(CORREO);
     }
 
     @Test
@@ -93,7 +113,7 @@ class EmpresaServiceTest {
         assertThat(respuesta.getId()).isEqualTo(42L);
         assertThat(respuesta.getNombre()).isEqualTo("Alpes Logistica");
         assertThat(respuesta.getNit()).isEqualTo("900123456-7");
-        assertThat(respuesta.getCorreoContacto()).isEqualTo("contacto@alpes.com");
+        assertThat(respuesta.getCorreoContacto()).isEqualTo(CORREO);
     }
 
     @Test
@@ -112,7 +132,7 @@ class EmpresaServiceTest {
         when(empresaRepository.existsByNit("900123456-7")).thenReturn(true);
 
         assertThatThrownBy(() -> empresaService.registrar(
-                new RegistroEmpresaDto("Alpes Logistica", "  900123456-7  ", "contacto@alpes.com")))
+                new RegistroEmpresaDto("Alpes Logistica", "  900123456-7  ", CORREO, PASSWORD)))
                 .isInstanceOf(NitEmpresaDuplicadoException.class);
     }
 
@@ -122,11 +142,10 @@ class EmpresaServiceTest {
 
         empresaService.registrar(formularioValido());
 
-        ArgumentCaptor<Usuario> capturado = ArgumentCaptor.forClass(Usuario.class);
-        verify(usuarioRepository).save(capturado.capture());
-        assertThat(capturado.getValue().getEmpresa()).isNotNull();
-        assertThat(capturado.getValue().getEmpresa().getId()).isEqualTo(7L);
-        assertThat(capturado.getValue().getEmpresa().getNit()).isEqualTo("900123456-7");
+        Usuario administrador = administradorCapturado();
+        assertThat(administrador.getEmpresa()).isNotNull();
+        assertThat(administrador.getEmpresa().getId()).isEqualTo(7L);
+        assertThat(administrador.getEmpresa().getNit()).isEqualTo("900123456-7");
     }
 
     @Test
@@ -135,9 +154,7 @@ class EmpresaServiceTest {
 
         empresaService.registrar(formularioValido());
 
-        ArgumentCaptor<Usuario> capturado = ArgumentCaptor.forClass(Usuario.class);
-        verify(usuarioRepository).save(capturado.capture());
-        assertThat(capturado.getValue().getRol()).isEqualTo(RolUsuario.ADMINISTRADOR);
+        assertThat(administradorCapturado().getRol()).isEqualTo(RolUsuario.ADMINISTRADOR);
     }
 
     @Test
@@ -146,15 +163,13 @@ class EmpresaServiceTest {
 
         EmpresaRespuestaDto respuesta = empresaService.registrar(formularioValido());
 
-        ArgumentCaptor<Usuario> capturado = ArgumentCaptor.forClass(Usuario.class);
-        verify(usuarioRepository).save(capturado.capture());
-        assertThat(capturado.getValue().getUsername()).isEqualTo("contacto@alpes.com");
-        assertThat(respuesta.getAdministradorUsername()).isEqualTo("contacto@alpes.com");
+        assertThat(administradorCapturado().getUsername()).isEqualTo(CORREO);
+        assertThat(respuesta.getAdministradorUsername()).isEqualTo(CORREO);
     }
 
     @Test
     void registrarRechazaUnCorreoYaUsadoPorOtroUsuario() {
-        when(usuarioRepository.existsByUsername("contacto@alpes.com")).thenReturn(true);
+        when(usuarioRepository.existsByUsername(CORREO)).thenReturn(true);
 
         assertThatThrownBy(() -> empresaService.registrar(formularioValido()))
                 .isInstanceOf(CorreoAdministradorEnUsoException.class);
@@ -164,41 +179,120 @@ class EmpresaServiceTest {
     }
 
     @Test
-    void obtenerDevuelveLaEmpresaJuntoASuAdministradorInicial() {
-        Empresa empresa = new Empresa(5L, "Alpes Logistica", "900123456-7", "contacto@alpes.com");
-        Usuario administrador = new Usuario(3L, "contacto@alpes.com", RolUsuario.ADMINISTRADOR, empresa);
-        when(empresaRepository.findById(5L)).thenReturn(Optional.of(empresa));
-        when(usuarioRepository.findFirstByEmpresaIdAndRolOrderByIdAsc(5L, RolUsuario.ADMINISTRADOR))
-                .thenReturn(Optional.of(administrador));
+    void registrarGuardaLaContrasenaDelAdministradorComoHashBcrypt() {
+        asignarIdAlGuardarEmpresa(12L);
 
-        EmpresaRespuestaDto respuesta = empresaService.obtener(5L);
+        empresaService.registrar(formularioValido());
 
-        assertThat(respuesta.getId()).isEqualTo(5L);
-        assertThat(respuesta.getNombre()).isEqualTo("Alpes Logistica");
-        assertThat(respuesta.getCorreoContacto()).isEqualTo("contacto@alpes.com");
-        assertThat(respuesta.getAdministradorUsername()).isEqualTo("contacto@alpes.com");
+        String almacenada = administradorCapturado().getPassword();
+        assertThat(almacenada).startsWith("$2");
+        assertThat(passwordEncoder.matches(PASSWORD, almacenada)).isTrue();
     }
 
     @Test
-    void obtenerFallaCuandoLaEmpresaNoExiste() {
-        when(empresaRepository.findById(404L)).thenReturn(Optional.empty());
+    void registrarNuncaGuardaLaContrasenaDelAdministradorEnClaro() {
+        asignarIdAlGuardarEmpresa(13L);
 
-        assertThatThrownBy(() -> empresaService.obtener(404L))
+        empresaService.registrar(formularioValido());
+
+        String almacenada = administradorCapturado().getPassword();
+        assertThat(almacenada).isNotEqualTo(PASSWORD).doesNotContain(PASSWORD);
+    }
+
+    @Test
+    void registrarDejaAlAdministradorInicialActivoParaQuePuedaIniciarSesion() {
+        asignarIdAlGuardarEmpresa(14L);
+
+        empresaService.registrar(formularioValido());
+
+        assertThat(administradorCapturado().isActivo()).isTrue();
+    }
+
+    @Test
+    void registrarRechazaUnFormularioSinContrasenaParaElAdministrador() {
+        assertThatThrownBy(() -> empresaService.registrar(
+                new RegistroEmpresaDto("Alpes Logistica", "900123456-7", CORREO, "   ")))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(empresaRepository, never()).save(any(Empresa.class));
+        verify(usuarioRepository, never()).save(any(Usuario.class));
+    }
+
+    @Test
+    void laRespuestaDelRegistroNoExponeNingunCampoDeContrasena() {
+        asignarIdAlGuardarEmpresa(15L);
+
+        EmpresaRespuestaDto respuesta = empresaService.registrar(formularioValido());
+
+        assertThat(respuesta).isNotNull();
+        for (Field campo : EmpresaRespuestaDto.class.getDeclaredFields()) {
+            assertThat(campo.getName().toLowerCase()).doesNotContain("password").doesNotContain("contrasena");
+        }
+    }
+
+    @Test
+    void obtenerParaUsuarioDevuelveSuPropiaEmpresaJuntoAlAdministradorInicial() {
+        Empresa empresa = new Empresa(5L, "Alpes Logistica", "900123456-7", CORREO);
+        when(usuarioRepository.findByUsername(CORREO)).thenReturn(Optional.of(usuarioDeLaEmpresa(empresa)));
+        when(empresaRepository.findById(5L)).thenReturn(Optional.of(empresa));
+        when(usuarioRepository.findFirstByEmpresaIdAndRolOrderByIdAsc(5L, RolUsuario.ADMINISTRADOR))
+                .thenReturn(Optional.of(usuarioDeLaEmpresa(empresa)));
+
+        EmpresaRespuestaDto respuesta = empresaService.obtenerParaUsuario(5L, CORREO);
+
+        assertThat(respuesta.getId()).isEqualTo(5L);
+        assertThat(respuesta.getNombre()).isEqualTo("Alpes Logistica");
+        assertThat(respuesta.getCorreoContacto()).isEqualTo(CORREO);
+        assertThat(respuesta.getAdministradorUsername()).isEqualTo(CORREO);
+    }
+
+    @Test
+    void obtenerParaUsuarioRechazaLaConsultaDeUnaEmpresaAjena() {
+        Empresa propia = new Empresa(5L, "Alpes Logistica", "900123456-7", CORREO);
+        when(usuarioRepository.findByUsername(CORREO)).thenReturn(Optional.of(usuarioDeLaEmpresa(propia)));
+
+        assertThatThrownBy(() -> empresaService.obtenerParaUsuario(99L, CORREO))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(empresaRepository, never()).findById(99L);
+    }
+
+    @Test
+    void obtenerParaUsuarioFallaCuandoElUsuarioAutenticadoNoExiste() {
+        when(usuarioRepository.findByUsername(CORREO)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> empresaService.obtenerParaUsuario(5L, CORREO))
                 .isInstanceOf(RecursoNoEncontradoException.class);
     }
 
     @Test
-    void listarDevuelveTodasLasEmpresasRegistradas() {
-        when(empresaRepository.findAll()).thenReturn(List.of(
-                new Empresa(1L, "Alpes Logistica", "900123456-7", "contacto@alpes.com"),
-                new Empresa(2L, "Andes Software", "800987654-3", "hola@andes.com")));
+    void obtenerParaUsuarioFallaCuandoLaEmpresaPropiaYaNoExiste() {
+        Empresa propia = new Empresa(5L, "Alpes Logistica", "900123456-7", CORREO);
+        when(usuarioRepository.findByUsername(CORREO)).thenReturn(Optional.of(usuarioDeLaEmpresa(propia)));
+        when(empresaRepository.findById(5L)).thenReturn(Optional.empty());
 
-        List<EmpresaRespuestaDto> empresas = empresaService.listar();
+        assertThatThrownBy(() -> empresaService.obtenerParaUsuario(5L, CORREO))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+    }
 
-        assertThat(empresas).hasSize(2);
-        assertThat(empresas).extracting(EmpresaRespuestaDto::getNit)
-                .containsExactly("900123456-7", "800987654-3");
-        assertThat(empresas).extracting(EmpresaRespuestaDto::getNombre)
-                .containsExactly("Alpes Logistica", "Andes Software");
+    @Test
+    void listarVisiblesParaDevuelveUnicamenteLaEmpresaDelUsuarioAutenticado() {
+        Empresa propia = new Empresa(5L, "Alpes Logistica", "900123456-7", CORREO);
+        when(usuarioRepository.findByUsername(CORREO)).thenReturn(Optional.of(usuarioDeLaEmpresa(propia)));
+
+        List<EmpresaRespuestaDto> empresas = empresaService.listarVisiblesPara(CORREO);
+
+        assertThat(empresas).hasSize(1);
+        assertThat(empresas.get(0).getId()).isEqualTo(5L);
+        assertThat(empresas.get(0).getNit()).isEqualTo("900123456-7");
+        verify(empresaRepository, never()).findAll();
+    }
+
+    @Test
+    void listarVisiblesParaFallaCuandoElUsuarioAutenticadoNoExiste() {
+        when(usuarioRepository.findByUsername(CORREO)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> empresaService.listarVisiblesPara(CORREO))
+                .isInstanceOf(RecursoNoEncontradoException.class);
     }
 }

@@ -2,9 +2,11 @@ package co.edu.javeriana.procesosempresariales.controller;
 
 import java.util.Map;
 
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
@@ -14,7 +16,8 @@ import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoExcep
 import co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
-@RestControllerAdvice
+@RestControllerAdvice(annotations = RestController.class)
+@Order(10)
 public class ApiExceptionHandler {
     // El cliente recibe códigos estables y no tiene que interpretar el texto del error.
     @ExceptionHandler(NombreProcesoDuplicadoException.class)

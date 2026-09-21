@@ -50,5 +50,8 @@ public class Proceso {
     // El pool se crea con el proceso y tambien se elimina con el
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, optional = false)
     @JoinColumn(name = "pool_id", nullable = false)
-    private Pool pool; // Punto inicial para empezar a dibujar el proceso 
+    private Pool pool; // Punto inicial para empezar a dibujar el proceso
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean eliminado;
 }

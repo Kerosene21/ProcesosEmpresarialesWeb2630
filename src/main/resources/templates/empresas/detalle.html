@@ -27,8 +27,12 @@
         </dl>
 
         <div class="acciones">
-            <a th:href="@{/empresas}">Volver al listado</a>
+            <a th:href="@{/empresas}">Volver a mi empresa</a>
         </div>
+
+        <form th:action="@{/logout}" method="post">
+            <button type="submit">Cerrar sesion</button>
+        </form>
     </section>
 </main>
 </body>

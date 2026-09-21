@@ -13,7 +13,7 @@
         <h1 id="form-title">Registrar empresa</h1>
         <p class="intro">
             Al registrar la empresa se crea tambien su usuario administrador inicial,
-            identificado con el correo de contacto.
+            identificado con el correo de contacto. Con esa contrasena podras iniciar sesion.
         </p>
 
         <form th:action="@{/empresas}" th:object="${empresa}" method="post" novalidate>
@@ -29,11 +29,17 @@
             <input id="correoContacto" type="email" th:field="*{correoContacto}" maxlength="180">
             <small class="error" th:if="${#fields.hasErrors('correoContacto')}" th:errors="*{correoContacto}"></small>
 
+            <label for="passwordAdministrador">Contrasena del administrador inicial</label>
+            <input id="passwordAdministrador" name="passwordAdministrador" type="password" maxlength="100"
+                   autocomplete="new-password">
+            <small class="error" th:if="${#fields.hasErrors('passwordAdministrador')}"
+                   th:errors="*{passwordAdministrador}"></small>
+
             <button type="submit">Registrar empresa</button>
         </form>
 
         <div class="acciones">
-            <a th:href="@{/empresas}">Volver al listado</a>
+            <a th:href="@{/login}">Ya tengo cuenta, iniciar sesion</a>
         </div>
     </section>
 </main>

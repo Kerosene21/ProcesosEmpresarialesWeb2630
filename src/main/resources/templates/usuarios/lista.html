@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Usuarios de la empresa</title>
+    <link rel="stylesheet" th:href="@{/css/empresas.css}">
+    <link rel="stylesheet" th:href="@{/css/usuarios.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="panel" aria-labelledby="usuarios-title">
+        <p class="eyebrow">Administracion</p>
+        <h1 id="usuarios-title">Usuarios de la empresa</h1>
+        <p class="intro">
+            Solo aparecen los usuarios de tu empresa. Un usuario desactivado conserva su historial
+            y sigue visible en esta lista como inactivo.
+        </p>
+
+        <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
+
+        <p class="vacio" th:if="${#lists.isEmpty(usuarios)}">
+            Todavia no hay usuarios registrados en tu empresa.
+        </p>
+
+        <table th:unless="${#lists.isEmpty(usuarios)}">
+            <thead>
+            <tr>
+                <th scope="col">Correo</th>
+                <th scope="col">Rol de acceso</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Acciones</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="usuario : ${usuarios}">
+                <td>
+                    <span th:text="${usuario.correo}">correo</span>
+                    <span class="propio" th:if="${usuario.correo == correoAutenticado}">(tu cuenta)</span>
+                </td>
+                <td th:text="${usuario.rol}">ROL</td>
+                <td class="estado" th:text="${usuario.activo} ? 'Activo' : 'Inactivo'">Estado</td>
+                <td>
+                    <div class="acciones-fila">
+                        <a th:href="@{/usuarios/{id}(id=${usuario.id})}">Ver</a>
+                        <a th:if="${usuario.correo != correoAutenticado}"
+                           th:href="@{/usuarios/{id}/editar(id=${usuario.id})}">Cambiar rol</a>
+                        <form th:if="${usuario.activo and usuario.correo != correoAutenticado}"
+                              th:action="@{/usuarios/{id}/desactivar(id=${usuario.id})}" method="post">
+                            <button type="submit">Desactivar</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="acciones">
+            <a th:href="@{/usuarios/nuevo}">Crear usuario</a>
+            <a th:href="@{/empresas}">Volver a mi empresa</a>
+        </div>
+
+        <form th:action="@{/logout}" method="post">
+            <button type="submit">Cerrar sesion</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>
