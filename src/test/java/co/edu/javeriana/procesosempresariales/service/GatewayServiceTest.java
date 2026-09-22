@@ -405,7 +405,7 @@ class GatewayServiceTest {
         gatewayService.editar(PROCESO_ID, GATEWAY_ID, formularioEdicion(TipoGateway.PARALELO, new LinkedHashMap<>()),
                 USERNAME);
 
-        assertThat(salientes).allMatch(arco -> arco.getCondicion() == null);
+        assertThat(salientes).isNotEmpty().allMatch(arco -> arco.getCondicion() == null);
         verify(arcoRepository).saveAll(anyList());
         assertThat(historialGuardado().getCambiosRealizados()).contains("condiciones eliminadas en 2 arcos de salida");
     }
@@ -580,7 +580,7 @@ class GatewayServiceTest {
                 USERNAME);
 
         assertThat(gateway.getTipo()).isEqualTo(TipoGateway.PARALELO);
-        assertThat(salientes).allMatch(arco -> arco.getCondicion() == null);
+        assertThat(salientes).isNotEmpty().allMatch(arco -> arco.getCondicion() == null);
         assertThat(historialGuardado().getCambiosRealizados()).contains("condiciones eliminadas en 1 arco de salida");
     }
 

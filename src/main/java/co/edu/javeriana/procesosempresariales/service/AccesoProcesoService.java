@@ -1,6 +1,7 @@
 package co.edu.javeriana.procesosempresariales.service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -76,7 +77,7 @@ public class AccesoProcesoService {
     }
 
     public void registrarHistorial(Proceso proceso, Usuario usuario, String cambios) {
-        historialProcesoRepository.save(new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
-                proceso.getEstado().name()));
+        historialProcesoRepository.save(new HistorialProceso(null, proceso, usuario,
+                LocalDateTime.now(ZoneId.systemDefault()), cambios, proceso.getEstado().name()));
     }
 }
