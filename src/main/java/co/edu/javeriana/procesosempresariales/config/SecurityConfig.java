@@ -24,6 +24,7 @@ public class SecurityConfig {
     private static final String RUTA_ACCESO_DENEGADO = "/acceso-denegado";
     private static final String RUTA_ELIMINAR_PROCESO = "/procesos/*/eliminar";
     private static final String RUTA_ELIMINAR_ACTIVIDAD = "/procesos/*/actividades/*/eliminar";
+    private static final String RUTA_ELIMINAR_ARCO = "/procesos/*/arcos/*/eliminar";
     private static final String ROL_ADMINISTRADOR = "ADMINISTRADOR";
     private static final String ROL_EDITOR = "EDITOR";
     private static final String[] RECURSOS_PUBLICOS = { "/css/**", "/js/**", "/favicon.ico", "/error" };
@@ -54,6 +55,17 @@ public class SecurityConfig {
                         .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
                         .requestMatchers(HttpMethod.POST, "/procesos/*/actividades",
                                 "/procesos/*/actividades/*")
+                        .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .requestMatchers(HttpMethod.GET, RUTA_ELIMINAR_ARCO).hasRole(ROL_ADMINISTRADOR)
+                        .requestMatchers(HttpMethod.POST, RUTA_ELIMINAR_ARCO).hasRole(ROL_ADMINISTRADOR)
+                        .requestMatchers(HttpMethod.GET, "/procesos/*/arcos/nuevo", "/procesos/*/arcos/*/editar")
+                        .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .requestMatchers(HttpMethod.POST, "/procesos/*/arcos", "/procesos/*/arcos/*")
+                        .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .requestMatchers(HttpMethod.GET, "/procesos/*/gateways/nuevo",
+                                "/procesos/*/gateways/*/editar")
+                        .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .requestMatchers(HttpMethod.POST, "/procesos/*/gateways", "/procesos/*/gateways/*")
                         .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
                         .anyRequest().authenticated())
                 .formLogin(login -> login

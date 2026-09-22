@@ -22,6 +22,13 @@
         <p><strong>Estado:</strong> <span th:text="${proceso.estado}">BORRADOR</span></p>
         <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
 
+        <div class="advertencias" th:if="${!#lists.isEmpty(advertencias)}">
+            <p class="error">Advertencias de la última operación:</p>
+            <ul>
+                <li th:each="advertencia : ${advertencias}" th:text="${advertencia}">Advertencia</li>
+            </ul>
+        </div>
+
         <h2>Diagrama</h2>
         <div class="pool">
             <p class="pool-nombre"><strong>Pool:</strong> <span th:text="${proceso.poolNombre}">Pool</span></p>
@@ -54,15 +61,102 @@
         <p class="intro" th:if="${#lists.isEmpty(actividades)}">
             El diagrama todavía no tiene actividades.
         </p>
+
+        <h2>Flujo</h2>
+        <p class="intro" th:if="${#lists.isEmpty(gateways) and #lists.isEmpty(arcos)}">
+            El flujo todavía no tiene gateways ni arcos.
+        </p>
+
+        <div class="lienzo-flujo">
+            <svg class="flujo" width="1000" height="560" role="img"
+                 aria-label="Actividades, gateways y arcos del proceso">
+                <defs>
+                    <marker id="punta-de-arco" markerWidth="10" markerHeight="8" refX="9" refY="4"
+                            orient="auto" markerUnits="strokeWidth">
+                        <polygon class="arco-punta" points="0 0, 10 4, 0 8"></polygon>
+                    </marker>
+                </defs>
+
+                <g th:each="arco : ${arcos}" th:if="${arco.origenX != null and arco.destinoX != null}">
+                    <line class="arco" marker-end="url(#punta-de-arco)"
+                          th:attr="x1=${arco.origenX},y1=${arco.origenY},x2=${arco.destinoX},y2=${arco.destinoY}"></line>
+                    <text class="arco-texto" th:if="${arco.etiqueta != null}"
+                          th:attr="x=${(arco.origenX + arco.destinoX) / 2},y=${(arco.origenY + arco.destinoY) / 2 - 6}"
+                          th:text="${arco.etiqueta}">etiqueta</text>
+                    <text class="arco-texto" th:if="${arco.condicion != null}"
+                          th:attr="x=${(arco.origenX + arco.destinoX) / 2},y=${(arco.origenY + arco.destinoY) / 2 + 12}"
+                          th:text="'[' + ${arco.condicion} + ']'">[condicion]</text>
+                </g>
+
+                <g th:each="actividad : ${actividades}">
+                    <rect class="nodo-actividad" width="130" height="46"
+                          th:attr="x=${actividad.posicionX},y=${actividad.posicionY}"></rect>
+                    <text class="nodo-nombre" th:attr="x=${actividad.posicionX + 8},y=${actividad.posicionY + 20}"
+                          th:text="${actividad.nombre}">Actividad</text>
+                    <text class="nodo-detalle" th:attr="x=${actividad.posicionX + 8},y=${actividad.posicionY + 37}"
+                          th:text="${actividad.tipo}">TAREA_USUARIO</text>
+                </g>
+
+                <g th:each="gateway : ${gateways}">
+                    <polygon class="nodo-gateway"
+                             th:attr="points=${gateway.posicionX + 23} + ',' + ${gateway.posicionY} + ' '
+                                      + ${gateway.posicionX + 46} + ',' + ${gateway.posicionY + 23} + ' '
+                                      + ${gateway.posicionX + 23} + ',' + ${gateway.posicionY + 46} + ' '
+                                      + ${gateway.posicionX} + ',' + ${gateway.posicionY + 23}"></polygon>
+                    <text class="gateway-simbolo" text-anchor="middle"
+                          th:attr="x=${gateway.posicionX + 23},y=${gateway.posicionY + 31}"
+                          th:text="${gateway.simbolo}">X</text>
+                    <text class="nodo-detalle" text-anchor="middle"
+                          th:attr="x=${gateway.posicionX + 23},y=${gateway.posicionY + 60}"
+                          th:text="${gateway.tipo}">EXCLUSIVO</text>
+                </g>
+            </svg>
+        </div>
+
+        <div class="advertencias" th:if="${!#lists.isEmpty(consistencia)}">
+            <p class="error">Advertencias de consistencia del modelo:</p>
+            <ul>
+                <li th:each="advertencia : ${consistencia}" th:text="${advertencia}">Advertencia</li>
+            </ul>
+        </div>
+
+        <h3 th:if="${!#lists.isEmpty(gateways)}">Gateways</h3>
+        <ul class="listado-flujo" th:if="${!#lists.isEmpty(gateways)}">
+            <li th:each="gateway : ${gateways}">
+                <span th:text="${gateway.etiqueta} + ' en (' + ${gateway.posicionX} + ', '
+                      + ${gateway.posicionY} + ')'">Gateway</span>
+                <a th:if="${puedeEditar and !proceso.eliminado}"
+                   th:href="@{/procesos/{procesoId}/gateways/{gatewayId}/editar(procesoId=${proceso.id},gatewayId=${gateway.id})}">Editar</a>
+            </li>
+        </ul>
+
+        <h3 th:if="${!#lists.isEmpty(arcos)}">Arcos</h3>
+        <ul class="listado-flujo" th:if="${!#lists.isEmpty(arcos)}">
+            <li th:each="arco : ${arcos}">
+                <span th:text="${arco.origenNombre} + ' → ' + ${arco.destinoNombre}">Origen a destino</span>
+                <span th:if="${arco.etiqueta != null}" th:text="'· ' + ${arco.etiqueta}"></span>
+                <span th:if="${arco.condicion != null}" th:text="'· [' + ${arco.condicion} + ']'"></span>
+                <a th:if="${puedeEditar and !proceso.eliminado}"
+                   th:href="@{/procesos/{procesoId}/arcos/{arcoId}/editar(procesoId=${proceso.id},arcoId=${arco.id})}">Editar</a>
+                <a th:if="${puedeEliminar and !proceso.eliminado}"
+                   th:href="@{/procesos/{procesoId}/arcos/{arcoId}/eliminar(procesoId=${proceso.id},arcoId=${arco.id})}">Eliminar</a>
+            </li>
+        </ul>
+
         <p class="intro">
-            El diagrama muestra el pool de la empresa, sus lanes y las actividades activas en la
-            posición donde se ubicaron. Los arcos, los gateways y los eventos todavía no forman
-            parte del modelo: llegan con las historias de modelado posteriores.
+            El diagrama muestra el pool de la empresa, sus lanes, las actividades activas en la
+            posición donde se ubicaron, los gateways como rombos con su símbolo y los arcos como
+            líneas continuas con punta sólida. Los eventos todavía no forman parte del modelo:
+            llegan con las historias de eventos.
         </p>
 
         <div class="acciones">
             <a th:if="${puedeEditar and !proceso.eliminado}"
                th:href="@{/procesos/{procesoId}/actividades/nueva(procesoId=${proceso.id})}">Agregar actividad</a>
+            <a th:if="${puedeEditar and !proceso.eliminado}"
+               th:href="@{/procesos/{procesoId}/gateways/nuevo(procesoId=${proceso.id})}">Agregar gateway</a>
+            <a th:if="${puedeEditar and !proceso.eliminado}"
+               th:href="@{/procesos/{procesoId}/arcos/nuevo(procesoId=${proceso.id})}">Agregar arco</a>
             <a th:if="${puedeEditar and !proceso.eliminado}"
                th:href="@{/procesos/{id}/editar(id=${proceso.id})}">Editar</a>
             <a th:href="@{/procesos/{id}/historial(id=${proceso.id})}">Ver historial de cambios</a>

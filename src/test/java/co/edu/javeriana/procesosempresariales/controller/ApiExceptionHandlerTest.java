@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 
 import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
 import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
@@ -73,5 +74,15 @@ class ApiExceptionHandlerTest {
     void unaLaneQueNoPerteneceAlProcesoSeReportaComoPeticionIncorrecta() {
         verificar(manejador.laneNoValida(new LaneNoValidaException("La lane no pertenece a este proceso")),
                 HttpStatus.BAD_REQUEST, "LANE_NO_VALIDA", "La lane no pertenece a este proceso");
+    }
+
+    @Test
+    void unModeloDeProcesoIncompletoSeReportaComoPeticionInvalida() {
+        verificar(manejador.modeloNoValido(new ModeloDeProcesoNoValidoException(
+                "El proceso no puede salir de borrador: Gateway EXCLUSIVO #12 se usa como divergencia con una"
+                        + " sola salida: necesita al menos dos")),
+                HttpStatus.BAD_REQUEST, "MODELO_NO_VALIDO",
+                "El proceso no puede salir de borrador: Gateway EXCLUSIVO #12 se usa como divergencia con una"
+                        + " sola salida: necesita al menos dos");
     }
 }

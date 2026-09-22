@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Confirmar eliminación de arco</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="confirmar-title">
+        <p class="eyebrow">Eliminar arco</p>
+        <h1 id="confirmar-title">¿Eliminar este arco?</h1>
+
+        <p class="error">
+            El arco dejara de aparecer en el diagrama. No se borra de la base de datos: la fila se
+            conserva marcada como inactiva y la eliminacion queda registrada en el historial del
+            proceso.
+        </p>
+
+        <dl>
+            <dt>Origen</dt>
+            <dd th:text="${arco.origenNombre}">Origen</dd>
+
+            <dt>Destino</dt>
+            <dd th:text="${arco.destinoNombre}">Destino</dd>
+
+            <dt>Etiqueta</dt>
+            <dd th:text="${arco.etiqueta} ?: 'Sin etiqueta'">Etiqueta</dd>
+
+            <dt>Condición</dt>
+            <dd th:text="${arco.condicion} ?: 'Sin condición'">Condición</dd>
+        </dl>
+
+        <div class="advertencias" th:if="${!#lists.isEmpty(arco.advertencias)}">
+            <p class="error">Al eliminar este arco el flujo queda con elementos desconectados:</p>
+            <ul>
+                <li th:each="advertencia : ${arco.advertencias}" th:text="${advertencia}">Advertencia</li>
+            </ul>
+            <p>La eliminación sigue siendo posible: la advertencia es informativa.</p>
+        </div>
+
+        <form th:action="@{/procesos/{procesoId}/arcos/{arcoId}/eliminar(procesoId=${procesoId},arcoId=${arco.id})}"
+              method="post">
+            <button type="submit">Confirmar eliminación</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}(procesoId=${procesoId})}">Cancelar y volver al proceso</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

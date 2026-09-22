@@ -98,6 +98,7 @@ public class ActividadController {
         ActividadRespuestaDto eliminada = actividadService.eliminar(procesoId, actividadId, principal.getName());
         redirectAttributes.addFlashAttribute("mensaje",
                 "La actividad " + eliminada.getNombre() + " quedo eliminada y conserva su historial");
+        redirectAttributes.addFlashAttribute("advertencias", eliminada.getAdvertencias());
         return DETALLE_DEL_PROCESO + procesoId;
     }
 

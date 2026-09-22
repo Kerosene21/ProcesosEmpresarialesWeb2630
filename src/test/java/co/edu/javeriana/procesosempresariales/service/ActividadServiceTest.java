@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -22,6 +23,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import co.edu.javeriana.procesosempresariales.domain.Actividad;
+import co.edu.javeriana.procesosempresariales.domain.Arco;
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
@@ -30,6 +32,7 @@ import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
+import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
@@ -75,12 +78,15 @@ class ActividadServiceTest {
     @Mock
     private HistorialProcesoRepository historialProcesoRepository;
 
+    @Mock
+    private ConexionesService conexionesService;
+
     private ActividadService actividadService;
 
     @BeforeEach
     void inicializar() {
         actividadService = new ActividadService(actividadRepository, procesoRepository, laneRepository,
-                usuarioRepository, historialProcesoRepository, new ModelMapper());
+                usuarioRepository, historialProcesoRepository, conexionesService, new ModelMapper());
     }
 
     private Empresa empresa(Long id) {
@@ -806,5 +812,93 @@ class ActividadServiceTest {
         assertThatThrownBy(() -> actividadService.lanesDelProceso(PROCESO_ID, USERNAME))
                 .isInstanceOf(UsuarioSinPermisoException.class)
                 .hasMessage("El proceso no pertenece a la empresa del usuario");
+    }
+
+    @Test
+    void editarNoTocaLasConexionesDeLaActividad() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        Actividad actividad = existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        existeLaLane(LANE_ID, "General");
+        EditarActividadDto dto = formularioEdicion();
+        dto.setNombre("Validar solicitud");
+
+        actividadService.editar(PROCESO_ID, ACTIVIDAD_ID, dto, USERNAME);
+
+        assertThat(actividad.getId()).isEqualTo(ACTIVIDAD_ID);
+        verifyNoInteractions(conexionesService);
+    }
+
+    @Test
+    void cambiarDeLaneNoTocaLasConexionesDeLaActividad() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        Actividad actividad = existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        existeLaLane(LANE_DESTINO_ID, "Cartera");
+        EditarActividadDto dto = formularioEdicion();
+        dto.setLaneId(LANE_DESTINO_ID);
+
+        actividadService.editar(PROCESO_ID, ACTIVIDAD_ID, dto, USERNAME);
+
+        assertThat(actividad.getId()).isEqualTo(ACTIVIDAD_ID);
+        assertThat(actividad.getLane().getId()).isEqualTo(LANE_DESTINO_ID);
+        verifyNoInteractions(conexionesService);
+    }
+
+    @Test
+    void eliminarDesactivaLosArcosConectadosALaActividad() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        when(conexionesService.desactivarConectadosA(proceso, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .thenReturn(List.of(new Arco(), new Arco()));
+
+        ActividadRespuestaDto eliminada = actividadService.eliminar(PROCESO_ID, ACTIVIDAD_ID, USERNAME);
+
+        assertThat(eliminada.getArcosDesactivados()).isEqualTo(2);
+        verify(conexionesService).desactivarConectadosA(proceso, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID);
+    }
+
+    @Test
+    void eliminarDejaLasConexionesAfectadasEnElHistorial() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        when(conexionesService.desactivarConectadosA(proceso, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .thenReturn(List.of(new Arco()));
+
+        actividadService.eliminar(PROCESO_ID, ACTIVIDAD_ID, USERNAME);
+
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("actividad eliminada: 'Revisar solicitud'; arcos desactivados: 1");
+    }
+
+    @Test
+    void eliminarSinArcosConectadosNoAgregaNadaAlHistorial() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+
+        ActividadRespuestaDto eliminada = actividadService.eliminar(PROCESO_ID, ACTIVIDAD_ID, USERNAME);
+
+        assertThat(eliminada.getArcosDesactivados()).isZero();
+        assertThat(historialGuardado().getCambiosRealizados()).isEqualTo("actividad eliminada: 'Revisar solicitud'");
+    }
+
+    @Test
+    void eliminarDevuelveLaAdvertenciaDeVecinosDesconectados() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        List<Arco> desactivados = List.of(new Arco());
+        when(conexionesService.desactivarConectadosA(proceso, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .thenReturn(desactivados);
+        when(conexionesService.advertenciasTrasDesactivar(proceso, desactivados, TipoNodoFlujo.ACTIVIDAD,
+                ACTIVIDAD_ID)).thenReturn(List.of("'Aprobar solicitud' quedó sin arcos de entrada"));
+
+        ActividadRespuestaDto eliminada = actividadService.eliminar(PROCESO_ID, ACTIVIDAD_ID, USERNAME);
+
+        assertThat(eliminada.getAdvertencias())
+                .containsExactly("'Aprobar solicitud' quedó sin arcos de entrada");
     }
 }

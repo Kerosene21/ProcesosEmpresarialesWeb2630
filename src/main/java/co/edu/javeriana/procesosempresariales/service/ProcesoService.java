@@ -47,13 +47,16 @@ public class ProcesoService {
     private final ProcesoRepository procesoRepository;
     private final UsuarioRepository usuarioRepository;
     private final HistorialProcesoRepository historialProcesoRepository;
+    private final ValidacionModeloService validacionModeloService;
     private final ModelMapper modelMapper;
 
     public ProcesoService(ProcesoRepository procesoRepository, UsuarioRepository usuarioRepository,
-            HistorialProcesoRepository historialProcesoRepository, ModelMapper modelMapper) {
+            HistorialProcesoRepository historialProcesoRepository,
+            ValidacionModeloService validacionModeloService, ModelMapper modelMapper) {
         this.procesoRepository = procesoRepository;
         this.usuarioRepository = usuarioRepository;
         this.historialProcesoRepository = historialProcesoRepository;
+        this.validacionModeloService = validacionModeloService;
         this.modelMapper = modelMapper;
     }
 
@@ -133,6 +136,10 @@ public class ProcesoService {
             return toDto(proceso);
         }
 
+        if (saleDeBorrador(proceso, dto)) {
+            validacionModeloService.validarParaSalirDeBorrador(proceso);
+        }
+
         String estadoAnterior = proceso.getEstado().name();
         proceso.setNombre(nombreNuevo);
         proceso.setDescripcion(dto.getDescripcion());
@@ -174,6 +181,10 @@ public class ProcesoService {
                 .stream()
                 .map(this::toHistorialDto)
                 .toList();
+    }
+
+    private boolean saleDeBorrador(Proceso proceso, EditarProcesoDto dto) {
+        return proceso.getEstado() == EstadoProceso.BORRADOR && dto.getEstado() != EstadoProceso.BORRADOR;
     }
 
     private Pool poolConLaneInicial(String nombreEmpresa) {

@@ -19,10 +19,10 @@ HU-06 añade además que los procesos inactivos no aparezcan por defecto y pueda
 filtro.
 
 > **Aviso sobre el último criterio del diagrama.** Seis de los siete criterios quedaron cerrados en
-> el bloque HU-01 a HU-07. El de la visualización del diagrama **sigue abierto**, aunque avanzó con
-> HU-08 a HU-10: el detalle ya dibuja el pool, sus lanes y las actividades activas en la posición
-> donde se ubicaron, pero el modelo todavía no tiene arcos, gateways ni eventos, y la vista lo
-> advierte de forma explícita. Ver «Estado real del diagrama BPMN».
+> el bloque HU-01 a HU-07. El de la visualización del diagrama **sigue abierto**, aunque avanzó dos
+> veces: con HU-08 a HU-10 el detalle empezó a dibujar el pool, sus lanes y las actividades activas,
+> y con HU-11 a HU-15 añadió los **gateways** y los **arcos**. Lo único que falta ya son los
+> **eventos**, y la vista lo advierte de forma explícita. Ver «Estado real del diagrama BPMN».
 
 ## Listado por empresa
 
@@ -189,22 +189,32 @@ El dominio actual contiene:
 
 | Elemento BPMN del criterio | ¿Existe hoy? |
 |---|---|
-| Pools | **Sí**, entidad `Pool` con `id` y `nombre` |
+| Pools | **Sí**, entidad `Pool` con `id` y `nombre`; uno por proceso, varios pools son HU-21 |
 | Lanes | **Mínima**, entidad `Lane` dentro del pool, añadida por HU-08; su gestión es HU-22 |
 | Actividades | **Sí**, entidad `Actividad` con tipo, lane y posición, de HU-08 a HU-10 |
-| Eventos | No |
-| Arcos | No, llegan con HU-11 |
-| Gateways | No |
+| Arcos | **Sí**, entidad `Arco` con origen, destino, etiqueta y condición, de HU-11 a HU-13 |
+| Gateways | **Sí**, entidad `Gateway` con tipo y posición, de HU-14 a HU-15; su eliminación es HU-16 |
+| Eventos | **No**, llegan con HU-25 y HU-27 |
 
-El detalle muestra una sección **Diagrama** con el pool del proceso (`poolNombre`, añadido a
-`ProcesoRespuestaDto` en este bloque), sus **lanes** y las **actividades activas** dibujadas en la
-posición que se les asignó, más un texto que advierte de que los elementos que faltan llegarán con
-las historias de modelado siguientes. El pool venía de HU-04; las lanes y las actividades las
-añadieron HU-08 a HU-10.
+El detalle muestra dos vistas complementarias del mismo proceso:
+
+- **Diagrama**: el pool y sus **lanes**, con las **actividades activas** colocadas dentro de la
+  banda de su responsable. Es la vista estructural, la que responde a «quién hace qué».
+- **Flujo**: un `<svg>` con las **actividades**, los **gateways** como rombos con su símbolo
+  (`X`, `+`, `O`) y los **arcos** como líneas continuas con punta sólida, dibujados a partir de las
+  posiciones guardadas. Es la vista de secuencia, la que responde a «en qué orden».
+
+Debajo van las **advertencias de consistencia del modelo** —gateways sin dos salidas, salidas sin
+condición, condiciones repetidas— y las listas de gateways y arcos con sus acciones.
+
+Se mantienen las dos vistas en lugar de fundirlas porque el SVG no representa las lanes: dibujar
+bandas con nodos que pueden estar en cualquier posición exigiría un enrutado que esta historia no
+pide. El pool venía de HU-04; las lanes y las actividades, de HU-08 a HU-10; los gateways y los
+arcos, de HU-11 a HU-15.
 
 > **HU-07 queda completa para consulta de procesos, búsqueda, filtros, paginación, detalle e
-> historial. La visualización del diagrama BPMN completo sigue abierta: ya muestra pool, lanes y
-> actividades, y le faltan arcos (HU-11), gateways y eventos.**
+> historial. La visualización del diagrama BPMN completo sigue abierta por un solo elemento: ya
+> muestra pool, lanes, actividades, gateways y arcos, y le faltan los eventos (HU-25 y HU-27).**
 
 ## Historial
 
@@ -270,9 +280,9 @@ igual que el resto de pruebas de persistencia del proyecto.
 
 ## Qué quedó pendiente
 
-- **Visualización del diagrama BPMN completo.** Avanzó con HU-08 a HU-10: el detalle ya dibuja el
-  pool, sus lanes y las actividades activas en su posición. Faltan los arcos (HU-11), los gateways y
-  los eventos, y la gestión de lanes (HU-22).
+- **Visualización del diagrama BPMN completo.** Avanzó con HU-08 a HU-10 (pool, lanes y actividades)
+  y con HU-11 a HU-15 (gateways y arcos). Faltan los **eventos** (HU-25 y HU-27), y siguen abiertas
+  la gestión de lanes (HU-22) y los pools múltiples (HU-21).
 - **Ordenación configurable.** El listado ordena por nombre ascendente y no es elegible desde la
   interfaz.
 - **Tamaño de página configurable.** Está fijo en 10.
