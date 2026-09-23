@@ -2,7 +2,7 @@ package co.edu.javeriana.procesosempresariales.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import co.edu.javeriana.procesosempresariales.model.HistorialProceso;
+import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
 import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
 
 @Service

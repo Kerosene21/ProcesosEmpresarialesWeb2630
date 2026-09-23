@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Historial</title>
+    <link rel="stylesheet" th:href="@{/css/empresas.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="panel" aria-labelledby="historial-title">
+        <p class="eyebrow">Historial de cambios</p>
+        <h1 id="historial-title" th:text="${proceso.nombre}">Nombre del proceso</h1>
+        <p>Cada edición que modifica algún dato del proceso deja una entrada, de la más reciente a la
+            más antigua.</p>
+
+        <p class="vacio" th:if="${#lists.isEmpty(historial)}">
+            Este proceso todavia no tiene ediciones registradas.
+        </p>
+
+        <table th:unless="${#lists.isEmpty(historial)}">
+            <thead>
+            <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Usuario</th>
+                <th scope="col">Estado anterior</th>
+                <th scope="col">Cambios</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="entrada : ${historial}">
+                <td th:text="${#temporals.format(entrada.fecha, 'yyyy-MM-dd HH:mm')}">Fecha</td>
+                <td th:text="${entrada.usuarioCorreo}">Usuario</td>
+                <td th:text="${entrada.estadoAnterior}">Estado</td>
+                <td th:text="${entrada.cambiosRealizados}">Cambios</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{id}(id=${proceso.id})}">Volver al proceso</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

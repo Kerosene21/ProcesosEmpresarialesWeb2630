@@ -2,11 +2,9 @@ package co.edu.javeriana.procesosempresariales.controller;
 
 import java.util.Map;
 
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
@@ -22,10 +20,9 @@ import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoExcep
 import co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
-@RestControllerAdvice(annotations = RestController.class)
-@Order(10)
+@RestControllerAdvice
 public class ApiExceptionHandler {
-    // El cliente recibe códigos estables y no tiene que interpretar el texto del error.
+
     @ExceptionHandler(NombreProcesoDuplicadoException.class)
     ResponseEntity<Map<String, String>> duplicado(NombreProcesoDuplicadoException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -98,3 +95,6 @@ public class ApiExceptionHandler {
                 .body(Map.of("codigo", "USUARIO_SIN_PERMISO", "mensaje", exception.getMessage()));
     }
 }
+
+
+

@@ -1,0 +1,58 @@
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    color: #000;
+    background: #fff;
+    font-family: Arial, sans-serif;
+}
+
+.page-shell {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 32px 16px;
+}
+
+.eyebrow { margin: 0 0 8px; font-weight: bold; }
+h1 { margin: 0 0 16px; font-size: 32px; }
+.intro { margin: 0 0 24px; }
+
+.panel { width: 100%; }
+
+form { display: grid; gap: 4px; max-width: 520px; }
+label { margin-top: 12px; font-weight: bold; }
+input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #000;
+    color: #000;
+    background: #fff;
+    font: inherit;
+}
+input:focus { outline: 2px solid #000; outline-offset: 1px; }
+
+button {
+    margin-top: 20px;
+    padding: 10px 16px;
+    border: 1px solid #000;
+    color: #fff;
+    background: #000;
+    cursor: pointer;
+    font: inherit;
+    font-weight: bold;
+}
+button:hover { color: #000; background: #fff; }
+
+.error { color: #000; font-weight: bold; }
+.success { margin-bottom: 20px; padding: 8px; border: 1px solid #000; font-weight: bold; }
+
+table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+th, td { padding: 8px; border: 1px solid #000; text-align: left; }
+th { font-weight: bold; }
+
+.acciones { margin-top: 24px; display: flex; gap: 16px; }
+.vacio { padding: 16px; border: 1px dashed #000; }
+
+dl { margin: 0; }
+dt { margin-top: 12px; font-weight: bold; }
+dd { margin: 4px 0 0; }

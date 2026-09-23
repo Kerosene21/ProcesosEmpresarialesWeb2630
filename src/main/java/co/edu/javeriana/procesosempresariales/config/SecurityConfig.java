@@ -11,7 +11,9 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher; 
+import java.util.LinkedHashMap;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -85,10 +87,11 @@ public class SecurityConfig {
     }
 
     private AuthenticationEntryPoint puntoDeEntrada() {
-        return DelegatingAuthenticationEntryPoint.builder()
-                .addEntryPointFor(new ApiNoAutorizadoEntryPoint(),
-                        PathPatternRequestMatcher.withDefaults().matcher(RUTA_API))
-                .defaultEntryPoint(new LoginUrlAuthenticationEntryPoint(RUTA_LOGIN))
-                .build();
+        LinkedHashMap<RequestMatcher, AuthenticationEntryPoint> puntosDeEntrada = new LinkedHashMap<>();
+        puntosDeEntrada.put(new AntPathRequestMatcher(RUTA_API), new ApiNoAutorizadoEntryPoint());
+
+        DelegatingAuthenticationEntryPoint entryPoint = new DelegatingAuthenticationEntryPoint(puntosDeEntrada);
+        entryPoint.setDefaultEntryPoint(new LoginUrlAuthenticationEntryPoint(RUTA_LOGIN));
+        return entryPoint;
     }
 }

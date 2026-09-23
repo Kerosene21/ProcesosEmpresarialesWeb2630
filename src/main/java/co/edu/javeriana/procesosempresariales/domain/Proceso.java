@@ -19,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+
 // Información básica del proceso que se guarda en la base de datos y se muestra al cliente
 @Entity // Cada objeto representa un registro de la tabla proceso
 // La base de datos también controla que el nombre no se repita en una empresa
@@ -42,6 +43,9 @@ public class Proceso {
     @Column(nullable = false, length = 20)
     private EstadoProceso estado; // Empieza como borrador y luego a publicado
 
+    @Column(nullable = false)
+    private Boolean eliminado = false; // Bandera para borrado lógico
+
     // evitar consultas que no son necesarias entonces se trae solo cuando hace falta para trabajar con el proceso
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "empresa_id", nullable = false)
@@ -50,8 +54,9 @@ public class Proceso {
     // El pool se crea con el proceso y tambien se elimina con el
     @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true, optional = false)
     @JoinColumn(name = "pool_id", nullable = false)
-    private Pool pool; // Punto inicial para empezar a dibujar el proceso
+    private Pool pool; // Punto inicial para empezar a dibujar el proceso 
 
-    @Column(nullable = false, columnDefinition = "boolean default false")
-    private boolean eliminado;
+    public boolean isEliminado() {
+        return Boolean.TRUE.equals(this.eliminado);
+    }
 }

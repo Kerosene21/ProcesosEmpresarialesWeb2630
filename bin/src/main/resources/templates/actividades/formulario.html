@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Nueva actividad</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">Diagrama del proceso</p>
+        <h1 id="form-title">Nueva actividad</h1>
+        <p class="intro">
+            La actividad pertenece a este proceso y se dibuja dentro de una lane, que representa al
+            responsable. La posición es la del rectángulo en el lienzo.
+        </p>
+
+        <p class="error" th:if="${#lists.isEmpty(lanes)}">
+            Este proceso todavía no tiene lanes, así que no se puede ubicar una actividad.
+        </p>
+
+        <form th:action="@{/procesos/{procesoId}/actividades(procesoId=${procesoId})}"
+              th:object="${actividad}" method="post" novalidate>
+            <label for="nombre">Nombre</label>
+            <input id="nombre" type="text" th:field="*{nombre}" required maxlength="150" autofocus>
+            <small class="error" th:if="${#fields.hasErrors('nombre')}" th:errors="*{nombre}"></small>
+
+            <label for="tipo">Tipo</label>
+            <select id="tipo" th:field="*{tipo}" required>
+                <option value="">Seleccione un tipo</option>
+                <option th:each="tipo : ${tipos}" th:value="${tipo}" th:text="${tipo}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('tipo')}" th:errors="*{tipo}"></small>
+
+            <label for="laneId">Lane responsable</label>
+            <select id="laneId" th:field="*{laneId}" required>
+                <option value="">Seleccione una lane</option>
+                <option th:each="lane : ${lanes}" th:value="${lane.id}" th:text="${lane.nombre}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('laneId')}" th:errors="*{laneId}"></small>
+
+            <label for="posicionX">Posición X</label>
+            <input id="posicionX" type="number" th:field="*{posicionX}" required>
+            <small class="error" th:if="${#fields.hasErrors('posicionX')}" th:errors="*{posicionX}"></small>
+
+            <label for="posicionY">Posición Y</label>
+            <input id="posicionY" type="number" th:field="*{posicionY}" required>
+            <small class="error" th:if="${#fields.hasErrors('posicionY')}" th:errors="*{posicionY}"></small>
+
+            <button type="submit">Crear actividad</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}(procesoId=${procesoId})}">Cancelar y volver al proceso</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

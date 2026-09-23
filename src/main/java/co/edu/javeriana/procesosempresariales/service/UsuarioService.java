@@ -2,6 +2,7 @@ package co.edu.javeriana.procesosempresariales.service;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,6 +94,10 @@ public class UsuarioService {
             .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
     }
 
+    public boolean existsByUsername(String username) {
+        return this.usuarioRepository.existsByUsername(username);
+    }
+
     private Usuario exigirAdministrador(String username) {
         Usuario usuario = usuarioRepository.findByUsername(username)
                 .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
@@ -129,5 +134,20 @@ public class UsuarioService {
             throw new IllegalArgumentException("El usuario nuevo requiere una credencial de acceso");
         }
         return credencial;
+    }
+    //administrador
+    public Usuario crearAdministradorParaEmpresa(Empresa empresa, String passwordPlana) {
+        Usuario administrador = new Usuario();
+        administrador.setUsername(empresa.getCorreoContacto());
+        administrador.setPassword(this.passwordEncoder.encode(passwordPlana));
+        administrador.setRol(RolUsuario.ADMINISTRADOR);
+        administrador.setActivo(true);
+        administrador.setEmpresa(empresa);
+
+        return this.usuarioRepository.save(administrador);
+    }
+
+    public Optional<Usuario> obtenerAdministradorDeEmpresa(Long empresaId) {
+        return this.usuarioRepository.findFirstByEmpresaIdAndRolOrderByIdAsc(empresaId, RolUsuario.ADMINISTRADOR);
     }
 }

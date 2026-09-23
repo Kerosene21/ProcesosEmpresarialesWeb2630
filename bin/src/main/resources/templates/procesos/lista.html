@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Procesos</title>
+    <link rel="stylesheet" th:href="@{/css/empresas.css}">
+    <link rel="stylesheet" th:href="@{/css/usuarios.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="panel" aria-labelledby="procesos-title">
+        <p class="eyebrow">Catálogo de procesos</p>
+        <h1 id="procesos-title">Procesos de mi empresa</h1>
+        <p class="intro">
+            Solo aparecen los procesos de tu empresa. Por defecto se muestran los activos; usa el
+            filtro de situación para consultar los inactivos.
+        </p>
+
+        <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
+
+        <form th:action="@{/procesos}" th:object="${filtro}" method="get" class="filtros">
+            <label for="q">Buscar por nombre</label>
+            <input id="q" type="text" th:field="*{q}" maxlength="150" placeholder="Por ejemplo: venta">
+
+            <label for="estado">Estado</label>
+            <select id="estado" th:field="*{estado}">
+                <option value="">Todos los estados</option>
+                <option th:each="estadoDisponible : ${estados}"
+                        th:value="${estadoDisponible}" th:text="${estadoDisponible}"></option>
+            </select>
+
+            <label for="categoria">Categoría</label>
+            <select id="categoria" th:field="*{categoria}">
+                <option value="">Todas las categorías</option>
+                <option th:each="categoriaDisponible : ${categorias}"
+                        th:value="${categoriaDisponible}" th:text="${categoriaDisponible}"></option>
+            </select>
+
+            <label for="visibilidad">Situación</label>
+            <select id="visibilidad" th:field="*{visibilidad}">
+                <option th:each="opcion : ${visibilidades}" th:value="${opcion}" th:text="${opcion}"></option>
+            </select>
+
+            <button type="submit">Buscar</button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos}">Limpiar filtros</a>
+            <a th:href="@{/procesos/nuevo}">Crear proceso</a>
+            <a th:href="@{/empresas}">Volver a mi empresa</a>
+        </div>
+
+        <p class="vacio" th:if="${procesos.totalElements == 0}">
+            No hay procesos que coincidan con la búsqueda.
+        </p>
+
+        <table th:unless="${procesos.totalElements == 0}">
+            <thead>
+            <tr>
+                <th scope="col">Nombre</th>
+                <th scope="col">Categoría</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Situación</th>
+                <th scope="col">Detalle</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="proceso : ${procesos.content}">
+                <td>
+                    <span th:text="${proceso.nombre}">Nombre</span>
+                    <br>
+                    <small th:text="${proceso.descripcion}">Descripción</small>
+                </td>
+                <td th:text="${proceso.categoria}">Categoría</td>
+                <td th:text="${proceso.estado}">BORRADOR</td>
+                <td class="estado" th:text="${proceso.eliminado} ? 'Inactivo' : 'Activo'">Situación</td>
+                <td><a th:href="@{/procesos/{id}(id=${proceso.id})}">Ver proceso</a></td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="acciones" th:if="${procesos.totalPages > 1}">
+            <a th:if="${!procesos.first}" th:href="@{/procesos(q=${filtro.q},estado=${filtro.estado},categoria=${filtro.categoria},visibilidad=${filtro.visibilidad},page=${procesos.number - 1})}">Anterior</a>
+            <span th:text="'Página ' + (${procesos.number} + 1) + ' de ' + ${procesos.totalPages}">Página</span>
+            <a th:if="${!procesos.last}" th:href="@{/procesos(q=${filtro.q},estado=${filtro.estado},categoria=${filtro.categoria},visibilidad=${filtro.visibilidad},page=${procesos.number + 1})}">Siguiente</a>
+        </div>
+
+        <p th:if="${procesos.totalElements > 0}"
+           th:text="${procesos.totalElements} + ' proceso(s) encontrados'">Total</p>
+
+        <form th:action="@{/logout}" method="post">
+            <button type="submit">Cerrar sesion</button>
+        </form>
+    </section>
+</main>
+</body>
+</html>

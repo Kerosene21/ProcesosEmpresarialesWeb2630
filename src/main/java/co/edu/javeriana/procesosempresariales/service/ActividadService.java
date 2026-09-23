@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,36 +28,38 @@ import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicado
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
-import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.LaneRepository;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
-import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 
 @Service
 public class ActividadService {
 
-    private static final String NOMBRE_DUPLICADO = "Ya existe una actividad con ese nombre en el proceso";
-    private static final String LANE_INVALIDA = "La lane indicada no existe o no pertenece a este proceso";
-    private static final String PROCESO_ELIMINADO = "El proceso ya fue eliminado";
-    private static final String ACTIVIDAD_ELIMINADA = "La actividad ya fue eliminada";
+    private static String NOMBRE_DUPLICADO = "Ya existe una actividad con ese nombre en el proceso";
+    private static String LANE_INVALIDA = "La lane indicada no existe o no pertenece a este proceso";
+    private static String PROCESO_ELIMINADO = "El proceso ya fue eliminado";
+    private static String ACTIVIDAD_ELIMINADA = "La actividad ya fue eliminada";
 
-    private final ActividadRepository actividadRepository;
-    private final ProcesoRepository procesoRepository;
-    private final LaneRepository laneRepository;
-    private final UsuarioRepository usuarioRepository;
-    private final HistorialProcesoRepository historialProcesoRepository;
-    private final ConexionesService conexionesService;
-    private final ModelMapper modelMapper;
+    private ActividadRepository actividadRepository;
+    private ProcesoRepository procesoRepository;
+    private LaneRepository laneRepository;
+    private UsuarioService usuarioService;
+    private HistorialProcesoService historialProcesoService;
+    private ConexionesService conexionesService;
+    private ModelMapper modelMapper;
 
-    public ActividadService(ActividadRepository actividadRepository, ProcesoRepository procesoRepository,
-            LaneRepository laneRepository, UsuarioRepository usuarioRepository,
-            HistorialProcesoRepository historialProcesoRepository, ConexionesService conexionesService,
-            ModelMapper modelMapper) {
+    @Autowired
+    public ActividadService(ActividadRepository actividadRepository,
+                            ProcesoRepository procesoRepository,
+                            LaneRepository laneRepository,
+                            UsuarioService usuarioService,
+                            HistorialProcesoService historialProcesoService,
+                            ConexionesService conexionesService,
+                            ModelMapper modelMapper) {
         this.actividadRepository = actividadRepository;
         this.procesoRepository = procesoRepository;
         this.laneRepository = laneRepository;
-        this.usuarioRepository = usuarioRepository;
-        this.historialProcesoRepository = historialProcesoRepository;
+        this.usuarioService = usuarioService;
+        this.historialProcesoService = historialProcesoService;
         this.conexionesService = conexionesService;
         this.modelMapper = modelMapper;
     }
@@ -185,8 +188,7 @@ public class ActividadService {
     }
 
     private Usuario usuarioAutenticado(String username) {
-        return usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
+        return usuarioService.buscarPorUsername(username);
     }
 
     private Proceso procesoDeLaEmpresa(Long procesoId, Usuario usuario) {
@@ -253,7 +255,7 @@ public class ActividadService {
     }
 
     private void registrarHistorial(Proceso proceso, Usuario usuario, String cambios) {
-        historialProcesoRepository.save(new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
+        historialProcesoService.registrarHistorial(new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
                 proceso.getEstado().name()));
     }
 
