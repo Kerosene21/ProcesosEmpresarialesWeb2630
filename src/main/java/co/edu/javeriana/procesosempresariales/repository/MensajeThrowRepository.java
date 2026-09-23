@@ -15,4 +15,7 @@ public interface MensajeThrowRepository extends JpaRepository<MensajeThrow, Long
     List<MensajeThrow> findByProcesoIdOrderByIdAsc(Long procesoId);
 
     Optional<MensajeThrow> findByIdAndProcesoId(Long id, Long procesoId);
+
+    // HU-27 usa esta consulta para verificar el origen del mensaje dentro del mismo proceso.
+    boolean existsByProcesoIdAndNombreIgnoreCase(Long procesoId, String nombre);
 }

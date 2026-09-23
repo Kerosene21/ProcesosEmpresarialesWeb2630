@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${messageCatch.id == null ? 'Nuevo Message Catch' : 'Editar Message Catch'}">Message Catch</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">Mensajes y colaboración entre pools</p>
+        <h1 id="form-title" th:text="${messageCatch.id == null ? 'Nuevo Message Catch' : 'Editar Message Catch'}">
+            Message Catch
+        </h1>
+        <p class="intro">Modela un mensaje que inicia el proceso o lo deja esperando. Esta configuración no ejecuta
+            integraciones reales.</p>
+
+        <!-- El DTO controla el binding; th:field genera los atributos del formulario automaticamente. -->
+        <form th:action="@{/procesos/{procesoId}/mensajes-catch(procesoId=${procesoId})}"
+              th:object="${messageCatch}" method="post" novalidate>
+            <input type="hidden" th:field="*{id}">
+
+            <label>Nombre del mensaje
+                <input type="text" th:field="*{nombreMensaje}" maxlength="150" required autofocus>
+            </label>
+            <small class="error" th:if="${#fields.hasErrors('nombreMensaje')}"
+                   th:errors="*{nombreMensaje}"></small>
+
+            <label>Variante del evento
+                <select th:field="*{variante}" required>
+                    <option value="">Seleccione una variante</option>
+                    <option th:each="variante : ${variantes}"
+                            th:value="${variante}" th:text="${variante}"></option>
+                </select>
+            </label>
+            <small class="error" th:if="${#fields.hasErrors('variante')}"
+                   th:errors="*{variante}"></small>
+
+            <label>Datos esperados
+                <textarea th:field="*{datosEsperados}" rows="5"
+                          placeholder="Ejemplo: numeroSolicitud (Long), estado (String)" required></textarea>
+            </label>
+            <small class="error" th:if="${#fields.hasErrors('datosEsperados')}"
+                   th:errors="*{datosEsperados}"></small>
+
+            <label>Actividades que utilizan los datos
+                <textarea th:field="*{actividadesUso}" rows="4"
+                          placeholder="Ejemplo: Validar solicitud; Notificar resultado" required></textarea>
+            </label>
+            <small class="error" th:if="${#fields.hasErrors('actividadesUso')}"
+                   th:errors="*{actividadesUso}"></small>
+
+            <label>
+                <input type="checkbox" th:field="*{origenExterno}">
+                Origen externo
+            </label>
+
+            <button type="submit" th:text="${messageCatch.id == null ? 'Guardar Message Catch' : 'Actualizar Message Catch'}">
+                Guardar
+            </button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}/mensajes-catch(procesoId=${procesoId})}">Cancelar</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

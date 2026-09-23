@@ -160,6 +160,8 @@
             <a th:if="${puedeEditar and !proceso.eliminado}"
                th:href="@{/procesos/{procesoId}/mensajes-throw(procesoId=${proceso.id})}">Mensajes throw</a>
             <a th:if="${puedeEditar and !proceso.eliminado}"
+               th:href="@{/procesos/{procesoId}/mensajes-catch(procesoId=${proceso.id})}">Mensajes catch</a>
+            <a th:if="${puedeEditar and !proceso.eliminado}"
                th:href="@{/procesos/{procesoId}/envios-externos(procesoId=${proceso.id})}">Envíos externos</a>
             <a th:if="${puedeEditar and !proceso.eliminado}"
                th:href="@{/procesos/{id}/editar(id=${proceso.id})}">Editar</a>
