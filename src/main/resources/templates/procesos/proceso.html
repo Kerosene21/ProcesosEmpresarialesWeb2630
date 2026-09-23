@@ -158,6 +158,8 @@
             <a th:if="${puedeEditar and !proceso.eliminado}"
                th:href="@{/procesos/{procesoId}/arcos/nuevo(procesoId=${proceso.id})}">Agregar arco</a>
             <a th:if="${puedeEditar and !proceso.eliminado}"
+               th:href="@{/procesos/{procesoId}/mensajes-throw(procesoId=${proceso.id})}">Mensajes throw</a>
+            <a th:if="${puedeEditar and !proceso.eliminado}"
                th:href="@{/procesos/{id}/editar(id=${proceso.id})}">Editar</a>
             <a th:href="@{/procesos/{id}/historial(id=${proceso.id})}">Ver historial de cambios</a>
             <a th:if="${puedeEliminar and !proceso.eliminado}"
