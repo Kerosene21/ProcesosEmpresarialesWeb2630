@@ -33,7 +33,7 @@ import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoEx
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
-import co.edu.javeriana.procesosempresariales.specification.ProcesoSpecifications;
+//import co.edu.javeriana.procesosempresariales.specification.ProcesoSpecifications;
 
 @Service
 public class ProcesoService {
@@ -90,15 +90,15 @@ public class ProcesoService {
         return toDto(procesoDeLaEmpresa(procesoId, usuario));
     }
 
-    @Transactional(readOnly = true)
+   @Transactional(readOnly = true)
     public Page<ProcesoResumenDto> consultarProcesos(FiltroProcesosDto filtro, String username) {
         Usuario usuario = usuarioAutenticado(username);
         normalizar(filtro);
         Pageable paginacion = PageRequest.of(filtro.getPage(), TAMANO_PAGINA,
-                Sort.by(Sort.Direction.ASC, "nombre"));
+            Sort.by(Sort.Direction.ASC, "nombre"));
         return procesoRepository
-                .findAll(ProcesoSpecifications.deLaEmpresaCon(usuario.getEmpresa().getId(), filtro), paginacion)
-                .map(this::toResumen);
+            .findByEmpresaIdAndEliminadoFalse(usuario.getEmpresa().getId(), paginacion)
+            .map(this::toResumen);
     }
 
     @Transactional(readOnly = true)
