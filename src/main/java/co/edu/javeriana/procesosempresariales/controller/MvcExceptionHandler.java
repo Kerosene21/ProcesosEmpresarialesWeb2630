@@ -10,6 +10,7 @@ import org.springframework.web.servlet.ModelAndView;
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.MensajeThrowNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
@@ -38,8 +39,8 @@ public class MvcExceptionHandler {
         return vista("El modelo del proceso todavia no esta completo", exception.getMessage());
     }
 
-    @ExceptionHandler({ NodoFlujoNoValidoException.class, ArcoDuplicadoException.class,
-            CondicionArcoNoValidaException.class })
+        @ExceptionHandler({ NodoFlujoNoValidoException.class, ArcoDuplicadoException.class,
+            CondicionArcoNoValidaException.class, MensajeThrowNoValidoException.class })
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     ModelAndView conexionNoValida(RuntimeException exception) {
         return vista("La conexion del diagrama no es valida", exception.getMessage());

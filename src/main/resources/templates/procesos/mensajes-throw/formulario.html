@@ -22,14 +22,29 @@
               th:object="${mensajeThrow}" method="post" novalidate>
             <input type="hidden" th:field="*{id}">
 
-            <label>Nombre</label>
-            <input type="text" th:field="*{nombre}" maxlength="150" required autofocus>
+            <label>Nombre
+                <input type="text" th:field="*{nombre}" maxlength="150" required autofocus>
+            </label>
             <small class="error" th:if="${#fields.hasErrors('nombre')}" th:errors="*{nombre}"></small>
 
-            <label>Código de referencia</label>
-            <input type="text" th:field="*{codigoReferencia}" maxlength="100" required>
+            <label>Código de referencia
+                <input type="text" th:field="*{codigoReferencia}" maxlength="100" required>
+            </label>
             <small class="error" th:if="${#fields.hasErrors('codigoReferencia')}"
                    th:errors="*{codigoReferencia}"></small>
+
+                 <label>Contenido del mensaje
+                     <textarea th:field="*{contenido}" rows="5"
+                         placeholder="Ejemplo: numeroSolicitud (Long), estado (String)" required></textarea>
+                 </label>
+                 <small class="error" th:if="${#fields.hasErrors('contenido')}"
+                     th:errors="*{contenido}"></small>
+
+                 <label>Pool destino
+                     <input type="text" th:field="*{poolDestino}" maxlength="150" required>
+                 </label>
+                 <small class="error" th:if="${#fields.hasErrors('poolDestino')}"
+                     th:errors="*{poolDestino}"></small>
 
             <button type="submit" th:text="${mensajeThrow.id == null ? 'Guardar message throw' : 'Actualizar message throw'}">
                 Guardar

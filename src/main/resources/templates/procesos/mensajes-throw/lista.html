@@ -15,6 +15,9 @@
 
         <!-- El mensaje llega desde el controlador. -->
         <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
+        <ul th:if="${advertencias}" class="warning-list">
+            <li th:each="advertencia : ${advertencias}" th:text="${advertencia}"></li>
+        </ul>
 
         <div class="acciones">
             <a th:href="@{/procesos/{procesoId}/mensajes-throw/nuevo(procesoId=${procesoId})}">Nuevo message throw</a>
@@ -27,6 +30,7 @@
             <tr>
                 <th>Nombre</th>
                 <th>Código de referencia</th>
+                <th>Pool destino</th>
                 <th>Acciones</th>
             </tr>
             </thead>
@@ -34,7 +38,11 @@
             <tr th:each="mensajeThrow : ${mensajes}">
                 <td th:text="${mensajeThrow.nombre}">Notificación</td>
                 <td th:text="${mensajeThrow.codigoReferencia}">orden-creada</td>
+                <td th:text="${mensajeThrow.poolDestino}">Pool receptor</td>
                 <td>
+                    <ul th:if="${!#lists.isEmpty(mensajeThrow.advertencias)}" class="warning-list">
+                        <li th:each="advertencia : ${mensajeThrow.advertencias}" th:text="${advertencia}"></li>
+                    </ul>
                     <a th:href="@{/procesos/{procesoId}/mensajes-throw/{mensajeId}/editar(
                         procesoId=${procesoId}, mensajeId=${mensajeThrow.id})}">Editar</a>
                     <form th:action="@{/procesos/{procesoId}/mensajes-throw/{mensajeId}/eliminar(

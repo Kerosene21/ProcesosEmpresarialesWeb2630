@@ -12,15 +12,17 @@ import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.MessageThrowDto;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
+import co.edu.javeriana.procesosempresariales.exception.MensajeThrowNoValidoException;
 import co.edu.javeriana.procesosempresariales.repository.MensajeThrowRepository;
 
 @Service
 public class MessageThrowService {
 
     private static final String MENSAJE_NO_EXISTE = "El mensaje throw no existe en este proceso";
-    private static final String SIN_PERMISO_ESCRITURA =
-            "Solo un administrador o editor puede crear o modificar mensajes throw";
+    private static final String SIN_PERMISO_ESCRITURA ="Solo un administrador o editor puede crear o modificar mensajes throw";
     private static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar mensajes throw";
+    private static final String POOL_DESTINO_IGUAL = "El Message Throw debe cruzar a un pool diferente al de origen";
+    private static final String CATCH_NO_EXISTE ="No existe un Message Catch de HU-27 para el codigo de referencia indicado";
 
     private final MensajeThrowRepository mensajeThrowRepository;
     private final ModelMapper modelMapper;
@@ -38,14 +40,14 @@ public class MessageThrowService {
     public List<MessageThrowDto> listar(Long procesoId, String username) {
         Proceso proceso = procesoVisible(procesoId, username);
         return mensajeThrowRepository.findByProcesoIdOrderByIdAsc(proceso.getId()).stream()
-                .map(this::toDto)
+            .map(mensaje -> conAdvertencias(toDto(mensaje)))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public MessageThrowDto buscar(Long procesoId, Long mensajeId, String username) {
         Proceso proceso = procesoVisible(procesoId, username);
-        return toDto(mensajeActivoDelProceso(mensajeId, proceso));
+        return conAdvertencias(toDto(mensajeActivoDelProceso(mensajeId, proceso)));
     }
 
     @Transactional
@@ -54,6 +56,7 @@ public class MessageThrowService {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
         accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
         Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        validarPoolDestino(dto, proceso);
 
         MensajeThrow mensaje = modelMapper.map(dto, MensajeThrow.class);
         mensaje.setId(null);
@@ -62,7 +65,7 @@ public class MessageThrowService {
         MensajeThrow guardado = mensajeThrowRepository.save(mensaje);
         accesoProcesoService.registrarHistorial(proceso, usuario,
                 "mensaje throw creado: " + guardado.getNombre());
-        return toDto(guardado);
+        return conAdvertencias(toDto(guardado));
     }
 
     @Transactional
@@ -71,6 +74,7 @@ public class MessageThrowService {
         accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
         Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
         MensajeThrow mensaje = mensajeActivoDelProceso(mensajeId, proceso);
+        validarPoolDestino(dto, proceso);
 
         modelMapper.map(dto, mensaje);
         mensaje.setId(mensajeId);
@@ -79,7 +83,7 @@ public class MessageThrowService {
         MensajeThrow actualizado = mensajeThrowRepository.save(mensaje);
         accesoProcesoService.registrarHistorial(proceso, usuario,
                 "mensaje throw actualizado: " + actualizado.getNombre());
-        return toDto(actualizado);
+        return conAdvertencias(toDto(actualizado));
     }
 
     @Transactional
@@ -110,5 +114,21 @@ public class MessageThrowService {
 
     private MessageThrowDto toDto(MensajeThrow mensaje) {
         return modelMapper.map(mensaje, MessageThrowDto.class);
+    }
+
+    private void validarPoolDestino(MessageThrowDto dto, Proceso proceso) {
+        String poolOrigen = proceso.getPool().getNombre();
+        if (poolOrigen != null && poolOrigen.trim().equalsIgnoreCase(dto.getPoolDestino().trim())) {
+            throw new MensajeThrowNoValidoException(POOL_DESTINO_IGUAL);
+        }
+    }
+
+    private MessageThrowDto conAdvertencias(MessageThrowDto dto) {
+        // HU-27 aun no existe en el modelo, por eso se informa la ausencia del catch sin ejecutar nada.
+        if (dto.getAdvertencias() == null) {
+            dto.setAdvertencias(new java.util.ArrayList<>());
+        }
+        dto.getAdvertencias().add(CATCH_NO_EXISTE);
+        return dto;
     }
 }

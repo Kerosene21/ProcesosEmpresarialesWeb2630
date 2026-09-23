@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Envíos externos</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="list-title">
+        <p class="eyebrow">Mensajes y colaboración entre pools</p>
+        <h1 id="list-title">Envíos a sistemas externos</h1>
+        <p class="intro">Configuraciones documentadas de notificaciones a terceros.</p>
+
+        <p class="success" th:if="${mensaje}" th:text="${mensaje}"></p>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}/envios-externos/nuevo(procesoId=${procesoId})}">Nuevo envío externo</a>
+            <a th:href="@{/procesos/{procesoId}(procesoId=${procesoId})}">Volver al proceso</a>
+        </div>
+
+        <p th:if="${#lists.isEmpty(envios)}">Todavía no hay envíos externos configurados.</p>
+        <table th:unless="${#lists.isEmpty(envios)}">
+            <thead>
+            <tr>
+                <th>Sistema externo</th>
+                <th>Destino</th>
+                <th>Momento</th>
+                <th>Fallo</th>
+                <th>Acciones</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="envio : ${envios}">
+                <td th:text="${envio.nombreSistemaExterno}">Servicio de correo</td>
+                <td th:text="${envio.tipoDestino}">CORREO</td>
+                <td th:text="${envio.momentoProceso}">Al aprobar</td>
+                <td th:text="${envio.comportamientoFallo}">CONTINUAR_FLUJO</td>
+                <td>
+                    <a th:href="@{/procesos/{procesoId}/envios-externos/{envioId}/editar(
+                        procesoId=${procesoId}, envioId=${envio.id})}">Editar</a>
+                    <form th:action="@{/procesos/{procesoId}/envios-externos/{envioId}/eliminar(
+                        procesoId=${procesoId}, envioId=${envio.id})}" method="post">
+                        <button type="submit">Eliminar</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+</body>
+</html>

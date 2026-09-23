@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${envio.id == null ? 'Nuevo envío externo' : 'Editar envío externo'}">Envío externo</title>
+    <link rel="stylesheet" th:href="@{/css/procesos.css}">
+</head>
+<body>
+<main class="page-shell">
+    <section class="form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">Mensajes y colaboración entre pools</p>
+        <h1 id="form-title" th:text="${envio.id == null ? 'Nuevo envío externo' : 'Editar envío externo'}">
+            Envío externo
+        </h1>
+        <p class="intro">Documenta la notificación a un sistema externo. Esta configuración modela el envío,
+            pero no ejecuta ninguna integración real.</p>
+
+        <!-- th:object y th:field enlazan el DTO; Thymeleaf genera name e id automáticamente. -->
+        <form th:action="@{/procesos/{procesoId}/envios-externos(procesoId=${procesoId})}"
+              th:object="${envio}" method="post" novalidate>
+            <input type="hidden" th:field="*{id}">
+
+            <label>Nombre del pool o sistema externo</label>
+            <input type="text" th:field="*{nombreSistemaExterno}" maxlength="150" required autofocus>
+            <small class="error" th:if="${#fields.hasErrors('nombreSistemaExterno')}"
+                   th:errors="*{nombreSistemaExterno}"></small>
+
+            <label>Tipo de destino</label>
+            <select th:field="*{tipoDestino}" required>
+                <option value="">Seleccione un destino</option>
+                <option th:each="tipo : ${tiposDestino}" th:value="${tipo}" th:text="${tipo}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('tipoDestino')}"
+                   th:errors="*{tipoDestino}"></small>
+
+            <label>Datos que se envían</label>
+            <textarea th:field="*{datosEnviados}" rows="5" required></textarea>
+            <small class="error" th:if="${#fields.hasErrors('datosEnviados')}"
+                   th:errors="*{datosEnviados}"></small>
+
+            <label>Momento del proceso</label>
+            <input type="text" th:field="*{momentoProceso}" maxlength="150"
+                   placeholder="Ejemplo: al aprobar la solicitud" required>
+            <small class="error" th:if="${#fields.hasErrors('momentoProceso')}"
+                   th:errors="*{momentoProceso}"></small>
+
+            <label>Comportamiento en caso de fallo</label>
+            <select th:field="*{comportamientoFallo}" required>
+                <option value="">Seleccione un comportamiento</option>
+                <option th:each="comportamiento : ${comportamientosFallo}"
+                        th:value="${comportamiento}" th:text="${comportamiento}"></option>
+            </select>
+            <small class="error" th:if="${#fields.hasErrors('comportamientoFallo')}"
+                   th:errors="*{comportamientoFallo}"></small>
+
+            <button type="submit" th:text="${envio.id == null ? 'Guardar envío externo' : 'Actualizar envío externo'}">
+                Guardar
+            </button>
+        </form>
+
+        <div class="acciones">
+            <a th:href="@{/procesos/{procesoId}/envios-externos(procesoId=${procesoId})}">Cancelar</a>
+        </div>
+    </section>
+</main>
+</body>
+</html>

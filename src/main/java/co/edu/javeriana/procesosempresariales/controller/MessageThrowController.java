@@ -70,6 +70,7 @@ public class MessageThrowController {
         }
         redirectAttributes.addFlashAttribute("mensaje",
                 "El mensaje throw " + guardado.getNombre() + " fue " + accion);
+            redirectAttributes.addFlashAttribute("advertencias", guardado.getAdvertencias());
 
         // PRG evita duplicar el guardado al refrescar y muestra el resultado en la lista.
         return REDIRECT_LISTA;
