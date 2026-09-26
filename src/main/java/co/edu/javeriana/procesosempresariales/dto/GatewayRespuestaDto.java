@@ -17,5 +17,6 @@ public class GatewayRespuestaDto {
     private Integer posicionX;
     private Integer posicionY;
     private boolean activo;
+    private int arcosDesactivados;
     private List<String> advertencias = new ArrayList<>();
 }

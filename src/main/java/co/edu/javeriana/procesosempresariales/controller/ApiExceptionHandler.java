@@ -18,14 +18,29 @@ import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoExcep
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.NombreRolProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
+import co.edu.javeriana.procesosempresariales.exception.RolProcesoEnUsoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
 @RestControllerAdvice(annotations = RestController.class)
 @Order(10)
 public class ApiExceptionHandler {
-    // El cliente recibe códigos estables y no tiene que interpretar el texto del error.
+
+    @ExceptionHandler(NombreRolProcesoDuplicadoException.class)
+    ResponseEntity<Map<String, String>> rolDuplicado(NombreRolProcesoDuplicadoException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("codigo", "ROL_PROCESO_NOMBRE_DUPLICADO", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(RolProcesoEnUsoException.class)
+    ResponseEntity<Map<String, Object>> rolEnUso(RolProcesoEnUsoException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("codigo", "ROL_PROCESO_EN_USO", "mensaje", exception.getMessage(),
+                        "procesos", exception.getProcesos()));
+    }
+
     @ExceptionHandler(NombreProcesoDuplicadoException.class)
     ResponseEntity<Map<String, String>> duplicado(NombreProcesoDuplicadoException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

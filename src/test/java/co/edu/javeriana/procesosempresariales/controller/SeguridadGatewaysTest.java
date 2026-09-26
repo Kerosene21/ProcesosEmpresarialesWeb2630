@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -232,6 +233,40 @@ class SeguridadGatewaysTest {
                         """))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
+    }
+
+    @Test
+    void laApiDeEliminacionResponde401SinSesion() throws Exception {
+        mockMvc.perform(delete(RUTA_API_GATEWAY).with(csrf()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
+
+        verify(gatewayService, never()).eliminar(anyLong(), anyLong(), anyString());
+    }
+
+    @Test
+    void laConsultaPreviaDeEliminacionResponde401SinSesion() throws Exception {
+        mockMvc.perform(get(RUTA_API_GATEWAY + "/eliminacion"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
+
+        verify(gatewayService, never()).obtenerParaEliminar(anyLong(), anyLong(), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
+    void laEliminacionPorApiSinTokenCsrfSeRechaza() throws Exception {
+        mockMvc.perform(delete(RUTA_API_GATEWAY)).andExpect(status().isForbidden());
+
+        verify(gatewayService, never()).eliminar(anyLong(), anyLong(), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
+    void elAdministradorEliminaGatewaysPorApi() throws Exception {
+        mockMvc.perform(delete(RUTA_API_GATEWAY).with(csrf())).andExpect(status().isNoContent());
+
+        verify(gatewayService).eliminar(5L, 12L, USERNAME);
     }
 
     @Test

@@ -6,39 +6,34 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "lane", indexes = @Index(name = "ix_lane_rol_proceso", columnList = "rol_proceso_id"))
+@Table(name = "rol_proceso", uniqueConstraints = @UniqueConstraint(name = "uk_rol_proceso_empresa_nombre",
+        columnNames = { "empresa_id", "nombre" }))
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
-public class Lane {
+public class RolProceso {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 150)
+    @Column(nullable = false, length = 100)
     private String nombre;
 
+    @Column(nullable = false, length = 500)
+    private String descripcion;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "pool_id", nullable = false)
-    private Pool pool;
+    @JoinColumn(name = "empresa_id", nullable = false)
+    private Empresa empresa;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "rol_proceso_id")
-    private RolProceso rolProceso;
-
-    public Lane(Long id, String nombre, Pool pool) {
-        this(id, nombre, pool, null);
-    }
-
-    public String nombreFuncional() {
-        return rolProceso == null ? nombre : rolProceso.getNombre();
-    }
+    @Column(nullable = false)
+    private boolean activo;
 }

@@ -31,6 +31,7 @@ import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
 import co.edu.javeriana.procesosempresariales.domain.Lane;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
+import co.edu.javeriana.procesosempresariales.domain.RolProceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
@@ -82,6 +83,9 @@ class ActividadServiceTest {
     @Mock
     private ConexionesService conexionesService;
 
+    @Mock
+    private RolProcesoService rolProcesoService;
+
     private ActividadService actividadService;
 
     @BeforeEach
@@ -89,8 +93,10 @@ class ActividadServiceTest {
         UsuarioService usuarios = new UsuarioService(usuarioRepository, new ModelMapper(),
                 new BCryptPasswordEncoder());
         AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
-        actividadService = new ActividadService(actividadRepository, laneRepository, acceso,
-                new HistorialProcesoService(historialProcesoRepository), conexionesService, new ModelMapper());
+        HistorialProcesoService historial = new HistorialProcesoService(historialProcesoRepository);
+        LaneService lanes = new LaneService(laneRepository, acceso, rolProcesoService, historial);
+        actividadService = new ActividadService(actividadRepository, lanes, acceso, historial, conexionesService,
+                new ModelMapper());
     }
 
     private Empresa empresa(Long id) {
@@ -806,6 +812,45 @@ class ActividadServiceTest {
 
         assertThat(lanes).extracting(LaneRespuestaDto::getNombre).containsExactly("General", "Cartera");
         assertThat(lanes).extracting(LaneRespuestaDto::getId).containsExactly(LANE_ID, LANE_DESTINO_ID);
+    }
+
+    @Test
+    void unaLaneConRolDeProcesoMuestraElNombreDelRolEnLasLanesYEnSusActividades() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+        Proceso proceso = existeElProcesoActivo();
+        RolProceso analista = new RolProceso(40L, "Analista de credito", "Evalua el riesgo", empresa(EMPRESA_PROPIA),
+                true);
+        Lane laneConRol = new Lane(LANE_DESTINO_ID, "Cartera", pool(), analista);
+        when(laneRepository.findByPoolIdOrderByIdAsc(POOL_ID))
+                .thenReturn(List.of(lane(LANE_ID, "General"), laneConRol));
+        when(actividadRepository.activasDelProceso(PROCESO_ID))
+                .thenReturn(List.of(actividad(proceso, laneConRol, true)));
+
+        List<LaneRespuestaDto> lanes = actividadService.lanesDelProceso(PROCESO_ID, USERNAME);
+        List<ActividadRespuestaDto> actividades = actividadService.consultarActivas(PROCESO_ID, USERNAME);
+
+        assertThat(lanes).extracting(LaneRespuestaDto::getNombre).containsExactly("General", "Analista de credito");
+        assertThat(lanes).extracting(LaneRespuestaDto::getRolProcesoId).containsExactly(null, 40L);
+        assertThat(actividades.get(0).getLaneNombre()).isEqualTo("Analista de credito");
+    }
+
+    @Test
+    void moverUnaActividadAUnaLaneConRolRegistraElNombreDelRolEnElHistorial() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        RolProceso analista = new RolProceso(40L, "Analista de credito", "Evalua el riesgo", empresa(EMPRESA_PROPIA),
+                true);
+        when(laneRepository.findByIdAndPoolId(LANE_DESTINO_ID, POOL_ID))
+                .thenReturn(Optional.of(new Lane(LANE_DESTINO_ID, "Cartera", pool(), analista)));
+        EditarActividadDto dto = formularioEdicion();
+        dto.setLaneId(LANE_DESTINO_ID);
+
+        ActividadRespuestaDto editada = actividadService.editar(PROCESO_ID, ACTIVIDAD_ID, dto, USERNAME);
+
+        assertThat(editada.getLaneNombre()).isEqualTo("Analista de credito");
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("actividad 'Revisar solicitud': lane: 'General' -> 'Analista de credito'");
     }
 
     @Test

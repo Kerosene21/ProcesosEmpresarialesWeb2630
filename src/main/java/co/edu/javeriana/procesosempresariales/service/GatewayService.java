@@ -28,6 +28,9 @@ public class GatewayService {
     static final String SALIDA_SIN_CONDICION =
             "Cada arco de salida de un gateway exclusivo o inclusivo necesita condición";
     static final String SIN_PERMISO_ESCRITURA = "Solo un administrador o editor puede crear o modificar gateways";
+    static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar gateways";
+    static final String RAMIFICACION_ROTA =
+            ": la ramificación queda sin punto de decisión y el flujo se rompe.";
 
     private GatewayRepository gatewayRepository;
     private AccesoProcesoService accesoProcesoService;
@@ -128,6 +131,76 @@ public class GatewayService {
                 "gateway #" + gateway.getId() + ": " + String.join("; ", cambios));
 
         return conAdvertencias(toDto(gateway), proceso, gateway);
+    }
+
+    @Transactional(readOnly = true)
+    public GatewayRespuestaDto obtenerParaEliminar(Long procesoId, Long gatewayId, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolAdministrador(usuario, SIN_PERMISO_ELIMINAR);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        Gateway gateway = gatewayActivoDelProceso(gatewayId, proceso);
+
+        List<Arco> conectados = conexionesService.conectadosActivos(proceso, TipoNodoFlujo.GATEWAY,
+                gateway.getId());
+        List<String> advertencias = new ArrayList<>();
+        if (!conectados.isEmpty()) {
+            advertencias.add((conectados.size() == 1 ? "Se desactivará 1 arco conectado a "
+                    : "Se desactivarán " + conectados.size() + " arcos conectados a ") + gateway.etiqueta() + ".");
+        }
+        advertencias.addAll(ramificacionSinDecision(proceso, gateway, conectados));
+        advertencias.addAll(conexionesService.advertenciasSiSeEliminaNodo(proceso, TipoNodoFlujo.GATEWAY,
+                gateway.getId(), conectados));
+
+        GatewayRespuestaDto respuesta = toDto(gateway);
+        respuesta.setAdvertencias(advertencias);
+        return respuesta;
+    }
+
+    @Transactional
+    public GatewayRespuestaDto eliminar(Long procesoId, Long gatewayId, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolAdministrador(usuario, SIN_PERMISO_ELIMINAR);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        Gateway gateway = gatewayActivoDelProceso(gatewayId, proceso);
+
+        gateway.setActivo(false);
+        gatewayRepository.save(gateway);
+
+        List<Arco> desactivados = conexionesService.desactivarConectadosA(proceso, TipoNodoFlujo.GATEWAY,
+                gateway.getId());
+        historialProcesoService.registrar(proceso, usuario,
+                "gateway eliminado: " + gateway.etiqueta() + resumenDeConexiones(desactivados));
+
+        List<String> advertencias = new ArrayList<>(ramificacionSinDecision(proceso, gateway, desactivados));
+        advertencias.addAll(conexionesService.advertenciasTrasDesactivar(proceso, desactivados,
+                TipoNodoFlujo.GATEWAY, gateway.getId()));
+
+        GatewayRespuestaDto respuesta = toDto(gateway);
+        respuesta.setArcosDesactivados(desactivados.size());
+        respuesta.setAdvertencias(advertencias);
+        return respuesta;
+    }
+
+    private List<String> ramificacionSinDecision(Proceso proceso, Gateway gateway, List<Arco> conectados) {
+        List<String> destinos = conectados.stream()
+                .filter(arco -> arco.getOrigenTipo() == TipoNodoFlujo.GATEWAY
+                        && gateway.getId().equals(arco.getOrigenId()))
+                .map(arco -> "'" + nodoFlujoResolver.describir(proceso, arco.getDestinoTipo(), arco.getDestinoId())
+                        + "'")
+                .distinct()
+                .toList();
+        if (destinos.isEmpty()) {
+            return List.of();
+        }
+        return List.of(gateway.etiqueta() + " deja de decidir el flujo hacia " + String.join(", ", destinos)
+                + RAMIFICACION_ROTA);
+    }
+
+    private String resumenDeConexiones(List<Arco> desactivados) {
+        if (desactivados.isEmpty()) {
+            return "";
+        }
+        return "; arcos desactivados: " + desactivados.size();
     }
 
     private List<Arco> limpiarCondiciones(List<Arco> salientes) {

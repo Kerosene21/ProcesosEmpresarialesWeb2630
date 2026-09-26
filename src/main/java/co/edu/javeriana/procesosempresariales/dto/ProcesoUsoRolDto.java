@@ -6,12 +6,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
-public class LaneRespuestaDto {
+public class ProcesoUsoRolDto {
     private Long id;
     private String nombre;
-    private Long rolProcesoId;
-
-    public LaneRespuestaDto(Long id, String nombre) {
-        this(id, nombre, null);
-    }
+    private int lanes;
+    private long actividadesActivas;
 }

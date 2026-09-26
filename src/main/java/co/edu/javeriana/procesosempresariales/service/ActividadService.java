@@ -20,35 +20,32 @@ import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.LaneRespuestaDto;
-import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
-import co.edu.javeriana.procesosempresariales.repository.LaneRepository;
 
 @Service
 public class ActividadService {
 
     private static final String NOMBRE_DUPLICADO = "Ya existe una actividad con ese nombre en el proceso";
-    private static final String LANE_INVALIDA = "La lane indicada no existe o no pertenece a este proceso";
     private static final String ACTIVIDAD_ELIMINADA = "La actividad ya fue eliminada";
     private static final String SIN_PERMISO_ESCRITURA =
             "Solo un administrador o editor puede crear o modificar actividades";
     private static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar actividades";
 
     private ActividadRepository actividadRepository;
-    private LaneRepository laneRepository;
+    private LaneService laneService;
     private AccesoProcesoService accesoProcesoService;
     private HistorialProcesoService historialProcesoService;
     private ConexionesService conexionesService;
     private ModelMapper modelMapper;
 
     @Autowired
-    public ActividadService(ActividadRepository actividadRepository, LaneRepository laneRepository,
+    public ActividadService(ActividadRepository actividadRepository, LaneService laneService,
             AccesoProcesoService accesoProcesoService, HistorialProcesoService historialProcesoService,
             ConexionesService conexionesService, ModelMapper modelMapper) {
         this.actividadRepository = actividadRepository;
-        this.laneRepository = laneRepository;
+        this.laneService = laneService;
         this.accesoProcesoService = accesoProcesoService;
         this.historialProcesoService = historialProcesoService;
         this.conexionesService = conexionesService;
@@ -66,7 +63,7 @@ public class ActividadService {
             throw new NombreActividadDuplicadoException(NOMBRE_DUPLICADO);
         }
 
-        Lane lane = laneDelProceso(dto.getLaneId(), proceso);
+        Lane lane = laneService.laneDelProceso(dto.getLaneId(), proceso);
 
         Actividad actividad = new Actividad();
         actividad.setNombre(nombre);
@@ -108,9 +105,7 @@ public class ActividadService {
     public List<LaneRespuestaDto> lanesDelProceso(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
         Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
-        return laneRepository.findByPoolIdOrderByIdAsc(proceso.getPool().getId()).stream()
-                .map(lane -> new LaneRespuestaDto(lane.getId(), lane.getNombre()))
-                .toList();
+        return laneService.lanesDe(proceso);
     }
 
     @Transactional
@@ -126,7 +121,7 @@ public class ActividadService {
             throw new NombreActividadDuplicadoException(NOMBRE_DUPLICADO);
         }
 
-        Lane laneNueva = laneDelProceso(dto.getLaneId(), proceso);
+        Lane laneNueva = laneService.laneDelProceso(dto.getLaneId(), proceso);
 
         String cambios = construirCambios(actividad, dto, nombreNuevo, laneNueva);
         if (cambios.isEmpty()) {
@@ -189,17 +184,13 @@ public class ActividadService {
         return actividad;
     }
 
-    private Lane laneDelProceso(Long laneId, Proceso proceso) {
-        return laneRepository.findByIdAndPoolId(laneId, proceso.getPool().getId())
-                .orElseThrow(() -> new LaneNoValidaException(LANE_INVALIDA));
-    }
-
     private String construirCambios(Actividad actividad, EditarActividadDto dto, String nombreNuevo, Lane laneNueva) {
         List<String> cambios = new ArrayList<>();
         agregarCambio(cambios, "nombre", actividad.getNombre(), nombreNuevo);
         agregarCambio(cambios, "tipo", actividad.getTipo().name(), dto.getTipo().name());
         if (!Objects.equals(actividad.getLane().getId(), laneNueva.getId())) {
-            cambios.add("lane: '" + actividad.getLane().getNombre() + "' -> '" + laneNueva.getNombre() + "'");
+            cambios.add("lane: '" + actividad.getLane().nombreFuncional() + "' -> '" + laneNueva.nombreFuncional()
+                    + "'");
         }
         return String.join("; ", cambios);
     }
@@ -214,7 +205,7 @@ public class ActividadService {
         ActividadRespuestaDto respuesta = modelMapper.map(actividad, ActividadRespuestaDto.class);
         respuesta.setProcesoId(actividad.getProceso().getId());
         respuesta.setLaneId(actividad.getLane().getId());
-        respuesta.setLaneNombre(actividad.getLane().getNombre());
+        respuesta.setLaneNombre(actividad.getLane().nombreFuncional());
         return respuesta;
     }
 }

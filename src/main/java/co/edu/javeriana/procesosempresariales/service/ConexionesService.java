@@ -1,11 +1,14 @@
 package co.edu.javeriana.procesosempresariales.service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -26,6 +29,7 @@ public class ConexionesService {
     private static final String SIN_ENTRADAS = "' quedó sin arcos de entrada";
     private static final String MARCA_SALIDA = "SALIDA:";
     private static final String MARCA_ENTRADA = "ENTRADA:";
+    private static final Pattern ESPACIOS_EN_BLANCO = Pattern.compile("\\s+");
 
     private ArcoRepository arcoRepository;
     private NodoFlujoResolver nodoFlujoResolver;
@@ -45,6 +49,11 @@ public class ConexionesService {
     public List<Arco> entrantesActivos(Long procesoId, TipoNodoFlujo tipo, Long nodoId) {
         return arcoRepository.findByProcesoIdAndDestinoTipoAndDestinoIdAndActivoTrueOrderByIdAsc(procesoId, tipo,
                 nodoId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Arco> conectadosActivos(Proceso proceso, TipoNodoFlujo tipo, Long nodoId) {
+        return arcoRepository.conectadosAlNodo(proceso.getId(), tipo, nodoId);
     }
 
     @Transactional
@@ -68,12 +77,18 @@ public class ConexionesService {
     @Transactional(readOnly = true)
     public List<String> advertenciasTrasDesactivar(Proceso proceso, List<Arco> desactivados,
             TipoNodoFlujo tipoExcluido, Long idExcluido) {
-        return advertencias(proceso, desactivados, tipoExcluido, idExcluido, null);
+        return advertencias(proceso, desactivados, tipoExcluido, idExcluido, new HashSet<>());
     }
 
     @Transactional(readOnly = true)
     public List<String> advertenciasSiSeElimina(Proceso proceso, Arco arco) {
-        return advertencias(proceso, List.of(arco), null, null, arco.getId());
+        return advertencias(proceso, List.of(arco), null, null, idsDe(List.of(arco)));
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> advertenciasSiSeEliminaNodo(Proceso proceso, TipoNodoFlujo tipo, Long nodoId,
+            List<Arco> conectados) {
+        return advertencias(proceso, conectados, tipo, nodoId, idsDe(conectados));
     }
 
     @Transactional(readOnly = true)
@@ -126,20 +141,20 @@ public class ConexionesService {
     }
 
     private List<String> advertencias(Proceso proceso, List<Arco> arcos, TipoNodoFlujo tipoExcluido, Long idExcluido,
-            Long arcoIgnorado) {
+            Set<Long> arcosIgnorados) {
         List<String> advertencias = new ArrayList<>();
         Set<String> revisados = new LinkedHashSet<>();
         for (Arco arco : arcos) {
-            revisar(proceso, arco.getOrigenTipo(), arco.getOrigenId(), true, tipoExcluido, idExcluido, arcoIgnorado,
+            revisar(proceso, arco.getOrigenTipo(), arco.getOrigenId(), true, tipoExcluido, idExcluido, arcosIgnorados,
                     revisados, advertencias);
-            revisar(proceso, arco.getDestinoTipo(), arco.getDestinoId(), false, tipoExcluido, idExcluido, arcoIgnorado,
-                    revisados, advertencias);
+            revisar(proceso, arco.getDestinoTipo(), arco.getDestinoId(), false, tipoExcluido, idExcluido,
+                    arcosIgnorados, revisados, advertencias);
         }
         return advertencias;
     }
 
     private void revisar(Proceso proceso, TipoNodoFlujo tipo, Long nodoId, boolean salida,
-            TipoNodoFlujo tipoExcluido, Long idExcluido, Long arcoIgnorado, Set<String> revisados,
+            TipoNodoFlujo tipoExcluido, Long idExcluido, Set<Long> arcosIgnorados, Set<String> revisados,
             List<String> advertencias) {
         if (tipo == tipoExcluido && Objects.equals(nodoId, idExcluido)) {
             return;
@@ -150,11 +165,15 @@ public class ConexionesService {
         }
         List<Arco> restantes = salida ? salientesActivos(proceso.getId(), tipo, nodoId)
                 : entrantesActivos(proceso.getId(), tipo, nodoId);
-        if (restantes.stream().anyMatch(arco -> !Objects.equals(arco.getId(), arcoIgnorado))) {
+        if (restantes.stream().anyMatch(arco -> !arcosIgnorados.contains(arco.getId()))) {
             return;
         }
         advertencias.add("'" + nodoFlujoResolver.describir(proceso, tipo, nodoId) + (salida ? SIN_SALIDAS
                 : SIN_ENTRADAS));
+    }
+
+    private Set<Long> idsDe(List<Arco> arcos) {
+        return arcos.stream().map(Arco::getId).collect(Collectors.toCollection(HashSet::new));
     }
 
     private boolean esVacio(String texto) {
@@ -165,6 +184,6 @@ public class ConexionesService {
         if (esVacio(condicion)) {
             return null;
         }
-        return condicion.trim().toLowerCase(Locale.ROOT).replaceAll("\s+", " ");
+        return ESPACIOS_EN_BLANCO.matcher(condicion.trim().toLowerCase(Locale.ROOT)).replaceAll(" ");
     }
 }

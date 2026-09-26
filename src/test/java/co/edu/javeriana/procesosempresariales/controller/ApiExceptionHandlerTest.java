@@ -2,6 +2,7 @@ package co.edu.javeriana.procesosempresariales.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,9 @@ import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoE
 import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.NombreRolProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
+import co.edu.javeriana.procesosempresariales.exception.RolProcesoEnUsoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
@@ -84,5 +87,23 @@ class ApiExceptionHandlerTest {
                 HttpStatus.BAD_REQUEST, "MODELO_NO_VALIDO",
                 "El proceso no puede salir de borrador: Gateway EXCLUSIVO #12 se usa como divergencia con una"
                         + " sola salida: necesita al menos dos");
+    }
+
+    @Test
+    void unNombreDeRolDeProcesoDuplicadoSeReportaComoConflicto() {
+        verificar(manejador.rolDuplicado(new NombreRolProcesoDuplicadoException("Rol ya registrado")),
+                HttpStatus.CONFLICT, "ROL_PROCESO_NOMBRE_DUPLICADO", "Rol ya registrado");
+    }
+
+    @Test
+    void unRolDeProcesoEnUsoSeReportaComoConflictoConLosProcesosAfectados() {
+        ResponseEntity<Map<String, Object>> respuesta = manejador.rolEnUso(
+                new RolProcesoEnUsoException("El rol se usa en Ventas, Compras", List.of("Ventas", "Compras")));
+
+        assertThat(respuesta.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(respuesta.getBody())
+                .containsEntry("codigo", "ROL_PROCESO_EN_USO")
+                .containsEntry("mensaje", "El rol se usa en Ventas, Compras")
+                .containsEntry("procesos", List.of("Ventas", "Compras"));
     }
 }

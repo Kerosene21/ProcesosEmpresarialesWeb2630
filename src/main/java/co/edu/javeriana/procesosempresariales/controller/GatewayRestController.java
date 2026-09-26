@@ -6,6 +6,8 @@ import java.security.Principal;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -44,5 +46,18 @@ public class GatewayRestController {
             @PathVariable("gatewayId") Long gatewayId, @Valid @RequestBody EditarGatewayDto dto,
             Principal principal) {
         return ResponseEntity.ok(gatewayService.editar(procesoId, gatewayId, dto, principal.getName()));
+    }
+
+    @GetMapping("/{gatewayId}/eliminacion")
+    public ResponseEntity<GatewayRespuestaDto> confirmarEliminacion(@PathVariable("procesoId") Long procesoId,
+            @PathVariable("gatewayId") Long gatewayId, Principal principal) {
+        return ResponseEntity.ok(gatewayService.obtenerParaEliminar(procesoId, gatewayId, principal.getName()));
+    }
+
+    @DeleteMapping("/{gatewayId}")
+    public ResponseEntity<Void> eliminar(@PathVariable("procesoId") Long procesoId,
+            @PathVariable("gatewayId") Long gatewayId, Principal principal) {
+        gatewayService.eliminar(procesoId, gatewayId, principal.getName());
+        return ResponseEntity.noContent().build();
     }
 }

@@ -231,4 +231,82 @@ class ConexionesServiceTest {
 
         verify(arcoRepository, never()).saveAll(anyList());
     }
+
+    private void devolverSalidasDelGateway(Arco... salidas) {
+        when(arcoRepository.findByProcesoIdAndOrigenTipoAndOrigenIdAndActivoTrueOrderByIdAsc(PROCESO_ID,
+                TipoNodoFlujo.GATEWAY, GATEWAY_ID)).thenReturn(List.of(salidas));
+    }
+
+    private String condicionRepetida(String condicion) {
+        return "Gateway EXCLUSIVO #12 repite la condición '" + condicion
+                + "' en más de una salida: esas condiciones no son mutuamente excluyentes.";
+    }
+
+    @Test
+    void unGatewayExclusivoDetectaCondicionesQueSoloDifierenEnVariosEspacios() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto > 100"),
+                salienteDelGateway(62L, "monto   >     100"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly(condicionRepetida("monto   >     100"));
+    }
+
+    @Test
+    void unGatewayExclusivoDetectaCondicionesQueSoloDifierenEnTabuladores() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto > 100"), salienteDelGateway(62L, "monto\t>\t100"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly(condicionRepetida("monto\t>\t100"));
+    }
+
+    @Test
+    void unGatewayExclusivoDetectaCondicionesQueSoloDifierenEnSaltosDeLinea() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto >\n100"), salienteDelGateway(62L, "monto\r\n> 100"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly(condicionRepetida("monto\r\n> 100"));
+    }
+
+    @Test
+    void unGatewayExclusivoIgnoraMayusculasYEspaciosExterioresAlCompararCondiciones() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto > 100"),
+                salienteDelGateway(62L, " \t MONTO > 100 \n"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly(condicionRepetida("MONTO > 100"));
+    }
+
+    @Test
+    void unGatewayExclusivoNoConfundeCondicionesDistintasAunqueSeParezcan() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto > 100"), salienteDelGateway(62L, "monto > 1000"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly("Gateway EXCLUSIVO #12: revisa que las condiciones de sus salidas sean mutuamente"
+                        + " excluyentes, porque solo una puede cumplirse.");
+    }
+
+    @Test
+    void conectadosActivosConsultaLosArcosDelNodoEnAmbosSentidos() {
+        List<Arco> conectados = List.of(arco(60L, ACTIVIDAD_ID, 31L, true), arco(61L, 29L, ACTIVIDAD_ID, true));
+        when(arcoRepository.conectadosAlNodo(PROCESO_ID, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .thenReturn(conectados);
+
+        assertThat(conexionesService.conectadosActivos(proceso(), TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .isEqualTo(conectados);
+        verify(arcoRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void siSeEliminaUnNodoSusArcosNoCuentanComoConexionesDeLosVecinos() {
+        existeLaActividad(29L, "Registrar solicitud");
+        devolverSalientes(29L, List.of(arco(60L, 29L, ACTIVIDAD_ID, true)));
+        devolverEntrantes(31L, List.of(arco(61L, ACTIVIDAD_ID, 31L, true), arco(62L, 33L, 31L, true)));
+        List<Arco> conectados = List.of(arco(60L, 29L, ACTIVIDAD_ID, true), arco(61L, ACTIVIDAD_ID, 31L, true));
+
+        List<String> advertencias = conexionesService.advertenciasSiSeEliminaNodo(proceso(),
+                TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID, conectados);
+
+        assertThat(advertencias).containsExactly("'Registrar solicitud' quedó sin arcos de salida");
+        assertThat(conectados).allMatch(Arco::isActivo);
+    }
 }

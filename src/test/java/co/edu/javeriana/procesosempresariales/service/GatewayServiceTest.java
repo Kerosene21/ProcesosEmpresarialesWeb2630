@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,14 +23,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
+import co.edu.javeriana.procesosempresariales.domain.Actividad;
 import co.edu.javeriana.procesosempresariales.domain.Arco;
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.domain.Gateway;
 import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
+import co.edu.javeriana.procesosempresariales.domain.Lane;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
+import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
 import co.edu.javeriana.procesosempresariales.domain.TipoGateway;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
@@ -639,5 +643,285 @@ class GatewayServiceTest {
         assertThat(salientes.get(1).getCondicion()).isEqualTo("requiere doble firma");
         assertThat(historialGuardado().getCambiosRealizados())
                 .isEqualTo("gateway #12: condiciones actualizadas en 1 arco de salida");
+    }
+
+    private static final Long ACTIVIDAD_PREVIA = 29L;
+    private static final Long ARCO_ENTRADA = 60L;
+    private static final String RAMIFICACION_ROTA = "Gateway EXCLUSIVO #12 deja de decidir el flujo hacia"
+            + " 'Aprobar solicitud', 'Rechazar solicitud': la ramificación queda sin punto de decisión y el flujo"
+            + " se rompe.";
+
+    private Arco entrada(Long id, Long origenId) {
+        return new Arco(id, proceso(EMPRESA_PROPIA, false), TipoNodoFlujo.ACTIVIDAD, origenId,
+                TipoNodoFlujo.GATEWAY, GATEWAY_ID, null, null, true);
+    }
+
+    private List<Arco> existenLosArcosConectados(Arco... arcos) {
+        List<Arco> conectados = List.of(arcos);
+        when(arcoRepository.conectadosAlNodo(PROCESO_ID, TipoNodoFlujo.GATEWAY, GATEWAY_ID)).thenReturn(conectados);
+        return conectados;
+    }
+
+    private void existeLaActividad(Long id, String nombre) {
+        when(actividadRepository.findByIdAndProcesoId(id, PROCESO_ID)).thenReturn(Optional.of(new Actividad(id,
+                nombre, TipoActividad.TAREA_USUARIO, proceso(EMPRESA_PROPIA, false),
+                new Lane(11L, "General", new Pool(POOL_ID, "Alpes Logistica", List.of())), 100, 40, true)));
+    }
+
+    private List<Arco> existeUnaRamificacionCompleta() {
+        existeLaActividad(ACTIVIDAD_PREVIA, "Revisar solicitud");
+        existeLaActividad(ACTIVIDAD_UNO, "Aprobar solicitud");
+        existeLaActividad(ACTIVIDAD_DOS, "Rechazar solicitud");
+        return existenLosArcosConectados(entrada(ARCO_ENTRADA, ACTIVIDAD_PREVIA),
+                saliente(ARCO_UNO, ACTIVIDAD_UNO, "monto alto"), saliente(ARCO_DOS, ACTIVIDAD_DOS, "monto bajo"));
+    }
+
+    private void noSeModificoNada() {
+        verify(gatewayRepository, never()).save(any(Gateway.class));
+        verify(arcoRepository, never()).saveAll(anyList());
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void elAdministradorEliminaElGatewayDeFormaLogica() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        Gateway gateway = existeElGateway(TipoGateway.EXCLUSIVO, true);
+        existeUnaRamificacionCompleta();
+
+        GatewayRespuestaDto eliminado = gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME);
+
+        assertThat(gateway.isActivo()).isFalse();
+        assertThat(gatewayGuardado()).isSameAs(gateway);
+        assertThat(eliminado.getId()).isEqualTo(GATEWAY_ID);
+        assertThat(eliminado.isActivo()).isFalse();
+        assertThat(eliminado.getArcosDesactivados()).isEqualTo(3);
+    }
+
+    @Test
+    void eliminarUnGatewayNuncaLoBorraFisicamenteNiASusArcos() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, true);
+        existeUnaRamificacionCompleta();
+
+        gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME);
+
+        verify(gatewayRepository, never()).delete(any(Gateway.class));
+        verify(gatewayRepository, never()).deleteById(anyLong());
+        verify(gatewayRepository, never()).deleteAll();
+        verify(arcoRepository, never()).delete(any(Arco.class));
+        verify(arcoRepository, never()).deleteAll(anyList());
+    }
+
+    @Test
+    void eliminarUnGatewayDesactivaTodosSusArcosConectados() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, true);
+        List<Arco> conectados = existeUnaRamificacionCompleta();
+
+        gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME);
+
+        assertThat(conectados).hasSize(3).noneMatch(Arco::isActivo);
+        verify(arcoRepository).saveAll(conectados);
+    }
+
+    @Test
+    void eliminarUnGatewayAdviertePorLaRamificacionRotaYLosNodosAislados() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, true);
+        existeUnaRamificacionCompleta();
+
+        GatewayRespuestaDto eliminado = gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME);
+
+        assertThat(eliminado.getAdvertencias()).containsExactly(RAMIFICACION_ROTA,
+                "'Revisar solicitud' quedó sin arcos de salida",
+                "'Aprobar solicitud' quedó sin arcos de entrada",
+                "'Rechazar solicitud' quedó sin arcos de entrada");
+    }
+
+    @Test
+    void eliminarUnGatewayQuedaEnElHistorialDelProceso() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, true);
+        existeUnaRamificacionCompleta();
+
+        gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME);
+
+        HistorialProceso historial = historialGuardado();
+        assertThat(historial.getProceso()).isSameAs(proceso);
+        assertThat(historial.getUsuario().getUsername()).isEqualTo(USERNAME);
+        assertThat(historial.getFecha()).isNotNull();
+        assertThat(historial.getEstadoAnterior()).isEqualTo(EstadoProceso.BORRADOR.name());
+        assertThat(historial.getCambiosRealizados())
+                .isEqualTo("gateway eliminado: Gateway EXCLUSIVO #12; arcos desactivados: 3");
+    }
+
+    @Test
+    void eliminarUnGatewaySinArcosNoAdvierteRupturasNiDesactivaArcos() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.PARALELO, true);
+        existenLosArcosConectados();
+
+        GatewayRespuestaDto eliminado = gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME);
+
+        assertThat(eliminado.getArcosDesactivados()).isZero();
+        assertThat(eliminado.getAdvertencias()).isEmpty();
+        verify(arcoRepository, never()).saveAll(anyList());
+        assertThat(historialGuardado().getCambiosRealizados()).isEqualTo("gateway eliminado: Gateway PARALELO #12");
+    }
+
+    @Test
+    void elEditorNoEliminaGateways() {
+        autenticar(RolUsuario.EDITOR);
+
+        assertThatThrownBy(() -> gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage(GatewayService.SIN_PERMISO_ELIMINAR);
+
+        noSeModificoNada();
+        verify(procesoRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    void elUsuarioDeSoloLecturaNoEliminaGateways() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+
+        assertThatThrownBy(() -> gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage(GatewayService.SIN_PERMISO_ELIMINAR);
+
+        noSeModificoNada();
+    }
+
+    @Test
+    void noSeEliminaUnGatewayDeUnProcesoDeOtraEmpresa() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_AJENA, false);
+
+        assertThatThrownBy(() -> gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage("El proceso no pertenece a la empresa del usuario");
+
+        noSeModificoNada();
+        verify(gatewayRepository, never()).findByIdAndProcesoId(anyLong(), anyLong());
+    }
+
+    @Test
+    void noSeEliminaUnGatewayInexistente() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        when(gatewayRepository.findByIdAndProcesoId(GATEWAY_ID, PROCESO_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage(GatewayService.GATEWAY_NO_EXISTE);
+
+        noSeModificoNada();
+    }
+
+    @Test
+    void unGatewayYaEliminadoNoSePuedeEliminarDeNuevo() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, false);
+
+        assertThatThrownBy(() -> gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage(GatewayService.GATEWAY_ELIMINADO);
+
+        noSeModificoNada();
+    }
+
+    @Test
+    void noSeEliminanGatewaysDeUnProcesoEliminado() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_PROPIA, true);
+
+        assertThatThrownBy(() -> gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El proceso ya fue eliminado");
+
+        noSeModificoNada();
+    }
+
+    @Test
+    void laConsultaPreviaMuestraElImpactoSinModificarNada() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        Gateway gateway = existeElGateway(TipoGateway.EXCLUSIVO, true);
+        List<Arco> conectados = existeUnaRamificacionCompleta();
+        when(arcoRepository.findByProcesoIdAndOrigenTipoAndOrigenIdAndActivoTrueOrderByIdAsc(PROCESO_ID,
+                TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_PREVIA)).thenReturn(List.of(conectados.get(0)));
+
+        GatewayRespuestaDto impacto = gatewayService.obtenerParaEliminar(PROCESO_ID, GATEWAY_ID, USERNAME);
+
+        assertThat(impacto.isActivo()).isTrue();
+        assertThat(impacto.getArcosDesactivados()).isZero();
+        assertThat(impacto.getAdvertencias()).containsExactly(
+                "Se desactivarán 3 arcos conectados a Gateway EXCLUSIVO #12.", RAMIFICACION_ROTA,
+                "'Revisar solicitud' quedó sin arcos de salida",
+                "'Aprobar solicitud' quedó sin arcos de entrada",
+                "'Rechazar solicitud' quedó sin arcos de entrada");
+        assertThat(gateway.isActivo()).isTrue();
+        assertThat(conectados).allMatch(Arco::isActivo);
+        noSeModificoNada();
+    }
+
+    @Test
+    void laConsultaPreviaDeUnGatewayConUnSoloArcoLoIndicaEnSingular() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.PARALELO, true);
+        existeLaActividad(ACTIVIDAD_PREVIA, "Revisar solicitud");
+        existenLosArcosConectados(entrada(ARCO_ENTRADA, ACTIVIDAD_PREVIA));
+
+        GatewayRespuestaDto impacto = gatewayService.obtenerParaEliminar(PROCESO_ID, GATEWAY_ID, USERNAME);
+
+        assertThat(impacto.getAdvertencias()).containsExactly("Se desactivará 1 arco conectado a Gateway PARALELO #12.",
+                "'Revisar solicitud' quedó sin arcos de salida");
+    }
+
+    @Test
+    void unArcoQueLlegaDesdeOtroGatewayNoCuentaComoRamaDelGatewayEliminado() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, true);
+        existeLaActividad(ACTIVIDAD_UNO, "Aprobar solicitud");
+        Arco desdeOtroGateway = new Arco(ARCO_ENTRADA, proceso(EMPRESA_PROPIA, false), TipoNodoFlujo.GATEWAY, 13L,
+                TipoNodoFlujo.GATEWAY, GATEWAY_ID, null, "monto alto", true);
+        existenLosArcosConectados(desdeOtroGateway, saliente(ARCO_UNO, ACTIVIDAD_UNO, "monto alto"));
+
+        GatewayRespuestaDto eliminado = gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME);
+
+        assertThat(eliminado.getAdvertencias()).containsExactly(
+                "Gateway EXCLUSIVO #12 deja de decidir el flujo hacia 'Aprobar solicitud': la ramificación queda"
+                        + " sin punto de decisión y el flujo se rompe.",
+                "'GATEWAY #13' quedó sin arcos de salida",
+                "'Aprobar solicitud' quedó sin arcos de entrada");
+    }
+
+    @Test
+    void laConsultaPreviaDeEliminacionExigeAdministrador() {
+        autenticar(RolUsuario.EDITOR);
+
+        assertThatThrownBy(() -> gatewayService.obtenerParaEliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage(GatewayService.SIN_PERMISO_ELIMINAR);
+    }
+
+    @Test
+    void laConsultaPreviaNoSeOfreceParaUnGatewayYaEliminado() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, false);
+
+        assertThatThrownBy(() -> gatewayService.obtenerParaEliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage(GatewayService.GATEWAY_ELIMINADO);
     }
 }
