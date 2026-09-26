@@ -34,6 +34,8 @@ class ProcesoSpecificationsTest {
 
     private static final Long EMPRESA = 7L;
 
+    private final ProcesoSpecifications procesoSpecifications = new ProcesoSpecifications();
+
     @Mock
     private Root<Proceso> raiz;
 
@@ -89,7 +91,7 @@ class ProcesoSpecificationsTest {
     }
 
     private void construir(FiltroProcesosDto filtro) {
-        ProcesoSpecifications.deLaEmpresaCon(EMPRESA, filtro).toPredicate(raiz, consulta, constructor);
+        procesoSpecifications.deLaEmpresaCon(EMPRESA, filtro).toPredicate(raiz, consulta, constructor);
     }
 
     @Test
@@ -207,6 +209,6 @@ class ProcesoSpecificationsTest {
 
     @Test
     void laEspecificacionResultanteNoEsNula() {
-        assertThat(ProcesoSpecifications.deLaEmpresaCon(EMPRESA, filtro())).isNotNull();
+        assertThat(procesoSpecifications.deLaEmpresaCon(EMPRESA, filtro())).isNotNull();
     }
 }

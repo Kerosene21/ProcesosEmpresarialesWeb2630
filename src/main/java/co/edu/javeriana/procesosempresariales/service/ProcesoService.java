@@ -1,11 +1,11 @@
 package co.edu.javeriana.procesosempresariales.service;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -15,55 +15,55 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
-import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
 import co.edu.javeriana.procesosempresariales.domain.Lane;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
-import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
 import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
-import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
-import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
-import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
-import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoSpecifications;
-import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 
 @Service
 public class ProcesoService {
 
     private static final String NOMBRE_DUPLICADO = "Ya existe un proceso con ese nombre en la empresa";
     private static final String LANE_INICIAL = "General";
+    private static final String SIN_PERMISO_ESCRITURA =
+            "Solo un administrador o editor puede crear o modificar procesos";
+    private static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar procesos";
     private static final int TAMANO_PAGINA = 10;
     private static final int LONGITUD_RESUMEN = 120;
 
-    private final ProcesoRepository procesoRepository;
-    private final UsuarioRepository usuarioRepository;
-    private final HistorialProcesoRepository historialProcesoRepository;
-    private final ValidacionModeloService validacionModeloService;
-    private final ModelMapper modelMapper;
+    private ProcesoRepository procesoRepository;
+    private ProcesoSpecifications procesoSpecifications;
+    private AccesoProcesoService accesoProcesoService;
+    private HistorialProcesoService historialProcesoService;
+    private ValidacionModeloService validacionModeloService;
+    private ModelMapper modelMapper;
 
-    public ProcesoService(ProcesoRepository procesoRepository, UsuarioRepository usuarioRepository,
-            HistorialProcesoRepository historialProcesoRepository,
+    @Autowired
+    public ProcesoService(ProcesoRepository procesoRepository, ProcesoSpecifications procesoSpecifications,
+            AccesoProcesoService accesoProcesoService, HistorialProcesoService historialProcesoService,
             ValidacionModeloService validacionModeloService, ModelMapper modelMapper) {
         this.procesoRepository = procesoRepository;
-        this.usuarioRepository = usuarioRepository;
-        this.historialProcesoRepository = historialProcesoRepository;
+        this.procesoSpecifications = procesoSpecifications;
+        this.accesoProcesoService = accesoProcesoService;
+        this.historialProcesoService = historialProcesoService;
         this.validacionModeloService = validacionModeloService;
         this.modelMapper = modelMapper;
     }
 
     @Transactional
     public ProcesoRespuestaDto crear(CrearProcesoDto dto, String username) {
-        Usuario usuario = usuarioAutenticado(username);
-        validarRolDeEscritura(usuario);
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
         Long empresaId = usuario.getEmpresa().getId();
         String nombre = dto.getNombre().trim();
         String categoria = dto.getCategoria().trim();
@@ -87,43 +87,43 @@ public class ProcesoService {
 
     @Transactional(readOnly = true)
     public ProcesoRespuestaDto obtener(Long procesoId, String username) {
-        Usuario usuario = usuarioAutenticado(username);
-        return toDto(procesoDeLaEmpresa(procesoId, usuario));
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        return toDto(accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario));
     }
 
     @Transactional(readOnly = true)
     public Page<ProcesoResumenDto> consultarProcesos(FiltroProcesosDto filtro, String username) {
-        Usuario usuario = usuarioAutenticado(username);
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
         normalizar(filtro);
         Pageable paginacion = PageRequest.of(filtro.getPage(), TAMANO_PAGINA,
                 Sort.by(Sort.Direction.ASC, "nombre"));
         return procesoRepository
-                .findAll(ProcesoSpecifications.deLaEmpresaCon(usuario.getEmpresa().getId(), filtro), paginacion)
+                .findAll(procesoSpecifications.deLaEmpresaCon(usuario.getEmpresa().getId(), filtro), paginacion)
                 .map(this::toResumen);
     }
 
     @Transactional(readOnly = true)
     public List<String> categoriasDisponibles(String username) {
-        Usuario usuario = usuarioAutenticado(username);
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
         return procesoRepository.categoriasDeLaEmpresa(usuario.getEmpresa().getId());
     }
 
     public boolean puedeEditar(String username) {
-        Usuario usuario = usuarioAutenticado(username);
-        return tieneRolDeEscritura(usuario);
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        return accesoProcesoService.tieneRolDeEscritura(usuario);
     }
 
     public boolean puedeEliminar(String username) {
-        Usuario usuario = usuarioAutenticado(username);
-        return esAdministrador(usuario);
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        return accesoProcesoService.esAdministrador(usuario);
     }
 
     @Transactional
     public ProcesoRespuestaDto editar(Long procesoId, EditarProcesoDto dto, String username) {
-        Usuario usuario = usuarioAutenticado(username);
-        validarRolDeEscritura(usuario);
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
 
-        Proceso proceso = procesoActivoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
         String nombreNuevo = dto.getNombre().trim();
         String categoriaNueva = dto.getCategoria().trim();
         if (!proceso.getNombre().equalsIgnoreCase(nombreNuevo)
@@ -147,40 +147,36 @@ public class ProcesoService {
         proceso.setEstado(dto.getEstado());
         procesoRepository.save(proceso);
 
-        registrarHistorial(proceso, usuario, cambios, estadoAnterior);
+        historialProcesoService.registrar(proceso, usuario, cambios, estadoAnterior);
         return toDto(proceso);
     }
 
     @Transactional(readOnly = true)
     public ProcesoRespuestaDto obtenerParaEliminar(Long procesoId, String username) {
-        Usuario usuario = usuarioAutenticado(username);
-        validarRolAdministrador(usuario);
-        return toDto(procesoActivoDeLaEmpresa(procesoId, usuario));
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolAdministrador(usuario, SIN_PERMISO_ELIMINAR);
+        return toDto(accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario));
     }
 
     @Transactional
     public ProcesoRespuestaDto eliminar(Long procesoId, String username) {
-        Usuario usuario = usuarioAutenticado(username);
-        validarRolAdministrador(usuario);
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolAdministrador(usuario, SIN_PERMISO_ELIMINAR);
 
-        Proceso proceso = procesoActivoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
         String estadoAnterior = proceso.getEstado().name();
         proceso.setEliminado(true);
         procesoRepository.save(proceso);
 
-        registrarHistorial(proceso, usuario, "proceso eliminado", estadoAnterior);
+        historialProcesoService.registrar(proceso, usuario, "proceso eliminado", estadoAnterior);
         return toDto(proceso);
     }
 
     @Transactional(readOnly = true)
     public List<HistorialProcesoRespuestaDto> consultarHistorial(Long procesoId, String username) {
-        Usuario usuario = usuarioAutenticado(username);
-        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
-        return historialProcesoRepository
-                .findByProcesoIdAndProcesoEmpresaIdOrderByFechaDesc(proceso.getId(), usuario.getEmpresa().getId())
-                .stream()
-                .map(this::toHistorialDto)
-                .toList();
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        return historialProcesoService.consultarDelProceso(proceso.getId(), usuario.getEmpresa().getId());
     }
 
     private boolean saleDeBorrador(Proceso proceso, EditarProcesoDto dto) {
@@ -191,53 +187,6 @@ public class ProcesoService {
         Pool pool = new Pool(null, nombreEmpresa, new ArrayList<>());
         pool.getLanes().add(new Lane(null, LANE_INICIAL, pool));
         return pool;
-    }
-
-    private Usuario usuarioAutenticado(String username) {
-        return usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"));
-    }
-
-    private Proceso procesoDeLaEmpresa(Long procesoId, Usuario usuario) {
-        Proceso proceso = procesoRepository.findById(procesoId)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El proceso no existe"));
-        if (!proceso.getEmpresa().getId().equals(usuario.getEmpresa().getId())) {
-            throw new UsuarioSinPermisoException("El proceso no pertenece a la empresa del usuario");
-        }
-        return proceso;
-    }
-
-    private Proceso procesoActivoDeLaEmpresa(Long procesoId, Usuario usuario) {
-        Proceso proceso = procesoDeLaEmpresa(procesoId, usuario);
-        if (proceso.isEliminado()) {
-            throw new RecursoNoEncontradoException("El proceso ya fue eliminado");
-        }
-        return proceso;
-    }
-
-    private void registrarHistorial(Proceso proceso, Usuario usuario, String cambios, String estadoAnterior) {
-        historialProcesoRepository.save(new HistorialProceso(null, proceso, usuario, LocalDateTime.now(), cambios,
-                estadoAnterior));
-    }
-
-    private boolean tieneRolDeEscritura(Usuario usuario) {
-        return usuario.getRol() == RolUsuario.ADMINISTRADOR || usuario.getRol() == RolUsuario.EDITOR;
-    }
-
-    private void validarRolDeEscritura(Usuario usuario) {
-        if (!tieneRolDeEscritura(usuario)) {
-            throw new UsuarioSinPermisoException("Solo un administrador o editor puede crear o modificar procesos");
-        }
-    }
-
-    private boolean esAdministrador(Usuario usuario) {
-        return usuario.getRol() == RolUsuario.ADMINISTRADOR;
-    }
-
-    private void validarRolAdministrador(Usuario usuario) {
-        if (!esAdministrador(usuario)) {
-            throw new UsuarioSinPermisoException("Solo un administrador puede eliminar procesos");
-        }
     }
 
     private String construirCambios(Proceso proceso, EditarProcesoDto dto, String nombreNuevo,
@@ -290,14 +239,5 @@ public class ProcesoService {
         response.setPoolId(proceso.getPool().getId());
         response.setPoolNombre(proceso.getPool().getNombre());
         return response;
-    }
-
-    private HistorialProcesoRespuestaDto toHistorialDto(HistorialProceso historial) {
-        HistorialProcesoRespuestaDto respuesta = new HistorialProcesoRespuestaDto();
-        respuesta.setFecha(historial.getFecha());
-        respuesta.setUsuarioCorreo(historial.getUsuario().getUsername());
-        respuesta.setEstadoAnterior(historial.getEstadoAnterior());
-        respuesta.setCambiosRealizados(historial.getCambiosRealizados());
-        return respuesta;
     }
 }

@@ -50,12 +50,14 @@ class ConexionesServiceTest {
     @Mock
     private GatewayRepository gatewayRepository;
 
+    private NodoFlujoResolver nodoFlujoResolver;
+
     private ConexionesService conexionesService;
 
     @BeforeEach
     void inicializar() {
-        conexionesService = new ConexionesService(arcoRepository,
-                new NodoFlujoResolver(actividadRepository, gatewayRepository));
+        nodoFlujoResolver = new NodoFlujoResolver(actividadRepository, gatewayRepository);
+        conexionesService = new ConexionesService(arcoRepository, nodoFlujoResolver);
     }
 
     private Proceso proceso() {
@@ -75,7 +77,7 @@ class ConexionesServiceTest {
     }
 
     private NodoFlujo gateway(TipoGateway tipo) {
-        return NodoFlujoResolver.desdeGateway(new Gateway(GATEWAY_ID, tipo, proceso(), 300, 120, true));
+        return nodoFlujoResolver.desdeGateway(new Gateway(GATEWAY_ID, tipo, proceso(), 300, 120, true));
     }
 
     private void existeLaActividad(Long id, String nombre) {
@@ -211,5 +213,22 @@ class ConexionesServiceTest {
 
         assertThat(conexionesService.salientesActivos(PROCESO_ID, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID)).hasSize(1);
         assertThat(conexionesService.entrantesActivos(PROCESO_ID, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID)).hasSize(1);
+    }
+
+    @Test
+    void guardarCambiosPersisteLosArcosModificadosSinDesactivarlos() {
+        List<Arco> modificados = List.of(salienteDelGateway(61L, "monto > 100"), salienteDelGateway(62L, null));
+
+        conexionesService.guardarCambios(modificados);
+
+        verify(arcoRepository).saveAll(modificados);
+        assertThat(modificados).allMatch(Arco::isActivo);
+    }
+
+    @Test
+    void guardarCambiosSinArcosNoTocaLaPersistencia() {
+        conexionesService.guardarCambios(List.of());
+
+        verify(arcoRepository, never()).saveAll(anyList());
     }
 }

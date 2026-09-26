@@ -4,12 +4,11 @@ import java.util.List;
 import java.util.Locale;
 
 import org.modelmapper.ModelMapper;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
-import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.EmpresaRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.RegistroEmpresaDto;
@@ -18,22 +17,20 @@ import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoExcep
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.EmpresaRepository;
-import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 
 @Service
 public class EmpresaService {
 
-    private final EmpresaRepository empresaRepository;
-    private final UsuarioRepository usuarioRepository;
-    private final ModelMapper modelMapper;
-    private final PasswordEncoder passwordEncoder;
+    private EmpresaRepository empresaRepository;
+    private UsuarioService usuarioService;
+    private ModelMapper modelMapper;
 
-    public EmpresaService(EmpresaRepository empresaRepository, UsuarioRepository usuarioRepository,
-            ModelMapper modelMapper, PasswordEncoder passwordEncoder) {
+    @Autowired
+    public EmpresaService(EmpresaRepository empresaRepository, UsuarioService usuarioService,
+            ModelMapper modelMapper) {
         this.empresaRepository = empresaRepository;
-        this.usuarioRepository = usuarioRepository;
+        this.usuarioService = usuarioService;
         this.modelMapper = modelMapper;
-        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
@@ -45,7 +42,7 @@ public class EmpresaService {
         if (empresaRepository.existsByNit(nit)) {
             throw new NitEmpresaDuplicadoException("Ya existe una empresa registrada con el NIT " + nit);
         }
-        if (usuarioRepository.existsByUsername(correoContacto)) {
+        if (usuarioService.existeUsuarioConCorreo(correoContacto)) {
             throw new CorreoAdministradorEnUsoException(
                     "El correo " + correoContacto + " ya esta asociado a otro usuario");
         }
@@ -56,7 +53,7 @@ public class EmpresaService {
         empresa.setCorreoContacto(correoContacto);
         Empresa registrada = empresaRepository.save(empresa);
 
-        Usuario administrador = crearAdministradorInicial(registrada, credencialInicial);
+        Usuario administrador = usuarioService.crearAdministradorInicial(registrada, credencialInicial);
         return toDto(registrada, administrador.getUsername());
     }
 
@@ -73,28 +70,12 @@ public class EmpresaService {
         }
         Empresa empresa = empresaRepository.findById(empresaId)
                 .orElseThrow(() -> new RecursoNoEncontradoException("La empresa no existe"));
-        String administrador = usuarioRepository
-                .findFirstByEmpresaIdAndRolOrderByIdAsc(empresa.getId(), RolUsuario.ADMINISTRADOR)
-                .map(Usuario::getUsername)
-                .orElse(null);
+        String administrador = usuarioService.correoDelAdministrador(empresa.getId()).orElse(null);
         return toDto(empresa, administrador);
     }
 
     private Empresa empresaDelUsuario(String username) {
-        return usuarioRepository.findByUsername(username)
-                .orElseThrow(() -> new RecursoNoEncontradoException("El usuario autenticado no existe"))
-                .getEmpresa();
-    }
-
-    private Usuario crearAdministradorInicial(Empresa empresa, String credencialInicial) {
-        Usuario administrador = new Usuario();
-        administrador.setUsername(empresa.getCorreoContacto());
-        administrador.setPassword(passwordEncoder.encode(credencialInicial));
-        administrador.setRol(RolUsuario.ADMINISTRADOR);
-        administrador.setActivo(true);
-        administrador.setEmpresa(empresa);
-        usuarioRepository.save(administrador);
-        return administrador;
+        return usuarioService.usuarioAutenticado(username).getEmpresa();
     }
 
     private EmpresaRespuestaDto toDto(Empresa empresa, String administradorUsername) {

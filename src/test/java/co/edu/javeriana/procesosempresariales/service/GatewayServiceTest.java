@@ -19,6 +19,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.modelmapper.ModelMapper;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import co.edu.javeriana.procesosempresariales.domain.Arco;
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
@@ -83,9 +85,11 @@ class GatewayServiceTest {
     void inicializar() {
         NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository);
         ConexionesService conexiones = new ConexionesService(arcoRepository, resolver);
-        AccesoProcesoService acceso = new AccesoProcesoService(usuarioRepository, procesoRepository,
-                historialProcesoRepository);
-        gatewayService = new GatewayService(gatewayRepository, arcoRepository, acceso, conexiones);
+        UsuarioService usuarios = new UsuarioService(usuarioRepository, new ModelMapper(),
+                new BCryptPasswordEncoder());
+        AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
+        gatewayService = new GatewayService(gatewayRepository, acceso,
+                new HistorialProcesoService(historialProcesoRepository), conexiones, resolver);
     }
 
     private Empresa empresa(Long id) {

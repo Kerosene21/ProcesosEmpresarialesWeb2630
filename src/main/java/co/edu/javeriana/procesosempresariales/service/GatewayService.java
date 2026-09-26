@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.service;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +18,6 @@ import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
-import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
 
 @Service
@@ -29,17 +29,21 @@ public class GatewayService {
             "Cada arco de salida de un gateway exclusivo o inclusivo necesita condición";
     static final String SIN_PERMISO_ESCRITURA = "Solo un administrador o editor puede crear o modificar gateways";
 
-    private final GatewayRepository gatewayRepository;
-    private final ArcoRepository arcoRepository;
-    private final AccesoProcesoService accesoProcesoService;
-    private final ConexionesService conexionesService;
+    private GatewayRepository gatewayRepository;
+    private AccesoProcesoService accesoProcesoService;
+    private HistorialProcesoService historialProcesoService;
+    private ConexionesService conexionesService;
+    private NodoFlujoResolver nodoFlujoResolver;
 
-    public GatewayService(GatewayRepository gatewayRepository, ArcoRepository arcoRepository,
-            AccesoProcesoService accesoProcesoService, ConexionesService conexionesService) {
+    @Autowired
+    public GatewayService(GatewayRepository gatewayRepository, AccesoProcesoService accesoProcesoService,
+            HistorialProcesoService historialProcesoService, ConexionesService conexionesService,
+            NodoFlujoResolver nodoFlujoResolver) {
         this.gatewayRepository = gatewayRepository;
-        this.arcoRepository = arcoRepository;
         this.accesoProcesoService = accesoProcesoService;
+        this.historialProcesoService = historialProcesoService;
         this.conexionesService = conexionesService;
+        this.nodoFlujoResolver = nodoFlujoResolver;
     }
 
     @Transactional
@@ -56,7 +60,7 @@ public class GatewayService {
         gateway.setActivo(true);
 
         Gateway guardado = gatewayRepository.save(gateway);
-        accesoProcesoService.registrarHistorial(proceso, usuario, "gateway creado: " + guardado.getTipo() + " #"
+        historialProcesoService.registrar(proceso, usuario, "gateway creado: " + guardado.getTipo() + " #"
                 + guardado.getId() + " en (" + guardado.getPosicionX() + ", " + guardado.getPosicionY() + ")");
 
         return conAdvertencias(toDto(guardado), proceso, guardado);
@@ -74,9 +78,14 @@ public class GatewayService {
     public List<GatewayRespuestaDto> consultarActivos(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
         Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
-        return gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId()).stream()
+        return activosDelProceso(proceso).stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Gateway> activosDelProceso(Proceso proceso) {
+        return gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId());
     }
 
     @Transactional(readOnly = true)
@@ -84,7 +93,7 @@ public class GatewayService {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
         Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
         List<String> advertencias = new ArrayList<>();
-        for (Gateway gateway : gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId())) {
+        for (Gateway gateway : activosDelProceso(proceso)) {
             advertencias.addAll(advertenciasDe(proceso, gateway));
         }
         return advertencias;
@@ -114,10 +123,8 @@ public class GatewayService {
 
         gateway.setTipo(dto.getTipo());
         gatewayRepository.save(gateway);
-        if (!modificados.isEmpty()) {
-            arcoRepository.saveAll(modificados);
-        }
-        accesoProcesoService.registrarHistorial(proceso, usuario,
+        conexionesService.guardarCambios(modificados);
+        historialProcesoService.registrar(proceso, usuario,
                 "gateway #" + gateway.getId() + ": " + String.join("; ", cambios));
 
         return conAdvertencias(toDto(gateway), proceso, gateway);
@@ -169,7 +176,7 @@ public class GatewayService {
     }
 
     private List<String> advertenciasDe(Proceso proceso, Gateway gateway) {
-        return conexionesService.advertenciasDeGateway(proceso, NodoFlujoResolver.desdeGateway(gateway));
+        return conexionesService.advertenciasDeGateway(proceso, nodoFlujoResolver.desdeGateway(gateway));
     }
 
     private GatewayRespuestaDto conAdvertencias(GatewayRespuestaDto respuesta, Proceso proceso, Gateway gateway) {

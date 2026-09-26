@@ -4,6 +4,7 @@ import java.net.URI;
 import java.security.Principal;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,8 +23,9 @@ import co.edu.javeriana.procesosempresariales.service.GatewayService;
 @RequestMapping("/api/procesos/{procesoId}/gateways")
 public class GatewayRestController {
 
-    private final GatewayService gatewayService;
+    private GatewayService gatewayService;
 
+    @Autowired
     public GatewayRestController(GatewayService gatewayService) {
         this.gatewayService = gatewayService;
     }

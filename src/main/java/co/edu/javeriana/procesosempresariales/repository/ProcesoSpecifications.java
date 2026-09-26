@@ -5,18 +5,17 @@ import java.util.List;
 import java.util.Locale;
 
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Component;
 
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 
-public final class ProcesoSpecifications {
+@Component
+public class ProcesoSpecifications {
 
-    private ProcesoSpecifications() {
-    }
-
-    public static Specification<Proceso> deLaEmpresaCon(Long empresaId, FiltroProcesosDto filtro) {
+    public Specification<Proceso> deLaEmpresaCon(Long empresaId, FiltroProcesosDto filtro) {
         List<Specification<Proceso>> especificaciones = new ArrayList<>();
         especificaciones.add(deLaEmpresa(empresaId));
         agregarSiAplica(especificaciones, conVisibilidad(filtro.getVisibilidad()));
@@ -26,17 +25,17 @@ public final class ProcesoSpecifications {
         return Specification.allOf(especificaciones);
     }
 
-    private static void agregarSiAplica(List<Specification<Proceso>> destino, Specification<Proceso> especificacion) {
+    private void agregarSiAplica(List<Specification<Proceso>> destino, Specification<Proceso> especificacion) {
         if (especificacion != null) {
             destino.add(especificacion);
         }
     }
 
-    private static Specification<Proceso> deLaEmpresa(Long empresaId) {
+    private Specification<Proceso> deLaEmpresa(Long empresaId) {
         return (raiz, consulta, constructor) -> constructor.equal(raiz.get("empresa").get("id"), empresaId);
     }
 
-    private static Specification<Proceso> conVisibilidad(VisibilidadProceso visibilidad) {
+    private Specification<Proceso> conVisibilidad(VisibilidadProceso visibilidad) {
         if (visibilidad == null || visibilidad == VisibilidadProceso.TODOS) {
             return null;
         }
@@ -44,7 +43,7 @@ public final class ProcesoSpecifications {
         return (raiz, consulta, constructor) -> constructor.equal(raiz.get("eliminado"), eliminado);
     }
 
-    private static Specification<Proceso> conNombreParecidoA(String nombre) {
+    private Specification<Proceso> conNombreParecidoA(String nombre) {
         if (nombre == null) {
             return null;
         }
@@ -52,14 +51,14 @@ public final class ProcesoSpecifications {
         return (raiz, consulta, constructor) -> constructor.like(constructor.lower(raiz.get("nombre")), patron);
     }
 
-    private static Specification<Proceso> conEstado(EstadoProceso estado) {
+    private Specification<Proceso> conEstado(EstadoProceso estado) {
         if (estado == null) {
             return null;
         }
         return (raiz, consulta, constructor) -> constructor.equal(raiz.get("estado"), estado);
     }
 
-    private static Specification<Proceso> conCategoria(String categoria) {
+    private Specification<Proceso> conCategoria(String categoria) {
         if (categoria == null) {
             return null;
         }

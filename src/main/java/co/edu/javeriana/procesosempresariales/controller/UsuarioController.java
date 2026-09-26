@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.controller;
 import java.security.Principal;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -28,8 +29,9 @@ public class UsuarioController {
     private static final String VISTA_FORMULARIO_EDITAR = "usuarios/formularioeditar";
     private static final String REDIRECCION_LISTADO = "redirect:/usuarios";
 
-    private final UsuarioService usuarioService;
+    private UsuarioService usuarioService;
 
+    @Autowired
     public UsuarioController(UsuarioService usuarioService) {
         this.usuarioService = usuarioService;
     }

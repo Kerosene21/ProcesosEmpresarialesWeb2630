@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,17 +39,23 @@ public class ArcoService {
     static final String SIN_PERMISO_ESCRITURA = "Solo un administrador o editor puede crear o modificar arcos";
     static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar arcos";
 
-    private final ArcoRepository arcoRepository;
-    private final AccesoProcesoService accesoProcesoService;
-    private final NodoFlujoResolver nodoFlujoResolver;
-    private final ConexionesService conexionesService;
+    private ArcoRepository arcoRepository;
+    private AccesoProcesoService accesoProcesoService;
+    private HistorialProcesoService historialProcesoService;
+    private NodoFlujoResolver nodoFlujoResolver;
+    private ConexionesService conexionesService;
+    private GeometriaArco geometriaArco;
 
+    @Autowired
     public ArcoService(ArcoRepository arcoRepository, AccesoProcesoService accesoProcesoService,
-            NodoFlujoResolver nodoFlujoResolver, ConexionesService conexionesService) {
+            HistorialProcesoService historialProcesoService, NodoFlujoResolver nodoFlujoResolver,
+            ConexionesService conexionesService, GeometriaArco geometriaArco) {
         this.arcoRepository = arcoRepository;
         this.accesoProcesoService = accesoProcesoService;
+        this.historialProcesoService = historialProcesoService;
         this.nodoFlujoResolver = nodoFlujoResolver;
         this.conexionesService = conexionesService;
+        this.geometriaArco = geometriaArco;
     }
 
     @Transactional
@@ -73,7 +80,7 @@ public class ArcoService {
         arco.setActivo(true);
 
         Arco guardado = arcoRepository.save(arco);
-        accesoProcesoService.registrarHistorial(proceso, usuario,
+        historialProcesoService.registrar(proceso, usuario,
                 "arco creado: " + descripcion(origen.nombre(), destino.nombre()));
 
         ArcoRespuestaDto respuesta = toDto(guardado, proceso);
@@ -147,7 +154,7 @@ public class ArcoService {
         arco.setCondicion(condicionNueva);
         arcoRepository.save(arco);
 
-        accesoProcesoService.registrarHistorial(proceso, usuario, resumen);
+        historialProcesoService.registrar(proceso, usuario, resumen);
 
         ArcoRespuestaDto respuesta = toDto(arco, proceso);
         respuesta.setAdvertencias(advertenciasDeGateways(proceso, origen, origenAnterior));
@@ -177,7 +184,7 @@ public class ArcoService {
         arco.setActivo(false);
         arcoRepository.save(arco);
 
-        accesoProcesoService.registrarHistorial(proceso, usuario, "arco eliminado: " + descripcion);
+        historialProcesoService.registrar(proceso, usuario, "arco eliminado: " + descripcion);
 
         ArcoRespuestaDto respuesta = toDto(arco, proceso);
         respuesta.setAdvertencias(conexionesService.advertenciasTrasDesactivar(proceso, List.of(arco), null, null));
@@ -302,9 +309,9 @@ public class ArcoService {
         Optional<NodoFlujo> origen = buscarEnIndice(proceso, nodos, arco.getOrigenTipo(), arco.getOrigenId());
         Optional<NodoFlujo> destino = buscarEnIndice(proceso, nodos, arco.getDestinoTipo(), arco.getDestinoId());
         respuesta.setOrigenNombre(origen.map(NodoFlujo::nombre)
-                .orElseGet(() -> NodoFlujoResolver.referencia(arco.getOrigenTipo(), arco.getOrigenId())));
+                .orElseGet(() -> nodoFlujoResolver.referencia(arco.getOrigenTipo(), arco.getOrigenId())));
         respuesta.setDestinoNombre(destino.map(NodoFlujo::nombre)
-                .orElseGet(() -> NodoFlujoResolver.referencia(arco.getDestinoTipo(), arco.getDestinoId())));
+                .orElseGet(() -> nodoFlujoResolver.referencia(arco.getDestinoTipo(), arco.getDestinoId())));
         if (origen.isPresent() && destino.isPresent()) {
             ubicarExtremos(respuesta, origen.get(), destino.get());
         }
@@ -313,7 +320,7 @@ public class ArcoService {
 
     private Optional<NodoFlujo> buscarEnIndice(Proceso proceso, Map<String, NodoFlujo> nodos, TipoNodoFlujo tipo,
             Long nodoId) {
-        NodoFlujo nodo = nodos.get(NodoFlujoResolver.clave(tipo, nodoId));
+        NodoFlujo nodo = nodos.get(nodoFlujoResolver.clave(tipo, nodoId));
         if (nodo != null) {
             return Optional.of(nodo);
         }
@@ -321,11 +328,11 @@ public class ArcoService {
     }
 
     private void ubicarExtremos(ArcoRespuestaDto respuesta, NodoFlujo origen, NodoFlujo destino) {
-        GeometriaArco.Punto centroOrigen = GeometriaArco.centro(origen.tipo(), origen.posicionX(),
+        PuntoDiagrama centroOrigen = geometriaArco.centro(origen.tipo(), origen.posicionX(),
                 origen.posicionY());
-        GeometriaArco.Punto centroDestino = GeometriaArco.centro(destino.tipo(), destino.posicionX(),
+        PuntoDiagrama centroDestino = geometriaArco.centro(destino.tipo(), destino.posicionX(),
                 destino.posicionY());
-        GeometriaArco.Punto llegada = GeometriaArco.llegada(centroOrigen, centroDestino, destino.tipo());
+        PuntoDiagrama llegada = geometriaArco.llegada(centroOrigen, centroDestino, destino.tipo());
         respuesta.setOrigenX(centroOrigen.x());
         respuesta.setOrigenY(centroOrigen.y());
         respuesta.setDestinoX(llegada.x());

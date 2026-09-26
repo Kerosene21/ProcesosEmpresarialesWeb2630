@@ -4,6 +4,7 @@ import java.net.URI;
 import java.security.Principal;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,8 +24,9 @@ import co.edu.javeriana.procesosempresariales.service.ActividadService;
 @RequestMapping("/api/procesos/{procesoId}/actividades")
 public class ActividadRestController {
 
-    private final ActividadService actividadService;
+    private ActividadService actividadService;
 
+    @Autowired
     public ActividadRestController(ActividadService actividadService) {
         this.actividadService = actividadService;
     }

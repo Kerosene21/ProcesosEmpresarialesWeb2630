@@ -52,7 +52,8 @@ class EmpresaServiceTest {
     @BeforeEach
     void inicializar() {
         passwordEncoder = new BCryptPasswordEncoder();
-        empresaService = new EmpresaService(empresaRepository, usuarioRepository, new ModelMapper(), passwordEncoder);
+        UsuarioService usuarioService = new UsuarioService(usuarioRepository, new ModelMapper(), passwordEncoder);
+        empresaService = new EmpresaService(empresaRepository, usuarioService, new ModelMapper());
     }
 
     private RegistroEmpresaDto formularioValido() {

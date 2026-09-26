@@ -157,7 +157,7 @@ class NodoFlujoResolverTest {
 
     @Test
     void laClaveYLaReferenciaIdentificanAlNodo() {
-        assertThat(NodoFlujoResolver.clave(TipoNodoFlujo.GATEWAY, GATEWAY_ID)).isEqualTo("GATEWAY:12");
-        assertThat(NodoFlujoResolver.referencia(TipoNodoFlujo.GATEWAY, GATEWAY_ID)).isEqualTo("GATEWAY #12");
+        assertThat(nodoFlujoResolver.clave(TipoNodoFlujo.GATEWAY, GATEWAY_ID)).isEqualTo("GATEWAY:12");
+        assertThat(nodoFlujoResolver.referencia(TipoNodoFlujo.GATEWAY, GATEWAY_ID)).isEqualTo("GATEWAY #12");
     }
 }

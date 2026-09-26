@@ -7,6 +7,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,9 +27,10 @@ public class ConexionesService {
     private static final String MARCA_SALIDA = "SALIDA:";
     private static final String MARCA_ENTRADA = "ENTRADA:";
 
-    private final ArcoRepository arcoRepository;
-    private final NodoFlujoResolver nodoFlujoResolver;
+    private ArcoRepository arcoRepository;
+    private NodoFlujoResolver nodoFlujoResolver;
 
+    @Autowired
     public ConexionesService(ArcoRepository arcoRepository, NodoFlujoResolver nodoFlujoResolver) {
         this.arcoRepository = arcoRepository;
         this.nodoFlujoResolver = nodoFlujoResolver;
@@ -54,6 +56,13 @@ public class ConexionesService {
         conectados.forEach(arco -> arco.setActivo(false));
         arcoRepository.saveAll(conectados);
         return conectados;
+    }
+
+    @Transactional
+    public void guardarCambios(List<Arco> arcos) {
+        if (!arcos.isEmpty()) {
+            arcoRepository.saveAll(arcos);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -135,7 +144,7 @@ public class ConexionesService {
         if (tipo == tipoExcluido && Objects.equals(nodoId, idExcluido)) {
             return;
         }
-        String marca = (salida ? MARCA_SALIDA : MARCA_ENTRADA) + NodoFlujoResolver.clave(tipo, nodoId);
+        String marca = (salida ? MARCA_SALIDA : MARCA_ENTRADA) + nodoFlujoResolver.clave(tipo, nodoId);
         if (!revisados.add(marca)) {
             return;
         }

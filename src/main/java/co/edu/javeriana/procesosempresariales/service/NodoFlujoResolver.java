@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,9 +27,10 @@ public class NodoFlujoResolver {
     static final String NODO_INACTIVO = "El nodo indicado fue eliminado del proceso";
     static final String EVENTO_SIN_MODELO = "Los eventos todavía no existen en el modelo del proceso";
 
-    private final ActividadRepository actividadRepository;
-    private final GatewayRepository gatewayRepository;
+    private ActividadRepository actividadRepository;
+    private GatewayRepository gatewayRepository;
 
+    @Autowired
     public NodoFlujoResolver(ActividadRepository actividadRepository, GatewayRepository gatewayRepository) {
         this.actividadRepository = actividadRepository;
         this.gatewayRepository = gatewayRepository;
@@ -41,9 +43,9 @@ public class NodoFlujoResolver {
         }
         return switch (tipo) {
             case ACTIVIDAD -> actividadRepository.findByIdAndProcesoId(nodoId, proceso.getId())
-                    .map(NodoFlujoResolver::desdeActividad);
+                    .map(this::desdeActividad);
             case GATEWAY -> gatewayRepository.findByIdAndProcesoId(nodoId, proceso.getId())
-                    .map(NodoFlujoResolver::desdeGateway);
+                    .map(this::desdeGateway);
             case EVENTO -> Optional.empty();
         };
     }
@@ -64,10 +66,10 @@ public class NodoFlujoResolver {
     @Transactional(readOnly = true)
     public List<NodoFlujo> nodosActivos(Proceso proceso) {
         List<NodoFlujo> nodos = new ArrayList<>(actividadRepository.activasDelProceso(proceso.getId()).stream()
-                .map(NodoFlujoResolver::desdeActividad)
+                .map(this::desdeActividad)
                 .toList());
         nodos.addAll(gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId()).stream()
-                .map(NodoFlujoResolver::desdeGateway)
+                .map(this::desdeGateway)
                 .toList());
         return nodos;
     }
@@ -83,20 +85,20 @@ public class NodoFlujoResolver {
         return buscar(proceso, tipo, nodoId).map(NodoFlujo::nombre).orElseGet(() -> referencia(tipo, nodoId));
     }
 
-    public static String clave(TipoNodoFlujo tipo, Long nodoId) {
+    public String clave(TipoNodoFlujo tipo, Long nodoId) {
         return tipo + ":" + nodoId;
     }
 
-    public static String referencia(TipoNodoFlujo tipo, Long nodoId) {
+    public String referencia(TipoNodoFlujo tipo, Long nodoId) {
         return tipo + " #" + nodoId;
     }
 
-    public static NodoFlujo desdeActividad(Actividad actividad) {
+    public NodoFlujo desdeActividad(Actividad actividad) {
         return new NodoFlujo(TipoNodoFlujo.ACTIVIDAD, actividad.getId(), actividad.getNombre(),
                 actividad.getPosicionX(), actividad.getPosicionY(), actividad.isActivo(), null);
     }
 
-    public static NodoFlujo desdeGateway(Gateway gateway) {
+    public NodoFlujo desdeGateway(Gateway gateway) {
         return new NodoFlujo(TipoNodoFlujo.GATEWAY, gateway.getId(), gateway.etiqueta(), gateway.getPosicionX(),
                 gateway.getPosicionY(), gateway.isActivo(), gateway.getTipo());
     }

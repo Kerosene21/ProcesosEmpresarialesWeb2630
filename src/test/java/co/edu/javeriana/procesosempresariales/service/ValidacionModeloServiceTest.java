@@ -47,13 +47,21 @@ class ValidacionModeloServiceTest {
     @Mock
     private ActividadRepository actividadRepository;
 
+    @Mock
+    private AccesoProcesoService accesoProcesoService;
+
+    @Mock
+    private HistorialProcesoService historialProcesoService;
+
     private ValidacionModeloService validacionModeloService;
 
     @BeforeEach
     void inicializar() {
-        ConexionesService conexiones = new ConexionesService(arcoRepository,
-                new NodoFlujoResolver(actividadRepository, gatewayRepository));
-        validacionModeloService = new ValidacionModeloService(gatewayRepository, conexiones);
+        NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository);
+        ConexionesService conexiones = new ConexionesService(arcoRepository, resolver);
+        GatewayService gatewayService = new GatewayService(gatewayRepository, accesoProcesoService,
+                historialProcesoService, conexiones, resolver);
+        validacionModeloService = new ValidacionModeloService(gatewayService, conexiones);
     }
 
     private Proceso proceso() {

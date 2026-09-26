@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -37,9 +38,10 @@ public class GatewayController {
     private static final String PROCESO_ID = "procesoId";
     private static final String TIPOS = "tipos";
 
-    private final GatewayService gatewayService;
-    private final ArcoService arcoService;
+    private GatewayService gatewayService;
+    private ArcoService arcoService;
 
+    @Autowired
     public GatewayController(GatewayService gatewayService, ArcoService arcoService) {
         this.gatewayService = gatewayService;
         this.arcoService = arcoService;

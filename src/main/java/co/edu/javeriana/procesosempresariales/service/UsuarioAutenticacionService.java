@@ -2,6 +2,7 @@ package co.edu.javeriana.procesosempresariales.service;
 
 import java.util.Locale;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,8 +20,9 @@ public class UsuarioAutenticacionService implements UserDetailsService {
     private static final String ERROR_GENERICO = "Credenciales invalidas";
     private static final String PREFIJO_ROL = "ROLE_";
 
-    private final UsuarioRepository usuarioRepository;
+    private UsuarioRepository usuarioRepository;
 
+    @Autowired
     public UsuarioAutenticacionService(UsuarioRepository usuarioRepository) {
         this.usuarioRepository = usuarioRepository;
     }

@@ -8,9 +8,11 @@ import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 
 class GeometriaArcoTest {
 
+    private final GeometriaArco geometriaArco = new GeometriaArco();
+
     @Test
     void elCentroDeUnaActividadSeCalculaDesdeSuEsquina() {
-        GeometriaArco.Punto centro = GeometriaArco.centro(TipoNodoFlujo.ACTIVIDAD, 100, 50);
+        PuntoDiagrama centro = geometriaArco.centro(TipoNodoFlujo.ACTIVIDAD, 100, 50);
 
         assertThat(centro.x()).isEqualTo(165);
         assertThat(centro.y()).isEqualTo(73);
@@ -18,7 +20,7 @@ class GeometriaArcoTest {
 
     @Test
     void elCentroDeUnGatewayUsaElLadoDelRombo() {
-        GeometriaArco.Punto centro = GeometriaArco.centro(TipoNodoFlujo.GATEWAY, 300, 100);
+        PuntoDiagrama centro = geometriaArco.centro(TipoNodoFlujo.GATEWAY, 300, 100);
 
         assertThat(centro.x()).isEqualTo(323);
         assertThat(centro.y()).isEqualTo(123);
@@ -26,7 +28,7 @@ class GeometriaArcoTest {
 
     @Test
     void unaPosicionSinValorSeTomaComoOrigenDelLienzo() {
-        GeometriaArco.Punto centro = GeometriaArco.centro(TipoNodoFlujo.ACTIVIDAD, null, null);
+        PuntoDiagrama centro = geometriaArco.centro(TipoNodoFlujo.ACTIVIDAD, null, null);
 
         assertThat(centro.x()).isEqualTo(65);
         assertThat(centro.y()).isEqualTo(23);
@@ -34,10 +36,10 @@ class GeometriaArcoTest {
 
     @Test
     void laLlegadaHorizontalSeDetieneEnElBordeIzquierdoDelDestino() {
-        GeometriaArco.Punto origen = new GeometriaArco.Punto(165, 73);
-        GeometriaArco.Punto destino = new GeometriaArco.Punto(465, 73);
+        PuntoDiagrama origen = new PuntoDiagrama(165, 73);
+        PuntoDiagrama destino = new PuntoDiagrama(465, 73);
 
-        GeometriaArco.Punto llegada = GeometriaArco.llegada(origen, destino, TipoNodoFlujo.ACTIVIDAD);
+        PuntoDiagrama llegada = geometriaArco.llegada(origen, destino, TipoNodoFlujo.ACTIVIDAD);
 
         assertThat(llegada.x()).isEqualTo(400);
         assertThat(llegada.y()).isEqualTo(73);
@@ -45,10 +47,10 @@ class GeometriaArcoTest {
 
     @Test
     void laLlegadaVerticalSeDetieneEnElBordeSuperiorDelDestino() {
-        GeometriaArco.Punto origen = new GeometriaArco.Punto(165, 50);
-        GeometriaArco.Punto destino = new GeometriaArco.Punto(165, 300);
+        PuntoDiagrama origen = new PuntoDiagrama(165, 50);
+        PuntoDiagrama destino = new PuntoDiagrama(165, 300);
 
-        GeometriaArco.Punto llegada = GeometriaArco.llegada(origen, destino, TipoNodoFlujo.ACTIVIDAD);
+        PuntoDiagrama llegada = geometriaArco.llegada(origen, destino, TipoNodoFlujo.ACTIVIDAD);
 
         assertThat(llegada.x()).isEqualTo(165);
         assertThat(llegada.y()).isEqualTo(277);
@@ -56,10 +58,10 @@ class GeometriaArcoTest {
 
     @Test
     void laLlegadaAUnGatewayUsaElMargenDelRombo() {
-        GeometriaArco.Punto origen = new GeometriaArco.Punto(100, 123);
-        GeometriaArco.Punto destino = new GeometriaArco.Punto(323, 123);
+        PuntoDiagrama origen = new PuntoDiagrama(100, 123);
+        PuntoDiagrama destino = new PuntoDiagrama(323, 123);
 
-        GeometriaArco.Punto llegada = GeometriaArco.llegada(origen, destino, TipoNodoFlujo.GATEWAY);
+        PuntoDiagrama llegada = geometriaArco.llegada(origen, destino, TipoNodoFlujo.GATEWAY);
 
         assertThat(llegada.x()).isEqualTo(300);
         assertThat(llegada.y()).isEqualTo(123);
@@ -67,29 +69,29 @@ class GeometriaArcoTest {
 
     @Test
     void dosNodosSuperpuestosDejanLaLlegadaEnElCentro() {
-        GeometriaArco.Punto punto = new GeometriaArco.Punto(165, 73);
+        PuntoDiagrama punto = new PuntoDiagrama(165, 73);
 
-        GeometriaArco.Punto llegada = GeometriaArco.llegada(punto, punto, TipoNodoFlujo.ACTIVIDAD);
+        PuntoDiagrama llegada = geometriaArco.llegada(punto, punto, TipoNodoFlujo.ACTIVIDAD);
 
         assertThat(llegada).isEqualTo(punto);
     }
 
     @Test
     void unDestinoMuyCercanoNoInvierteLaDireccionDelArco() {
-        GeometriaArco.Punto origen = new GeometriaArco.Punto(165, 73);
-        GeometriaArco.Punto destino = new GeometriaArco.Punto(175, 73);
+        PuntoDiagrama origen = new PuntoDiagrama(165, 73);
+        PuntoDiagrama destino = new PuntoDiagrama(175, 73);
 
-        GeometriaArco.Punto llegada = GeometriaArco.llegada(origen, destino, TipoNodoFlujo.ACTIVIDAD);
+        PuntoDiagrama llegada = geometriaArco.llegada(origen, destino, TipoNodoFlujo.ACTIVIDAD);
 
         assertThat(llegada).isEqualTo(origen);
     }
 
     @Test
     void laLlegadaDiagonalUsaElMargenMasRestrictivo() {
-        GeometriaArco.Punto origen = new GeometriaArco.Punto(0, 0);
-        GeometriaArco.Punto destino = new GeometriaArco.Punto(200, 200);
+        PuntoDiagrama origen = new PuntoDiagrama(0, 0);
+        PuntoDiagrama destino = new PuntoDiagrama(200, 200);
 
-        GeometriaArco.Punto llegada = GeometriaArco.llegada(origen, destino, TipoNodoFlujo.ACTIVIDAD);
+        PuntoDiagrama llegada = geometriaArco.llegada(origen, destino, TipoNodoFlujo.ACTIVIDAD);
 
         assertThat(llegada.x()).isEqualTo(177);
         assertThat(llegada.y()).isEqualTo(177);

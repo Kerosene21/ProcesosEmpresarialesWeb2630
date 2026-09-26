@@ -4,6 +4,7 @@ import java.net.URI;
 import java.security.Principal;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,17 +23,16 @@ import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 @RestController
 @RequestMapping("/api/procesos")
 public class ProcesoRestController {
-    private final ProcesoService procesoService;
+    private ProcesoService procesoService;
 
+    @Autowired
     public ProcesoRestController(ProcesoService procesoService) {
         this.procesoService = procesoService;
     }
 
     @PostMapping
     public ResponseEntity<ProcesoRespuestaDto> crear(@Valid @RequestBody CrearProcesoDto dto, Principal principal) {
-        // La empresa se toma de la sesión, nunca del JSON que manda el cliente.
         ProcesoRespuestaDto creado = procesoService.crear(dto, principal.getName());
-        // Indicamos en qué URL quedó el proceso nuevo.
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")
                 .buildAndExpand(creado.getId()).toUri();
         return ResponseEntity.created(location).body(creado);

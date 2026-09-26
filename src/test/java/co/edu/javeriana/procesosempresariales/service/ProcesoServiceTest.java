@@ -28,6 +28,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
@@ -49,6 +50,7 @@ import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoExcep
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
+import co.edu.javeriana.procesosempresariales.repository.ProcesoSpecifications;
 import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -75,8 +77,11 @@ class ProcesoServiceTest {
 
     @BeforeEach
     void inicializar() {
-        procesoService = new ProcesoService(procesoRepository, usuarioRepository, historialProcesoRepository,
-                validacionModeloService, new ModelMapper());
+        UsuarioService usuarios = new UsuarioService(usuarioRepository, new ModelMapper(),
+                new BCryptPasswordEncoder());
+        AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
+        procesoService = new ProcesoService(procesoRepository, new ProcesoSpecifications(), acceso,
+                new HistorialProcesoService(historialProcesoRepository), validacionModeloService, new ModelMapper());
     }
 
     private Empresa empresa(Long id, String nombre) {

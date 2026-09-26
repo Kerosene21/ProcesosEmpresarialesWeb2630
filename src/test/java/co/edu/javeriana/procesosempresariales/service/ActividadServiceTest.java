@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import co.edu.javeriana.procesosempresariales.domain.Actividad;
 import co.edu.javeriana.procesosempresariales.domain.Arco;
@@ -85,8 +86,11 @@ class ActividadServiceTest {
 
     @BeforeEach
     void inicializar() {
-        actividadService = new ActividadService(actividadRepository, procesoRepository, laneRepository,
-                usuarioRepository, historialProcesoRepository, conexionesService, new ModelMapper());
+        UsuarioService usuarios = new UsuarioService(usuarioRepository, new ModelMapper(),
+                new BCryptPasswordEncoder());
+        AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
+        actividadService = new ActividadService(actividadRepository, laneRepository, acceso,
+                new HistorialProcesoService(historialProcesoRepository), conexionesService, new ModelMapper());
     }
 
     private Empresa empresa(Long id) {
