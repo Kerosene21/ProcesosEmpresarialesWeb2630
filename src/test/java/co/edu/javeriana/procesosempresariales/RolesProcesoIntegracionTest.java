@@ -40,6 +40,7 @@ import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearRolProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearUsuarioDto;
+import co.edu.javeriana.procesosempresariales.dto.EditarLaneDto;
 import co.edu.javeriana.procesosempresariales.dto.HistorialRolProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.LaneRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
@@ -133,7 +134,7 @@ class RolesProcesoIntegracionTest {
 
     private Long usarEnLaneGeneral(ProcesoRespuestaDto proceso, Long rolId, String autor) {
         Long laneId = laneGeneral(proceso, autor);
-        laneService.asignarRolProceso(proceso.getId(), laneId, rolId, autor);
+        laneService.editar(proceso.getId(), proceso.getPoolId(), laneId, new EditarLaneDto(rolId, null), autor);
         return laneId;
     }
 
@@ -317,8 +318,8 @@ class RolesProcesoIntegracionTest {
         ProcesoRespuestaDto procesoAndes = crearProceso("Ventas", ADMIN_ANDES);
         Long laneAndes = laneGeneral(procesoAndes, ADMIN_ANDES);
 
-        assertThatThrownBy(() -> laneService.asignarRolProceso(procesoAndes.getId(), laneAndes, rolAlpes.getId(),
-                ADMIN_ANDES))
+        assertThatThrownBy(() -> laneService.editar(procesoAndes.getId(), procesoAndes.getPoolId(), laneAndes,
+                new EditarLaneDto(rolAlpes.getId(), null), ADMIN_ANDES))
                 .isInstanceOf(UsuarioSinPermisoException.class);
 
         assertThat(laneRepository.findById(laneAndes).orElseThrow().getRolProceso()).isNull();

@@ -7,8 +7,11 @@ import org.springframework.web.servlet.ModelAndView;
 
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
+import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
@@ -71,5 +74,28 @@ class MvcExceptionHandlerTest {
         assertThat(vista.getViewName()).isEqualTo("error/problema");
         assertThat(vista.getModel().get("detalle").toString()).contains("necesita al menos dos");
         assertThat(vista.getModel().get("titulo")).isNotNull();
+    }
+    @Test
+    void unFlujoDeSecuenciaEntrePoolsSeMuestraEnLaPaginaDeProblema() {
+        ModelAndView vista = manejador.conexionNoValida(new FlujoEntrePoolsException("No cruza pools"));
+
+        assertThat(vista.getViewName()).isEqualTo("error/problema");
+        assertThat(vista.getModel()).containsEntry("detalle", "No cruza pools");
+    }
+
+    @Test
+    void unPoolNoValidoSeMuestraEnLaPaginaDeProblema() {
+        ModelAndView vista = manejador.poolNoValido(new PoolNoValidoException("El pool indicado no existe"));
+
+        assertThat(vista.getViewName()).isEqualTo("error/problema");
+        assertThat(vista.getModel()).containsEntry("detalle", "El pool indicado no existe");
+        assertThat(vista.getModel().get("titulo")).isNotNull();
+    }
+
+    @Test
+    void unPoolDeCajaNegraSeMuestraEnLaPaginaDeProblema() {
+        ModelAndView vista = manejador.poolNoValido(new PoolCajaNegraException("El pool es una caja negra"));
+
+        assertThat(vista.getModel()).containsEntry("detalle", "El pool es una caja negra");
     }
 }

@@ -365,7 +365,8 @@ class ArcosYGatewaysIntegracionTest {
         ActividadRespuestaDto aprobar = crearActividad(proceso, APROBAR, 400, ADMIN_ALPES);
         ArcoRespuestaDto arco = unirActividades(proceso, revisar.getId(), aprobar.getId(), ADMIN_ALPES);
         Proceso persistido = procesoRepository.findById(proceso.getId()).orElseThrow();
-        Long laneNueva = laneRepository.save(new Lane(null, "Cartera", persistido.getPool())).getId();
+        Long laneNueva = laneRepository.save(new Lane(null, "Cartera", persistido.poolPropietario(), null, 2, true))
+                .getId();
 
         actividadService.editar(proceso.getId(), revisar.getId(),
                 new EditarActividadDto(REVISAR, TipoActividad.TAREA_USUARIO, laneNueva), ADMIN_ALPES);

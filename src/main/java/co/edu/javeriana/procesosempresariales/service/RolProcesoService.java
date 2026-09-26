@@ -169,6 +169,13 @@ public class RolProcesoService {
     }
 
     @Transactional(readOnly = true)
+    public List<RolProcesoRespuestaDto> activosDeLaEmpresa(Long empresaId) {
+        return rolProcesoRepository.findByEmpresaIdAndActivoTrueOrderByNombreAsc(empresaId).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public RolProceso rolActivoDeLaEmpresa(Long rolProcesoId, Usuario usuario) {
         RolProceso rol = rolDeLaEmpresa(rolProcesoId, usuario);
         if (!rol.isActivo()) {

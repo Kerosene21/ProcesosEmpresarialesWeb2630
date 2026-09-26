@@ -37,16 +37,18 @@ public class GatewayService {
     private HistorialProcesoService historialProcesoService;
     private ConexionesService conexionesService;
     private NodoFlujoResolver nodoFlujoResolver;
+    private PoolService poolService;
 
     @Autowired
     public GatewayService(GatewayRepository gatewayRepository, AccesoProcesoService accesoProcesoService,
             HistorialProcesoService historialProcesoService, ConexionesService conexionesService,
-            NodoFlujoResolver nodoFlujoResolver) {
+            NodoFlujoResolver nodoFlujoResolver, PoolService poolService) {
         this.gatewayRepository = gatewayRepository;
         this.accesoProcesoService = accesoProcesoService;
         this.historialProcesoService = historialProcesoService;
         this.conexionesService = conexionesService;
         this.nodoFlujoResolver = nodoFlujoResolver;
+        this.poolService = poolService;
     }
 
     @Transactional
@@ -58,6 +60,7 @@ public class GatewayService {
         Gateway gateway = new Gateway();
         gateway.setTipo(dto.getTipo());
         gateway.setProceso(proceso);
+        gateway.setPool(poolService.poolParaNodo(proceso, dto.getPoolId()));
         gateway.setPosicionX(dto.getPosicionX());
         gateway.setPosicionY(dto.getPosicionY());
         gateway.setActivo(true);
@@ -72,7 +75,7 @@ public class GatewayService {
     @Transactional(readOnly = true)
     public GatewayRespuestaDto obtener(Long procesoId, Long gatewayId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         Gateway gateway = gatewayActivoDelProceso(gatewayId, proceso);
         return conAdvertencias(toDto(gateway), proceso, gateway);
     }
@@ -80,7 +83,7 @@ public class GatewayService {
     @Transactional(readOnly = true)
     public List<GatewayRespuestaDto> consultarActivos(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         return activosDelProceso(proceso).stream()
                 .map(this::toDto)
                 .toList();
@@ -94,7 +97,7 @@ public class GatewayService {
     @Transactional(readOnly = true)
     public List<String> advertenciasDelProceso(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         List<String> advertencias = new ArrayList<>();
         for (Gateway gateway : activosDelProceso(proceso)) {
             advertencias.addAll(advertenciasDe(proceso, gateway));
@@ -268,6 +271,7 @@ public class GatewayService {
         GatewayRespuestaDto respuesta = new GatewayRespuestaDto();
         respuesta.setId(gateway.getId());
         respuesta.setProcesoId(gateway.getProceso().getId());
+        respuesta.setPoolId(gateway.getPool().getId());
         respuesta.setTipo(gateway.getTipo());
         respuesta.setSimbolo(gateway.getTipo().getSimbolo());
         respuesta.setEtiqueta(gateway.etiqueta());

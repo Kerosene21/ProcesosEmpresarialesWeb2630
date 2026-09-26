@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import co.edu.javeriana.procesosempresariales.domain.Gateway;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.TipoGateway;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
@@ -53,6 +55,9 @@ class ValidacionModeloServiceTest {
     @Mock
     private HistorialProcesoService historialProcesoService;
 
+    @Mock
+    private PoolService poolService;
+
     private ValidacionModeloService validacionModeloService;
 
     @BeforeEach
@@ -60,19 +65,24 @@ class ValidacionModeloServiceTest {
         NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository);
         ConexionesService conexiones = new ConexionesService(arcoRepository, resolver);
         GatewayService gatewayService = new GatewayService(gatewayRepository, accesoProcesoService,
-                historialProcesoService, conexiones, resolver);
+                historialProcesoService, conexiones, resolver, poolService);
         validacionModeloService = new ValidacionModeloService(gatewayService, conexiones);
+    }
+
+    private Pool poolPropietario() {
+        return new Pool(POOL_ID, null, "Alpes Logistica", TipoPool.PROPIETARIO, 1, false, true, null,
+                new ArrayList<>());
     }
 
     private Proceso proceso() {
         return new Proceso(PROCESO_ID, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
                 new Empresa(7L, "Alpes Logistica", "900123456-7", "contacto@alpes.com"),
-                new Pool(POOL_ID, "Alpes Logistica", List.of()), false);
+                List.of(poolPropietario()), false);
     }
 
     private void existeElGateway(TipoGateway tipo) {
         when(gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(PROCESO_ID))
-                .thenReturn(List.of(new Gateway(GATEWAY_ID, tipo, proceso(), 300, 120, true)));
+                .thenReturn(List.of(new Gateway(GATEWAY_ID, tipo, proceso(), poolPropietario(), 300, 120, true)));
     }
 
     private void sinGateways() {

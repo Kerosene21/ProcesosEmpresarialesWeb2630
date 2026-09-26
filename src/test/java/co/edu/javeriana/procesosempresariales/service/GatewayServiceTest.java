@@ -5,10 +5,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +36,7 @@ import co.edu.javeriana.procesosempresariales.domain.Lane;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
 import co.edu.javeriana.procesosempresariales.domain.TipoGateway;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
@@ -41,6 +45,8 @@ import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
+import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
@@ -83,6 +89,9 @@ class GatewayServiceTest {
     @Mock
     private HistorialProcesoRepository historialProcesoRepository;
 
+    @Mock
+    private PoolService poolService;
+
     private GatewayService gatewayService;
 
     @BeforeEach
@@ -93,7 +102,7 @@ class GatewayServiceTest {
                 new BCryptPasswordEncoder());
         AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
         gatewayService = new GatewayService(gatewayRepository, acceso,
-                new HistorialProcesoService(historialProcesoRepository), conexiones, resolver);
+                new HistorialProcesoService(historialProcesoRepository), conexiones, resolver, poolService);
     }
 
     private Empresa empresa(Long id) {
@@ -106,9 +115,14 @@ class GatewayServiceTest {
                         empresa(EMPRESA_PROPIA))));
     }
 
+    private Pool poolPropietario() {
+        return new Pool(POOL_ID, null, "Alpes Logistica", TipoPool.PROPIETARIO, 1, false, true, null,
+                new ArrayList<>());
+    }
+
     private Proceso proceso(Long empresaId, boolean eliminado) {
         return new Proceso(PROCESO_ID, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
-                empresa(empresaId), new Pool(POOL_ID, "Alpes Logistica", List.of()), eliminado);
+                empresa(empresaId), List.of(poolPropietario()), eliminado);
     }
 
     private Proceso existeElProceso(Long empresaId, boolean eliminado) {
@@ -122,7 +136,7 @@ class GatewayServiceTest {
     }
 
     private Gateway gateway(TipoGateway tipo, boolean activo) {
-        return new Gateway(GATEWAY_ID, tipo, proceso(EMPRESA_PROPIA, false), 300, 120, activo);
+        return new Gateway(GATEWAY_ID, tipo, proceso(EMPRESA_PROPIA, false), poolPropietario(), 300, 120, activo);
     }
 
     private Gateway existeElGateway(TipoGateway tipo, boolean activo) {
@@ -132,6 +146,7 @@ class GatewayServiceTest {
     }
 
     private void devolverElGatewayGuardado() {
+        when(poolService.poolParaNodo(any(Proceso.class), isNull())).thenReturn(poolPropietario());
         when(gatewayRepository.save(any(Gateway.class))).thenAnswer(invocacion -> {
             Gateway guardado = invocacion.getArgument(0);
             guardado.setId(GATEWAY_ID);
@@ -665,7 +680,7 @@ class GatewayServiceTest {
     private void existeLaActividad(Long id, String nombre) {
         when(actividadRepository.findByIdAndProcesoId(id, PROCESO_ID)).thenReturn(Optional.of(new Actividad(id,
                 nombre, TipoActividad.TAREA_USUARIO, proceso(EMPRESA_PROPIA, false),
-                new Lane(11L, "General", new Pool(POOL_ID, "Alpes Logistica", List.of())), 100, 40, true)));
+                new Lane(11L, "General", poolPropietario(), null, 1, true), 100, 40, true)));
     }
 
     private List<Arco> existeUnaRamificacionCompleta() {
@@ -923,5 +938,95 @@ class GatewayServiceTest {
         assertThatThrownBy(() -> gatewayService.obtenerParaEliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
                 .isInstanceOf(RecursoNoEncontradoException.class)
                 .hasMessage(GatewayService.GATEWAY_ELIMINADO);
+    }
+
+    private Pool poolCliente() {
+        return new Pool(90L, null, "Cliente", TipoPool.EXTERNO, 2, false, true, null, new ArrayList<>());
+    }
+
+    @Test
+    void crearUbicaElGatewayEnElPoolIndicado() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        when(poolService.poolParaNodo(any(Proceso.class), eq(90L))).thenReturn(poolCliente());
+        when(gatewayRepository.save(any(Gateway.class))).thenAnswer(invocacion -> invocacion.getArgument(0));
+
+        GatewayRespuestaDto creado = gatewayService.crear(PROCESO_ID,
+                new CrearGatewayDto(TipoGateway.EXCLUSIVO, 300, 120, 90L), USERNAME);
+
+        assertThat(gatewayGuardado().getPool().getId()).isEqualTo(90L);
+        assertThat(creado.getPoolId()).isEqualTo(90L);
+    }
+
+    @Test
+    void crearSinPoolUsaElPoolPropietarioCuandoEsElUnico() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        devolverElGatewayGuardado();
+
+        GatewayRespuestaDto creado = gatewayService.crear(PROCESO_ID, formularioCreacion(TipoGateway.PARALELO),
+                USERNAME);
+
+        assertThat(creado.getPoolId()).isEqualTo(POOL_ID);
+    }
+
+    @Test
+    void crearNoAdivinaElPoolCuandoElProcesoTieneVarios() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        when(poolService.poolParaNodo(any(Proceso.class), isNull()))
+                .thenThrow(new PoolNoValidoException(PoolService.POOL_REQUERIDO));
+
+        assertThatThrownBy(() -> gatewayService.crear(PROCESO_ID, formularioCreacion(TipoGateway.EXCLUSIVO),
+                USERNAME))
+                .isInstanceOf(PoolNoValidoException.class)
+                .hasMessage(PoolService.POOL_REQUERIDO);
+
+        verify(gatewayRepository, never()).save(any(Gateway.class));
+    }
+
+    @Test
+    void unPoolCajaNegraNoAdmiteGateways() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        when(poolService.poolParaNodo(any(Proceso.class), eq(90L)))
+                .thenThrow(new PoolCajaNegraException("El pool 'Cliente'" + PoolService.CAJA_NEGRA));
+
+        assertThatThrownBy(() -> gatewayService.crear(PROCESO_ID,
+                new CrearGatewayDto(TipoGateway.EXCLUSIVO, 300, 120, 90L), USERNAME))
+                .isInstanceOf(PoolCajaNegraException.class);
+
+        verify(gatewayRepository, never()).save(any(Gateway.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void unaEmpresaInvitadaConsultaLosGatewaysDelProcesoCompartido() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+        existeElProceso(EMPRESA_AJENA, false);
+        when(procesoRepository.estaCompartidoCon(PROCESO_ID, EMPRESA_PROPIA)).thenReturn(true);
+        when(gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(PROCESO_ID))
+                .thenReturn(List.of(gateway(TipoGateway.EXCLUSIVO, true)));
+
+        assertThat(gatewayService.consultarActivos(PROCESO_ID, USERNAME))
+                .extracting(GatewayRespuestaDto::getId).containsExactly(GATEWAY_ID);
+    }
+
+    @Test
+    void unaEmpresaInvitadaNoModificaNiEliminaGateways() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_AJENA, false);
+
+        assertThatThrownBy(() -> gatewayService.crear(PROCESO_ID, formularioCreacion(TipoGateway.EXCLUSIVO),
+                USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+        assertThatThrownBy(() -> gatewayService.editar(PROCESO_ID, GATEWAY_ID,
+                formularioEdicion(TipoGateway.PARALELO, new LinkedHashMap<>()), USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+        assertThatThrownBy(() -> gatewayService.eliminar(PROCESO_ID, GATEWAY_ID, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        noSeModificoNada();
+        verify(procesoRepository, never()).estaCompartidoCon(anyLong(), anyLong());
     }
 }

@@ -12,4 +12,7 @@ public class ProcesoResumenDto {
     private String categoria;
     private EstadoProceso estado;
     private boolean eliminado;
+    private Long empresaPropietariaId;
+    private String empresaPropietariaNombre;
+    private boolean soloLectura;
 }

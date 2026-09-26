@@ -89,13 +89,13 @@ public class ActividadService {
     public ActividadRespuestaDto obtener(Long procesoId, Long actividadId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
         return toDto(actividadActivaDelProceso(actividadId,
-                accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario)));
+                accesoProcesoService.procesoVisiblePara(procesoId, usuario)));
     }
 
     @Transactional(readOnly = true)
     public List<ActividadRespuestaDto> consultarActivas(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         return actividadRepository.activasDelProceso(proceso.getId()).stream()
                 .map(this::toDto)
                 .toList();
@@ -104,7 +104,7 @@ public class ActividadService {
     @Transactional(readOnly = true)
     public List<LaneRespuestaDto> lanesDelProceso(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         return laneService.lanesDe(proceso);
     }
 
@@ -204,6 +204,7 @@ public class ActividadService {
     private ActividadRespuestaDto toDto(Actividad actividad) {
         ActividadRespuestaDto respuesta = modelMapper.map(actividad, ActividadRespuestaDto.class);
         respuesta.setProcesoId(actividad.getProceso().getId());
+        respuesta.setPoolId(actividad.getLane().getPool().getId());
         respuesta.setLaneId(actividad.getLane().getId());
         respuesta.setLaneNombre(actividad.getLane().nombreFuncional());
         return respuesta;

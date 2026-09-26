@@ -2,6 +2,7 @@ package co.edu.javeriana.procesosempresariales.controller;
 
 import java.net.URI;
 import java.security.Principal;
+import java.util.List;
 
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,18 @@ public class GatewayRestController {
     @Autowired
     public GatewayRestController(GatewayService gatewayService) {
         this.gatewayService = gatewayService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<GatewayRespuestaDto>> listar(@PathVariable("procesoId") Long procesoId,
+            Principal principal) {
+        return ResponseEntity.ok(gatewayService.consultarActivos(procesoId, principal.getName()));
+    }
+
+    @GetMapping("/{gatewayId}")
+    public ResponseEntity<GatewayRespuestaDto> obtener(@PathVariable("procesoId") Long procesoId,
+            @PathVariable("gatewayId") Long gatewayId, Principal principal) {
+        return ResponseEntity.ok(gatewayService.obtener(procesoId, gatewayId, principal.getName()));
     }
 
     @PostMapping

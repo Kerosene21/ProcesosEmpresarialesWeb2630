@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +24,7 @@ import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
 import co.edu.javeriana.procesosempresariales.domain.TipoGateway;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
@@ -49,19 +51,24 @@ class NodoFlujoResolverTest {
         nodoFlujoResolver = new NodoFlujoResolver(actividadRepository, gatewayRepository);
     }
 
+    private Pool poolPropietario() {
+        return new Pool(POOL_ID, null, "Alpes Logistica", TipoPool.PROPIETARIO, 1, false, true, null,
+                new ArrayList<>());
+    }
+
     private Proceso proceso() {
         return new Proceso(PROCESO_ID, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
                 new Empresa(7L, "Alpes Logistica", "900123456-7", "contacto@alpes.com"),
-                new Pool(POOL_ID, "Alpes Logistica", List.of()), false);
+                List.of(poolPropietario()), false);
     }
 
     private Actividad actividad(boolean activo) {
         return new Actividad(ACTIVIDAD_ID, "Revisar solicitud", TipoActividad.TAREA_USUARIO, proceso(),
-                new Lane(11L, "General", new Pool(POOL_ID, "Alpes Logistica", List.of())), 100, 50, activo);
+                new Lane(11L, "General", poolPropietario(), null, 1, true), 100, 50, activo);
     }
 
     private Gateway gateway(boolean activo) {
-        return new Gateway(GATEWAY_ID, TipoGateway.EXCLUSIVO, proceso(), 300, 120, activo);
+        return new Gateway(GATEWAY_ID, TipoGateway.EXCLUSIVO, proceso(), poolPropietario(), 300, 120, activo);
     }
 
     @Test
@@ -159,5 +166,36 @@ class NodoFlujoResolverTest {
     void laClaveYLaReferenciaIdentificanAlNodo() {
         assertThat(nodoFlujoResolver.clave(TipoNodoFlujo.GATEWAY, GATEWAY_ID)).isEqualTo("GATEWAY:12");
         assertThat(nodoFlujoResolver.referencia(TipoNodoFlujo.GATEWAY, GATEWAY_ID)).isEqualTo("GATEWAY #12");
+    }
+    @Test
+    void unaActividadConservaElPoolDeSuLane() {
+        NodoFlujo nodo = nodoFlujoResolver.desdeActividad(actividad(true));
+
+        assertThat(nodo.poolId()).isEqualTo(POOL_ID);
+    }
+
+    @Test
+    void unGatewayConservaElPoolAlQuePertenece() {
+        NodoFlujo nodo = nodoFlujoResolver.desdeGateway(gateway(true));
+
+        assertThat(nodo.poolId()).isEqualTo(POOL_ID);
+    }
+
+    @Test
+    void dosNodosDelMismoPoolPuedenConectarse() {
+        NodoFlujo actividad = nodoFlujoResolver.desdeActividad(actividad(true));
+        NodoFlujo gateway = nodoFlujoResolver.desdeGateway(gateway(true));
+
+        assertThat(actividad.mismoPool(gateway)).isTrue();
+        assertThat(gateway.mismoPool(actividad)).isTrue();
+    }
+
+    @Test
+    void dosNodosDePoolsDistintosNoEstanEnElMismoPool() {
+        NodoFlujo actividad = nodoFlujoResolver.desdeActividad(actividad(true));
+        NodoFlujo externo = new NodoFlujo(TipoNodoFlujo.ACTIVIDAD, 31L, 90L, "Enviar orden", 10, 10, true, null);
+
+        assertThat(actividad.mismoPool(externo)).isFalse();
+        assertThat(externo.mismoPool(actividad)).isFalse();
     }
 }

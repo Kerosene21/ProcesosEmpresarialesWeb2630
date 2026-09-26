@@ -3,8 +3,12 @@ package co.edu.javeriana.procesosempresariales.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +25,7 @@ import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
@@ -61,8 +66,10 @@ class AccesoProcesoServiceTest {
     }
 
     private Proceso proceso(Long empresaId, boolean eliminado) {
+        Pool propietario = new Pool(80L, null, "Empresa " + empresaId, TipoPool.PROPIETARIO, 1, false, true, null,
+                new ArrayList<>());
         return new Proceso(PROCESO_ID, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
-                empresa(empresaId), new Pool(80L, "Empresa " + empresaId, List.of()), eliminado);
+                empresa(empresaId), List.of(propietario), eliminado);
     }
 
     private void existeElProceso(Proceso proceso) {
@@ -197,5 +204,57 @@ class AccesoProcesoServiceTest {
 
         assertThatCode(() -> accesoProcesoService.validarRolAdministrador(administrador, MENSAJE))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void elPropietarioVeSuProcesoSinConsultarComparticiones() {
+        Proceso proceso = proceso(EMPRESA_PROPIA, true);
+        existeElProceso(proceso);
+
+        assertThat(accesoProcesoService.procesoVisiblePara(PROCESO_ID, usuario(RolUsuario.SOLO_LECTURA)))
+                .isSameAs(proceso);
+        verify(procesoRepository, never()).estaCompartidoCon(anyLong(), anyLong());
+    }
+
+    @Test
+    void unaEmpresaInvitadaVeElProcesoCompartidoConElla() {
+        Proceso proceso = proceso(EMPRESA_AJENA, false);
+        existeElProceso(proceso);
+        when(procesoRepository.estaCompartidoCon(PROCESO_ID, EMPRESA_PROPIA)).thenReturn(true);
+
+        assertThat(accesoProcesoService.procesoVisiblePara(PROCESO_ID, usuario(RolUsuario.EDITOR)))
+                .isSameAs(proceso);
+        assertThat(accesoProcesoService.esPropietario(proceso, usuario(RolUsuario.EDITOR))).isFalse();
+    }
+
+    @Test
+    void unaEmpresaNoInvitadaNoVeElProcesoDeOtra() {
+        existeElProceso(proceso(EMPRESA_AJENA, false));
+
+        assertThatThrownBy(() -> accesoProcesoService.procesoVisiblePara(PROCESO_ID,
+                usuario(RolUsuario.ADMINISTRADOR)))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage("El proceso no pertenece a la empresa del usuario");
+    }
+
+    @Test
+    void unaEmpresaInvitadaYaNoVeUnProcesoQueElPropietarioElimino() {
+        existeElProceso(proceso(EMPRESA_AJENA, true));
+        when(procesoRepository.estaCompartidoCon(PROCESO_ID, EMPRESA_PROPIA)).thenReturn(true);
+
+        assertThatThrownBy(() -> accesoProcesoService.procesoVisiblePara(PROCESO_ID,
+                usuario(RolUsuario.SOLO_LECTURA)))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El proceso ya fue eliminado");
+    }
+
+    @Test
+    void compartirUnProcesoNoLoVuelvePropiedadDeLaEmpresaInvitada() {
+        existeElProceso(proceso(EMPRESA_AJENA, false));
+
+        assertThatThrownBy(() -> accesoProcesoService.procesoActivoDeLaEmpresa(PROCESO_ID,
+                usuario(RolUsuario.ADMINISTRADOR)))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+        verify(procesoRepository, never()).estaCompartidoCon(anyLong(), anyLong());
     }
 }

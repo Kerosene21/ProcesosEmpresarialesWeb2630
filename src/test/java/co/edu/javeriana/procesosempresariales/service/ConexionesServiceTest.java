@@ -27,6 +27,7 @@ import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
 import co.edu.javeriana.procesosempresariales.domain.TipoGateway;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
 import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
@@ -60,10 +61,15 @@ class ConexionesServiceTest {
         conexionesService = new ConexionesService(arcoRepository, nodoFlujoResolver);
     }
 
+    private Pool poolPropietario() {
+        return new Pool(POOL_ID, null, "Alpes Logistica", TipoPool.PROPIETARIO, 1, false, true, null,
+                new ArrayList<>());
+    }
+
     private Proceso proceso() {
         return new Proceso(PROCESO_ID, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
                 new Empresa(7L, "Alpes Logistica", "900123456-7", "contacto@alpes.com"),
-                new Pool(POOL_ID, "Alpes Logistica", List.of()), false);
+                List.of(poolPropietario()), false);
     }
 
     private Arco arco(Long id, Long origenId, Long destinoId, boolean activo) {
@@ -77,13 +83,14 @@ class ConexionesServiceTest {
     }
 
     private NodoFlujo gateway(TipoGateway tipo) {
-        return nodoFlujoResolver.desdeGateway(new Gateway(GATEWAY_ID, tipo, proceso(), 300, 120, true));
+        return nodoFlujoResolver.desdeGateway(new Gateway(GATEWAY_ID, tipo, proceso(), poolPropietario(), 300, 120,
+                true));
     }
 
     private void existeLaActividad(Long id, String nombre) {
         when(actividadRepository.findByIdAndProcesoId(id, PROCESO_ID)).thenReturn(Optional.of(
                 new Actividad(id, nombre, TipoActividad.TAREA_USUARIO, proceso(),
-                        new Lane(LANE_ID, "General", new Pool(POOL_ID, "Alpes Logistica", List.of())), 100, 50,
+                        new Lane(LANE_ID, "General", poolPropietario(), null, 1, true), 100, 50,
                         true)));
     }
 

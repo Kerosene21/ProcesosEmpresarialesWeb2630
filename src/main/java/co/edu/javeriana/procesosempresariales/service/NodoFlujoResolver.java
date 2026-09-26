@@ -94,12 +94,12 @@ public class NodoFlujoResolver {
     }
 
     public NodoFlujo desdeActividad(Actividad actividad) {
-        return new NodoFlujo(TipoNodoFlujo.ACTIVIDAD, actividad.getId(), actividad.getNombre(),
-                actividad.getPosicionX(), actividad.getPosicionY(), actividad.isActivo(), null);
+        return new NodoFlujo(TipoNodoFlujo.ACTIVIDAD, actividad.getId(), actividad.getLane().getPool().getId(),
+                actividad.getNombre(), actividad.getPosicionX(), actividad.getPosicionY(), actividad.isActivo(), null);
     }
 
     public NodoFlujo desdeGateway(Gateway gateway) {
-        return new NodoFlujo(TipoNodoFlujo.GATEWAY, gateway.getId(), gateway.etiqueta(), gateway.getPosicionX(),
-                gateway.getPosicionY(), gateway.isActivo(), gateway.getTipo());
+        return new NodoFlujo(TipoNodoFlujo.GATEWAY, gateway.getId(), gateway.getPool().getId(), gateway.etiqueta(),
+                gateway.getPosicionX(), gateway.getPosicionY(), gateway.isActivo(), gateway.getTipo());
     }
 }

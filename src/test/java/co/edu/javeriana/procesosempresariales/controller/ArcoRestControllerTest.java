@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -35,6 +36,7 @@ import co.edu.javeriana.procesosempresariales.dto.EditarArcoDto;
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.service.ArcoService;
@@ -239,5 +241,34 @@ class ArcoRestControllerTest {
         mockMvc.perform(delete(RUTA_ARCO).principal(PRINCIPAL))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.codigo").value("RECURSO_NO_ENCONTRADO"));
+    }
+    @Test
+    void listarDevuelveLosArcosVigentesDelProceso() throws Exception {
+        when(arcoService.consultarActivos(5L, USERNAME)).thenReturn(List.of(arcoCreado()));
+
+        mockMvc.perform(get(RUTA_ARCOS).principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(60))
+                .andExpect(jsonPath("$[0].origenNombre").value("Revisar solicitud"));
+    }
+
+    @Test
+    void obtenerDevuelveElArcoSolicitado() throws Exception {
+        when(arcoService.obtener(5L, 60L, USERNAME)).thenReturn(arcoCreado());
+
+        mockMvc.perform(get(RUTA_ARCO).principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.destinoNombre").value("Aprobar solicitud"));
+    }
+
+    @Test
+    void crearUnFlujoDeSecuenciaEntrePoolsDevuelve400() throws Exception {
+        when(arcoService.crear(anyLong(), any(CrearArcoDto.class), anyString()))
+                .thenThrow(new FlujoEntrePoolsException("'Revisar solicitud' y 'Enviar orden' están en pools distintos"));
+
+        mockMvc.perform(post(RUTA_ARCOS).principal(PRINCIPAL).contentType(MediaType.APPLICATION_JSON)
+                .content(JSON_CREACION))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("SECUENCIA_ENTRE_POOLS"));
     }
 }

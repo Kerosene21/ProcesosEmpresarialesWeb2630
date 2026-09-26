@@ -738,4 +738,23 @@ class RolProcesoServiceTest {
                 .isInstanceOf(RecursoNoEncontradoException.class)
                 .hasMessage(RolProcesoService.ROL_ELIMINADO);
     }
+    @Test
+    void activosDeLaEmpresaDevuelveLosRolesActivosOrdenadosComoRespuesta() {
+        when(rolProcesoRepository.findByEmpresaIdAndActivoTrueOrderByNombreAsc(EMPRESA_PROPIA))
+                .thenReturn(List.of(rol(ROL_ID, ANALISTA, EMPRESA_PROPIA, true),
+                        rol(OTRO_ROL_ID, "Tesorero", EMPRESA_PROPIA, true)));
+
+        List<RolProcesoRespuestaDto> roles = rolProcesoService.activosDeLaEmpresa(EMPRESA_PROPIA);
+
+        assertThat(roles).extracting(RolProcesoRespuestaDto::getId).containsExactly(ROL_ID, OTRO_ROL_ID);
+        assertThat(roles).extracting(RolProcesoRespuestaDto::getNombre).containsExactly(ANALISTA, "Tesorero");
+        assertThat(roles).allMatch(RolProcesoRespuestaDto::isActivo);
+    }
+
+    @Test
+    void activosDeLaEmpresaSinRolesDevuelveUnaListaVacia() {
+        when(rolProcesoRepository.findByEmpresaIdAndActivoTrueOrderByNombreAsc(EMPRESA_AJENA)).thenReturn(List.of());
+
+        assertThat(rolProcesoService.activosDeLaEmpresa(EMPRESA_AJENA)).isEmpty();
+    }
 }

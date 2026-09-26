@@ -9,8 +9,11 @@ import org.springframework.web.servlet.ModelAndView;
 
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
+import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
@@ -39,10 +42,16 @@ public class MvcExceptionHandler {
     }
 
     @ExceptionHandler({ NodoFlujoNoValidoException.class, ArcoDuplicadoException.class,
-            CondicionArcoNoValidaException.class })
+            CondicionArcoNoValidaException.class, FlujoEntrePoolsException.class })
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     ModelAndView conexionNoValida(RuntimeException exception) {
         return vista("La conexion del diagrama no es valida", exception.getMessage());
+    }
+
+    @ExceptionHandler({ PoolNoValidoException.class, PoolCajaNegraException.class })
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    ModelAndView poolNoValido(RuntimeException exception) {
+        return vista("El pool indicado no admite ese elemento", exception.getMessage());
     }
 
     private ModelAndView vista(String titulo, String detalle) {

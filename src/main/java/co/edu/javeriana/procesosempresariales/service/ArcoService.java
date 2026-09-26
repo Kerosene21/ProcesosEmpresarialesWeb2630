@@ -21,6 +21,7 @@ import co.edu.javeriana.procesosempresariales.dto.EditarArcoDto;
 import co.edu.javeriana.procesosempresariales.dto.NodoFlujoDto;
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
@@ -38,6 +39,8 @@ public class ArcoService {
     static final String CONDICION_SIN_GATEWAY = "Solo los arcos que salen de un gateway llevan condición";
     static final String SIN_PERMISO_ESCRITURA = "Solo un administrador o editor puede crear o modificar arcos";
     static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar arcos";
+    static final String ENTRE_POOLS = "' están en pools distintos: un flujo de secuencia no cruza pools;"
+            + " entre pools solo se admiten flujos de mensaje";
 
     private ArcoRepository arcoRepository;
     private AccesoProcesoService accesoProcesoService;
@@ -67,6 +70,7 @@ public class ArcoService {
         NodoFlujo origen = nodoFlujoResolver.resolverActivo(proceso, dto.getOrigenTipo(), dto.getOrigenId());
         NodoFlujo destino = nodoFlujoResolver.resolverActivo(proceso, dto.getDestinoTipo(), dto.getDestinoId());
         validarExtremosDistintos(origen, destino);
+        validarMismoPool(origen, destino);
         validarQueNoEsteRepetido(proceso, origen, destino, null);
 
         Arco arco = new Arco();
@@ -91,14 +95,14 @@ public class ArcoService {
     @Transactional(readOnly = true)
     public ArcoRespuestaDto obtener(Long procesoId, Long arcoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         return toDto(arcoActivoDelProceso(arcoId, proceso), proceso);
     }
 
     @Transactional(readOnly = true)
     public List<ArcoRespuestaDto> consultarActivos(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         Map<String, NodoFlujo> nodos = nodoFlujoResolver.indiceDeNodosActivos(proceso);
         return arcoRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId()).stream()
                 .map(arco -> toDto(arco, proceso, nodos))
@@ -108,7 +112,7 @@ public class ArcoService {
     @Transactional(readOnly = true)
     public List<ArcoRespuestaDto> salientesDe(Long procesoId, TipoNodoFlujo tipo, Long nodoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         Map<String, NodoFlujo> nodos = nodoFlujoResolver.indiceDeNodosActivos(proceso);
         return conexionesService.salientesActivos(proceso.getId(), tipo, nodoId).stream()
                 .map(arco -> toDto(arco, proceso, nodos))
@@ -118,7 +122,7 @@ public class ArcoService {
     @Transactional(readOnly = true)
     public List<NodoFlujoDto> nodosDelProceso(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         return nodoFlujoResolver.nodosActivos(proceso).stream()
                 .map(nodo -> new NodoFlujoDto(nodo.tipo(), nodo.id(), nodo.nombre()))
                 .toList();
@@ -134,6 +138,7 @@ public class ArcoService {
         NodoFlujo origen = nodoFlujoResolver.resolverActivo(proceso, dto.getOrigenTipo(), dto.getOrigenId());
         NodoFlujo destino = nodoFlujoResolver.resolverActivo(proceso, dto.getDestinoTipo(), dto.getDestinoId());
         validarExtremosDistintos(origen, destino);
+        validarMismoPool(origen, destino);
         validarQueNoEsteRepetido(proceso, origen, destino, arco.getId());
 
         String etiquetaNueva = textoONulo(dto.getEtiqueta());
@@ -203,6 +208,12 @@ public class ArcoService {
     private void validarExtremosDistintos(NodoFlujo origen, NodoFlujo destino) {
         if (origen.tipo() == destino.tipo() && Objects.equals(origen.id(), destino.id())) {
             throw new NodoFlujoNoValidoException(EXTREMOS_IGUALES);
+        }
+    }
+
+    private void validarMismoPool(NodoFlujo origen, NodoFlujo destino) {
+        if (!origen.mismoPool(destino)) {
+            throw new FlujoEntrePoolsException("'" + origen.nombre() + "' y '" + destino.nombre() + ENTRE_POOLS);
         }
     }
 

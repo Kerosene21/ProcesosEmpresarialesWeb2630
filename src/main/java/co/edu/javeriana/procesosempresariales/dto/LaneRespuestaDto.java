@@ -1,17 +1,19 @@
 package co.edu.javeriana.procesosempresariales.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor
+@Getter @Setter @NoArgsConstructor
 public class LaneRespuestaDto {
     private Long id;
     private String nombre;
     private Long rolProcesoId;
+    private Long poolId;
+    private int orden;
 
     public LaneRespuestaDto(Long id, String nombre) {
-        this(id, nombre, null);
+        this.id = id;
+        this.nombre = nombre;
     }
 }

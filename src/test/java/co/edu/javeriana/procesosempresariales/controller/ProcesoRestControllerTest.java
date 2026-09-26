@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -17,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.security.Principal;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,14 +26,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
+import co.edu.javeriana.procesosempresariales.dto.AlcanceProceso;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
+import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
+import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
@@ -239,5 +247,109 @@ class ProcesoRestControllerTest {
         mockMvc.perform(delete("/api/procesos/5").principal(PRINCIPAL))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.codigo").value("RECURSO_NO_ENCONTRADO"));
+    }
+    private ProcesoResumenDto resumenCompartido() {
+        ProcesoResumenDto resumen = new ProcesoResumenDto();
+        resumen.setId(6L);
+        resumen.setNombre("Compras");
+        resumen.setCategoria("Abastecimiento");
+        resumen.setEstado(EstadoProceso.PUBLICADO);
+        resumen.setEmpresaPropietariaId(99L);
+        resumen.setEmpresaPropietariaNombre("Andes Distribucion");
+        resumen.setSoloLectura(true);
+        return resumen;
+    }
+
+    @Test
+    void consultarDevuelveUnaPaginaDeResumenesConLaEmpresaPropietaria() throws Exception {
+        when(procesoService.consultarProcesos(any(FiltroProcesosDto.class), eq(USERNAME)))
+                .thenReturn(new PageImpl<>(List.of(resumenCompartido()), PageRequest.of(1, 10), 11));
+
+        mockMvc.perform(get("/api/procesos").principal(PRINCIPAL).param("alcance", "COMPARTIDOS")
+                .param("q", "comp").param("page", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(6))
+                .andExpect(jsonPath("$.content[0].empresaPropietariaId").value(99))
+                .andExpect(jsonPath("$.content[0].empresaPropietariaNombre").value("Andes Distribucion"))
+                .andExpect(jsonPath("$.content[0].soloLectura").value(true))
+                .andExpect(jsonPath("$.page.number").value(1))
+                .andExpect(jsonPath("$.page.totalElements").value(11));
+
+        ArgumentCaptor<FiltroProcesosDto> capturado = ArgumentCaptor.forClass(FiltroProcesosDto.class);
+        verify(procesoService).consultarProcesos(capturado.capture(), eq(USERNAME));
+        assertThat(capturado.getValue().getAlcance()).isEqualTo(AlcanceProceso.COMPARTIDOS);
+        assertThat(capturado.getValue().getQ()).isEqualTo("comp");
+        assertThat(capturado.getValue().getPage()).isEqualTo(1);
+    }
+
+    @Test
+    void consultarSinParametrosDelegaUnFiltroVacio() throws Exception {
+        when(procesoService.consultarProcesos(any(FiltroProcesosDto.class), eq(USERNAME)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
+
+        mockMvc.perform(get("/api/procesos").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+
+        ArgumentCaptor<FiltroProcesosDto> capturado = ArgumentCaptor.forClass(FiltroProcesosDto.class);
+        verify(procesoService).consultarProcesos(capturado.capture(), eq(USERNAME));
+        assertThat(capturado.getValue().getAlcance()).isNull();
+    }
+
+    @Test
+    void obtenerDevuelveElProcesoVisibleIndicandoSiEsDeSoloLectura() throws Exception {
+        ProcesoRespuestaDto compartido = procesoCreado();
+        compartido.setEmpresaPropietariaId(99L);
+        compartido.setEmpresaPropietariaNombre("Andes Distribucion");
+        compartido.setSoloLectura(true);
+        when(procesoService.obtenerVisible(5L, USERNAME)).thenReturn(compartido);
+
+        mockMvc.perform(get("/api/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(5))
+                .andExpect(jsonPath("$.poolId").value(80))
+                .andExpect(jsonPath("$.empresaPropietariaNombre").value("Andes Distribucion"))
+                .andExpect(jsonPath("$.soloLectura").value(true));
+    }
+
+    @Test
+    void obtenerUnProcesoAjenoNoCompartidoDevuelve403() throws Exception {
+        when(procesoService.obtenerVisible(5L, USERNAME))
+                .thenThrow(new UsuarioSinPermisoException("El proceso no pertenece a la empresa del usuario"));
+
+        mockMvc.perform(get("/api/procesos/5").principal(PRINCIPAL))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("USUARIO_SIN_PERMISO"));
+    }
+
+    @Test
+    void obtenerUnProcesoInexistenteDevuelve404() throws Exception {
+        when(procesoService.obtenerVisible(404L, USERNAME))
+                .thenThrow(new RecursoNoEncontradoException("El proceso no existe"));
+
+        mockMvc.perform(get("/api/procesos/404").principal(PRINCIPAL))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void historialDevuelveLosCambiosDelProcesoPropio() throws Exception {
+        HistorialProcesoRespuestaDto cambio = new HistorialProcesoRespuestaDto();
+        cambio.setUsuarioCorreo(USERNAME);
+        cambio.setCambiosRealizados("pool creado: 'Cliente' (EXTERNO)");
+        when(procesoService.consultarHistorial(5L, USERNAME)).thenReturn(List.of(cambio));
+
+        mockMvc.perform(get("/api/procesos/5/historial").principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].usuarioCorreo").value(USERNAME))
+                .andExpect(jsonPath("$[0].cambiosRealizados").value("pool creado: 'Cliente' (EXTERNO)"));
+    }
+
+    @Test
+    void elHistorialDeUnProcesoCompartidoNoSeExponeALaEmpresaInvitada() throws Exception {
+        when(procesoService.consultarHistorial(5L, USERNAME))
+                .thenThrow(new UsuarioSinPermisoException("El proceso no pertenece a la empresa del usuario"));
+
+        mockMvc.perform(get("/api/procesos/5/historial").principal(PRINCIPAL))
+                .andExpect(status().isForbidden());
     }
 }

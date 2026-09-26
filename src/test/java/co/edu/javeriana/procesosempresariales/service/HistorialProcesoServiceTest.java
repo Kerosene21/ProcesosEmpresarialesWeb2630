@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +24,7 @@ import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
@@ -51,8 +53,10 @@ class HistorialProcesoServiceTest {
     }
 
     private Proceso proceso(EstadoProceso estado) {
+        Pool propietario = new Pool(80L, null, "Alpes Logistica", TipoPool.PROPIETARIO, 1, false, true, null,
+                new ArrayList<>());
         return new Proceso(PROCESO_ID, "Ventas", "Proceso comercial", "Comercial", estado, empresa(),
-                new Pool(80L, "Alpes Logistica", List.of()), false);
+                List.of(propietario), false);
     }
 
     private Usuario usuario() {

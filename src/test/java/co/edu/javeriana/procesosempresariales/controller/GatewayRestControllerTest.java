@@ -34,6 +34,7 @@ import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.service.GatewayService;
@@ -236,5 +237,50 @@ class GatewayRestControllerTest {
 
         mockMvc.perform(get(RUTA_GATEWAY + "/eliminacion").principal(PRINCIPAL))
                 .andExpect(status().isForbidden());
+    }
+    @Test
+    void listarDevuelveLosGatewaysVigentesConSuPool() throws Exception {
+        GatewayRespuestaDto gateway = gateway(TipoGateway.EXCLUSIVO);
+        gateway.setPoolId(80L);
+        when(gatewayService.consultarActivos(5L, USERNAME)).thenReturn(List.of(gateway));
+
+        mockMvc.perform(get(RUTA_GATEWAYS).principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(12))
+                .andExpect(jsonPath("$[0].poolId").value(80));
+    }
+
+    @Test
+    void obtenerDevuelveElGatewaySolicitado() throws Exception {
+        when(gatewayService.obtener(5L, 12L, USERNAME)).thenReturn(gateway(TipoGateway.PARALELO));
+
+        mockMvc.perform(get(RUTA_GATEWAY).principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tipo").value("PARALELO"));
+    }
+
+    @Test
+    void crearEnviaElPoolIndicadoAlServicio() throws Exception {
+        when(gatewayService.crear(anyLong(), any(CrearGatewayDto.class), anyString()))
+                .thenReturn(gateway(TipoGateway.EXCLUSIVO));
+
+        mockMvc.perform(post(RUTA_GATEWAYS).principal(PRINCIPAL).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"tipo":"EXCLUSIVO","posicionX":300,"posicionY":120,"poolId":90}
+                        """))
+                .andExpect(status().isCreated());
+
+        assertThat(formularioRecibido().getPoolId()).isEqualTo(90L);
+    }
+
+    @Test
+    void crearEnUnPoolDeCajaNegraDevuelve409() throws Exception {
+        when(gatewayService.crear(anyLong(), any(CrearGatewayDto.class), anyString()))
+                .thenThrow(new PoolCajaNegraException("El pool es una caja negra"));
+
+        mockMvc.perform(post(RUTA_GATEWAYS).principal(PRINCIPAL).contentType(MediaType.APPLICATION_JSON)
+                .content(JSON_CREACION))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.codigo").value("POOL_CAJA_NEGRA"));
     }
 }

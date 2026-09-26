@@ -34,12 +34,35 @@ public class AccesoProcesoService {
 
     @Transactional(readOnly = true)
     public Proceso procesoDeLaEmpresa(Long procesoId, Usuario usuario) {
-        Proceso proceso = procesoRepository.findById(procesoId)
-                .orElseThrow(() -> new RecursoNoEncontradoException(PROCESO_NO_EXISTE));
-        if (!proceso.getEmpresa().getId().equals(usuario.getEmpresa().getId())) {
+        Proceso proceso = buscarProceso(procesoId);
+        if (!esPropietario(proceso, usuario)) {
             throw new UsuarioSinPermisoException(PROCESO_AJENO);
         }
         return proceso;
+    }
+
+    @Transactional(readOnly = true)
+    public Proceso procesoVisiblePara(Long procesoId, Usuario usuario) {
+        Proceso proceso = buscarProceso(procesoId);
+        if (esPropietario(proceso, usuario)) {
+            return proceso;
+        }
+        if (!procesoRepository.estaCompartidoCon(proceso.getId(), usuario.getEmpresa().getId())) {
+            throw new UsuarioSinPermisoException(PROCESO_AJENO);
+        }
+        if (proceso.isEliminado()) {
+            throw new RecursoNoEncontradoException(PROCESO_ELIMINADO);
+        }
+        return proceso;
+    }
+
+    public boolean esPropietario(Proceso proceso, Usuario usuario) {
+        return proceso.getEmpresa().getId().equals(usuario.getEmpresa().getId());
+    }
+
+    private Proceso buscarProceso(Long procesoId) {
+        return procesoRepository.findById(procesoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(PROCESO_NO_EXISTE));
     }
 
     @Transactional(readOnly = true)

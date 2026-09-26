@@ -18,7 +18,9 @@ import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.domain.Lane;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
+import co.edu.javeriana.procesosempresariales.dto.AlcanceProceso;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
@@ -77,7 +79,7 @@ public class ProcesoService {
         proceso.setCategoria(categoria);
         proceso.setEstado(EstadoProceso.BORRADOR);
         proceso.setEmpresa(usuario.getEmpresa());
-        proceso.setPool(poolConLaneInicial(usuario.getEmpresa().getNombre()));
+        proceso.agregarPool(poolPropietarioConLaneInicial(usuario.getEmpresa().getNombre()));
         try {
             return toDto(procesoRepository.save(proceso));
         } catch (DataIntegrityViolationException exception) {
@@ -92,6 +94,13 @@ public class ProcesoService {
     }
 
     @Transactional(readOnly = true)
+    public ProcesoRespuestaDto obtenerVisible(Long procesoId, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
+        return toDto(proceso, !accesoProcesoService.esPropietario(proceso, usuario));
+    }
+
+    @Transactional(readOnly = true)
     public Page<ProcesoResumenDto> consultarProcesos(FiltroProcesosDto filtro, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
         normalizar(filtro);
@@ -99,7 +108,7 @@ public class ProcesoService {
                 Sort.by(Sort.Direction.ASC, "nombre"));
         return procesoRepository
                 .findAll(procesoSpecifications.deLaEmpresaCon(usuario.getEmpresa().getId(), filtro), paginacion)
-                .map(this::toResumen);
+                .map(proceso -> toResumen(proceso, usuario));
     }
 
     @Transactional(readOnly = true)
@@ -183,9 +192,10 @@ public class ProcesoService {
         return proceso.getEstado() == EstadoProceso.BORRADOR && dto.getEstado() != EstadoProceso.BORRADOR;
     }
 
-    private Pool poolConLaneInicial(String nombreEmpresa) {
-        Pool pool = new Pool(null, nombreEmpresa, new ArrayList<>());
-        pool.getLanes().add(new Lane(null, LANE_INICIAL, pool));
+    private Pool poolPropietarioConLaneInicial(String nombreEmpresa) {
+        Pool pool = new Pool(null, null, nombreEmpresa, TipoPool.PROPIETARIO, 1, false, true, null,
+                new ArrayList<>());
+        pool.agregarLane(new Lane(null, LANE_INICIAL, null, null, 1, true));
         return pool;
     }
 
@@ -211,6 +221,9 @@ public class ProcesoService {
         if (filtro.getVisibilidad() == null) {
             filtro.setVisibilidad(VisibilidadProceso.ACTIVOS);
         }
+        if (filtro.getAlcance() == null) {
+            filtro.setAlcance(AlcanceProceso.PROPIOS);
+        }
         filtro.setPage(filtro.getPage() == null ? 0 : Math.max(filtro.getPage(), 0));
     }
 
@@ -221,9 +234,12 @@ public class ProcesoService {
         return valor.trim();
     }
 
-    private ProcesoResumenDto toResumen(Proceso proceso) {
+    private ProcesoResumenDto toResumen(Proceso proceso, Usuario usuario) {
         ProcesoResumenDto resumen = modelMapper.map(proceso, ProcesoResumenDto.class);
         resumen.setDescripcion(resumir(proceso.getDescripcion()));
+        resumen.setEmpresaPropietariaId(proceso.getEmpresa().getId());
+        resumen.setEmpresaPropietariaNombre(proceso.getEmpresa().getNombre());
+        resumen.setSoloLectura(!accesoProcesoService.esPropietario(proceso, usuario));
         return resumen;
     }
 
@@ -235,9 +251,17 @@ public class ProcesoService {
     }
 
     private ProcesoRespuestaDto toDto(Proceso proceso) {
+        return toDto(proceso, false);
+    }
+
+    private ProcesoRespuestaDto toDto(Proceso proceso, boolean soloLectura) {
         ProcesoRespuestaDto response = modelMapper.map(proceso, ProcesoRespuestaDto.class);
-        response.setPoolId(proceso.getPool().getId());
-        response.setPoolNombre(proceso.getPool().getNombre());
+        Pool propietario = proceso.poolPropietario();
+        response.setPoolId(propietario.getId());
+        response.setPoolNombre(propietario.getNombre());
+        response.setEmpresaPropietariaId(proceso.getEmpresa().getId());
+        response.setEmpresaPropietariaNombre(proceso.getEmpresa().getNombre());
+        response.setSoloLectura(soloLectura);
         return response;
     }
 }

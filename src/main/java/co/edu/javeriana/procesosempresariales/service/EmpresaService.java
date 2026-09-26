@@ -21,6 +21,8 @@ import co.edu.javeriana.procesosempresariales.repository.EmpresaRepository;
 @Service
 public class EmpresaService {
 
+    static final String EMPRESA_NO_EXISTE = "La empresa no existe";
+
     private EmpresaRepository empresaRepository;
     private UsuarioService usuarioService;
     private ModelMapper modelMapper;
@@ -68,10 +70,15 @@ public class EmpresaService {
         if (!propia.getId().equals(empresaId)) {
             throw new UsuarioSinPermisoException("La empresa consultada no pertenece al usuario autenticado");
         }
-        Empresa empresa = empresaRepository.findById(empresaId)
-                .orElseThrow(() -> new RecursoNoEncontradoException("La empresa no existe"));
+        Empresa empresa = buscarPorId(empresaId);
         String administrador = usuarioService.correoDelAdministrador(empresa.getId()).orElse(null);
         return toDto(empresa, administrador);
+    }
+
+    @Transactional(readOnly = true)
+    public Empresa buscarPorId(Long empresaId) {
+        return empresaRepository.findById(empresaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException(EMPRESA_NO_EXISTE));
     }
 
     private Empresa empresaDelUsuario(String username) {

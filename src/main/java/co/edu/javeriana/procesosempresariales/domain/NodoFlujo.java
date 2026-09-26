@@ -1,7 +1,9 @@
 package co.edu.javeriana.procesosempresariales.domain;
 
-public record NodoFlujo(TipoNodoFlujo tipo, Long id, String nombre, Integer posicionX, Integer posicionY,
-        boolean activo, TipoGateway tipoGateway) {
+import java.util.Objects;
+
+public record NodoFlujo(TipoNodoFlujo tipo, Long id, Long poolId, String nombre, Integer posicionX,
+        Integer posicionY, boolean activo, TipoGateway tipoGateway) {
 
     public boolean esGateway() {
         return tipo == TipoNodoFlujo.GATEWAY;
@@ -9,5 +11,9 @@ public record NodoFlujo(TipoNodoFlujo tipo, Long id, String nombre, Integer posi
 
     public boolean exigeCondicion() {
         return esGateway() && tipoGateway.exigeCondicion();
+    }
+
+    public boolean mismoPool(NodoFlujo otro) {
+        return Objects.equals(poolId, otro.poolId());
     }
 }

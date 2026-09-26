@@ -4,7 +4,6 @@ import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import lombok.Getter;
 import lombok.Setter;
 
-// Datos que se mandan al cliente 
 @Getter @Setter 
 public class ProcesoRespuestaDto {
     private Long id; 
@@ -12,7 +11,10 @@ public class ProcesoRespuestaDto {
     private String descripcion; 
     private String categoria; 
     private EstadoProceso estado;
-    private Long poolId; // Pool asociado al diagrama
+    private Long poolId;
     private String poolNombre;
     private boolean eliminado;
+    private Long empresaPropietariaId;
+    private String empresaPropietariaNombre;
+    private boolean soloLectura;
 }
