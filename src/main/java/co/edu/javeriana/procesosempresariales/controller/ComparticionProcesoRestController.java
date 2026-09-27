@@ -13,12 +13,21 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import co.edu.javeriana.procesosempresariales.dto.EmpresaInvitadaDto;
 import co.edu.javeriana.procesosempresariales.service.ComparticionProcesoService;
 
 @RestController
 @RequestMapping("/api/procesos/{procesoId}/compartido-con")
+@Tag(name = "Compartición de procesos", description = "Compartición en solo lectura de un proceso con otras empresas "
+        + "registradas. La empresa propietaria conserva la edición exclusiva del proceso.")
 public class ComparticionProcesoRestController {
+
+    private static final String EMPRESA_INVITADA = "Empresa registrada que recibe o pierde el acceso de solo lectura.";
 
     private ComparticionProcesoService comparticionProcesoService;
 
@@ -28,21 +37,33 @@ public class ComparticionProcesoRestController {
     }
 
     @GetMapping
+    @Operation(summary = "Listar empresas con acceso al proceso", description = "Solo para la empresa propietaria.")
     public ResponseEntity<List<EmpresaInvitadaDto>> listar(@PathVariable("procesoId") Long procesoId,
             Principal principal) {
         return ResponseEntity.ok(comparticionProcesoService.listar(procesoId, principal.getName()));
     }
 
     @PostMapping("/{empresaId}")
+    @Operation(summary = "Compartir proceso con una empresa", description = "La empresa invitada podrá consultar el "
+            + "proceso y su diagrama sin modificarlos. Solo ADMINISTRADOR de la empresa propietaria.")
+    @ApiResponse(responseCode = "201", description = "Proceso compartido en solo lectura.")
+    @ApiResponse(responseCode = "400", description = "Un proceso no se comparte con su propia empresa "
+            + "(`COMPARTICION_NO_VALIDA`).")
+    @ApiResponse(responseCode = "409", description = "El proceso ya está compartido con esa empresa "
+            + "(`PROCESO_YA_COMPARTIDO`).")
     public ResponseEntity<EmpresaInvitadaDto> compartir(@PathVariable("procesoId") Long procesoId,
-            @PathVariable("empresaId") Long empresaId, Principal principal) {
+            @Parameter(description = EMPRESA_INVITADA) @PathVariable("empresaId") Long empresaId,
+            Principal principal) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(comparticionProcesoService.compartir(procesoId, empresaId, principal.getName()));
     }
 
     @DeleteMapping("/{empresaId}")
+    @Operation(summary = "Dejar de compartir proceso", description = "Retira el acceso de solo lectura; responde 404 "
+            + "si el proceso no estaba compartido con esa empresa. Solo ADMINISTRADOR de la empresa propietaria.")
     public ResponseEntity<Void> dejarDeCompartir(@PathVariable("procesoId") Long procesoId,
-            @PathVariable("empresaId") Long empresaId, Principal principal) {
+            @Parameter(description = EMPRESA_INVITADA) @PathVariable("empresaId") Long empresaId,
+            Principal principal) {
         comparticionProcesoService.dejarDeCompartir(procesoId, empresaId, principal.getName());
         return ResponseEntity.noContent().build();
     }
