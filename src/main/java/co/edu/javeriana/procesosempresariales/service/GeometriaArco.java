@@ -10,6 +10,7 @@ public class GeometriaArco {
     public static final int ANCHO_ACTIVIDAD = 130;
     public static final int ALTO_ACTIVIDAD = 46;
     public static final int LADO_GATEWAY = 46;
+    public static final int DIAMETRO_EVENTO = 36;
 
     public PuntoDiagrama centro(TipoNodoFlujo tipo, Integer posicionX, Integer posicionY) {
         int x = posicionX == null ? 0 : posicionX;
@@ -37,10 +38,18 @@ public class GeometriaArco {
     }
 
     private int mediaAnchura(TipoNodoFlujo tipo) {
-        return tipo == TipoNodoFlujo.GATEWAY ? LADO_GATEWAY / 2 : ANCHO_ACTIVIDAD / 2;
+        return switch (tipo) {
+            case GATEWAY -> LADO_GATEWAY / 2;
+            case EVENTO -> DIAMETRO_EVENTO / 2;
+            case ACTIVIDAD -> ANCHO_ACTIVIDAD / 2;
+        };
     }
 
     private int mediaAltura(TipoNodoFlujo tipo) {
-        return tipo == TipoNodoFlujo.GATEWAY ? LADO_GATEWAY / 2 : ALTO_ACTIVIDAD / 2;
+        return switch (tipo) {
+            case GATEWAY -> LADO_GATEWAY / 2;
+            case EVENTO -> DIAMETRO_EVENTO / 2;
+            case ACTIVIDAD -> ALTO_ACTIVIDAD / 2;
+        };
     }
 }

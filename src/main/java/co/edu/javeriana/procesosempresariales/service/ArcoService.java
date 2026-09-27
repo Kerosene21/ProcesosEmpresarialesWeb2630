@@ -20,6 +20,7 @@ import co.edu.javeriana.procesosempresariales.dto.CrearArcoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarArcoDto;
 import co.edu.javeriana.procesosempresariales.dto.NodoFlujoDto;
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
@@ -41,6 +42,8 @@ public class ArcoService {
     static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar arcos";
     static final String ENTRE_POOLS = "' están en pools distintos: un flujo de secuencia no cruza pools;"
             + " entre pools solo se admiten flujos de mensaje";
+    static final String DESTINO_SIN_ENTRADAS = "' es un Message Catch de inicio: no admite flujos de secuencia"
+            + " entrantes";
 
     private ArcoRepository arcoRepository;
     private AccesoProcesoService accesoProcesoService;
@@ -71,6 +74,7 @@ public class ArcoService {
         NodoFlujo destino = nodoFlujoResolver.resolverActivo(proceso, dto.getDestinoTipo(), dto.getDestinoId());
         validarExtremosDistintos(origen, destino);
         validarMismoPool(origen, destino);
+        validarQueAdmitaEntradas(destino);
         validarQueNoEsteRepetido(proceso, origen, destino, null);
 
         Arco arco = new Arco();
@@ -139,6 +143,7 @@ public class ArcoService {
         NodoFlujo destino = nodoFlujoResolver.resolverActivo(proceso, dto.getDestinoTipo(), dto.getDestinoId());
         validarExtremosDistintos(origen, destino);
         validarMismoPool(origen, destino);
+        validarQueAdmitaEntradas(destino);
         validarQueNoEsteRepetido(proceso, origen, destino, arco.getId());
 
         String etiquetaNueva = textoONulo(dto.getEtiqueta());
@@ -214,6 +219,12 @@ public class ArcoService {
     private void validarMismoPool(NodoFlujo origen, NodoFlujo destino) {
         if (!origen.mismoPool(destino)) {
             throw new FlujoEntrePoolsException("'" + origen.nombre() + "' y '" + destino.nombre() + ENTRE_POOLS);
+        }
+    }
+
+    private void validarQueAdmitaEntradas(NodoFlujo destino) {
+        if (!destino.admiteEntradas()) {
+            throw new CatchInicioConEntradaException("'" + destino.nombre() + DESTINO_SIN_ENTRADAS);
         }
     }
 

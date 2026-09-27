@@ -20,6 +20,7 @@ import co.edu.javeriana.procesosempresariales.dto.PoolRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.RolProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.exception.PoolConContenidoException;
+import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.repository.PoolRepository;
@@ -42,6 +43,9 @@ public class PoolService {
             "Un pool externo representa a un participante no registrado y no lleva empresa";
     static final String CAJA_NEGRA = " es una caja negra y no admite elementos internos";
     static final String POOL_REQUERIDO = "El proceso tiene varios pools: indica en qué pool va el elemento";
+    static final String POOL_MENSAJE_AJENO =
+            "El pool destino del mensaje no es un pool activo declarado en el diagrama de este proceso";
+    static final String DESTINO_DE_ENVIOS = " recibe envíos externos activos: debe seguir siendo una caja negra";
 
     private PoolRepository poolRepository;
     private AccesoProcesoService accesoProcesoService;
@@ -108,6 +112,9 @@ public class PoolService {
         if (dto.esCajaNegra() && !pool.isCajaNegra()) {
             exigirSinContenido(pool, "no puede convertirse en caja negra");
         }
+        if (!dto.esCajaNegra() && pool.isCajaNegra() && poolRepository.enviosExternosEntrantes(pool.getId()) > 0) {
+            throw new PoolNoValidoException("El pool '" + pool.getNombre() + "'" + DESTINO_DE_ENVIOS);
+        }
 
         String nombreNuevo = dto.getNombre().trim();
         List<String> cambios = new ArrayList<>();
@@ -144,6 +151,11 @@ public class PoolService {
             throw new PoolNoValidoException(PROPIETARIO_NO_SE_ELIMINA);
         }
         exigirSinContenido(pool, "no se puede eliminar");
+        long flujosEntrantes = poolRepository.flujosDeMensajeEntrantes(pool.getId());
+        if (flujosEntrantes > 0) {
+            throw new PoolConContenidoException("El pool '" + pool.getNombre() + "' no se puede eliminar: es destino de "
+                    + flujosEntrantes + " flujos de mensaje activos");
+        }
 
         pool.setActivo(false);
         poolRepository.save(pool);
@@ -195,6 +207,13 @@ public class PoolService {
         return activos.get(0);
     }
 
+    @Transactional(readOnly = true)
+    public Pool poolDestinoDeMensaje(Proceso proceso, Long poolId) {
+        return poolRepository.findByIdAndProcesoId(poolId, proceso.getId())
+                .filter(Pool::isActivo)
+                .orElseThrow(() -> new PoolMensajeNoValidoException(POOL_MENSAJE_AJENO));
+    }
+
     private List<Pool> activosDe(Proceso proceso) {
         return poolRepository.findByProcesoIdAndActivoTrueOrderByOrdenAscIdAsc(proceso.getId());
     }
@@ -212,6 +231,11 @@ public class PoolService {
         if (lanes + actividades + gateways > 0) {
             throw new PoolConContenidoException("El pool '" + pool.getNombre() + "' " + accion + ": contiene "
                     + lanes + " lanes, " + actividades + " actividades y " + gateways + " gateways activos");
+        }
+        long eventos = poolRepository.eventosActivos(pool.getId());
+        if (eventos > 0) {
+            throw new PoolConContenidoException("El pool '" + pool.getNombre() + "' " + accion + ": contiene "
+                    + eventos + " eventos activos");
         }
     }
 

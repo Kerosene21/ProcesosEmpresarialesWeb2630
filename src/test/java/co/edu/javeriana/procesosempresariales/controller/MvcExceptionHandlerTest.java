@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.ModelAndView;
 
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
@@ -97,5 +98,14 @@ class MvcExceptionHandlerTest {
         ModelAndView vista = manejador.poolNoValido(new PoolCajaNegraException("El pool es una caja negra"));
 
         assertThat(vista.getModel()).containsEntry("detalle", "El pool es una caja negra");
+    }
+
+    @Test
+    void unArcoHaciaUnCatchDeInicioSeMuestraEnLaPaginaDeProblema() {
+        ModelAndView vista = manejador.conexionNoValida(
+                new CatchInicioConEntradaException("Un Message Catch de inicio no admite entradas"));
+
+        assertThat(vista.getViewName()).isEqualTo("error/problema");
+        assertThat(vista.getModel()).containsEntry("detalle", "Un Message Catch de inicio no admite entradas");
     }
 }

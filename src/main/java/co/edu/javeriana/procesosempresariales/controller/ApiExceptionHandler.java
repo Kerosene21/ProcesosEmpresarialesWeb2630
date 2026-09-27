@@ -10,13 +10,17 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.ComparticionNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
+import co.edu.javeriana.procesosempresariales.exception.CorrelacionNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.EnvioExternoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.LaneConActividadesException;
 import co.edu.javeriana.procesosempresariales.exception.LaneDuplicadaException;
 import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.MensajeEntreMismoPoolException;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
@@ -26,6 +30,7 @@ import co.edu.javeriana.procesosempresariales.exception.NombreRolProcesoDuplicad
 import co.edu.javeriana.procesosempresariales.exception.PermisoEstructuraNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.exception.PoolConContenidoException;
+import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.ProcesoYaCompartidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -80,6 +85,31 @@ public class ApiExceptionHandler {
     @ExceptionHandler(PermisoEstructuraNoValidoException.class)
     ResponseEntity<Map<String, String>> permisoEstructuraNoValido(PermisoEstructuraNoValidoException exception) {
         return respuesta(HttpStatus.BAD_REQUEST, "PERMISO_ESTRUCTURA_NO_VALIDO", exception);
+    }
+
+    @ExceptionHandler(MensajeEntreMismoPoolException.class)
+    ResponseEntity<Map<String, String>> mensajeEntreMismoPool(MensajeEntreMismoPoolException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "MENSAJE_ENTRE_MISMO_POOL", exception);
+    }
+
+    @ExceptionHandler(PoolMensajeNoValidoException.class)
+    ResponseEntity<Map<String, String>> poolMensajeNoValido(PoolMensajeNoValidoException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "POOL_MENSAJE_NO_VALIDO", exception);
+    }
+
+    @ExceptionHandler(CatchInicioConEntradaException.class)
+    ResponseEntity<Map<String, String>> catchInicioConEntrada(CatchInicioConEntradaException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "CATCH_INICIO_CON_ENTRADA", exception);
+    }
+
+    @ExceptionHandler(EnvioExternoNoValidoException.class)
+    ResponseEntity<Map<String, String>> envioExternoNoValido(EnvioExternoNoValidoException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "ENVIO_EXTERNO_NO_VALIDO", exception);
+    }
+
+    @ExceptionHandler(CorrelacionNoValidaException.class)
+    ResponseEntity<Map<String, String>> correlacionNoValida(CorrelacionNoValidaException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "CORRELACION_NO_VALIDA", exception);
     }
 
     private ResponseEntity<Map<String, String>> respuesta(HttpStatus estado, String codigo,

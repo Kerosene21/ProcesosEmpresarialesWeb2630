@@ -26,6 +26,7 @@ import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
 import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
+import co.edu.javeriana.procesosempresariales.repository.EventoRepository;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,6 +43,9 @@ class ValidacionModeloServiceTest {
 
     @Mock
     private GatewayRepository gatewayRepository;
+
+    @Mock
+    private EventoRepository eventoRepository;
 
     @Mock
     private ArcoRepository arcoRepository;
@@ -62,7 +66,7 @@ class ValidacionModeloServiceTest {
 
     @BeforeEach
     void inicializar() {
-        NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository);
+        NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository, eventoRepository);
         ConexionesService conexiones = new ConexionesService(arcoRepository, resolver);
         GatewayService gatewayService = new GatewayService(gatewayRepository, accesoProcesoService,
                 historialProcesoService, conexiones, resolver, poolService);

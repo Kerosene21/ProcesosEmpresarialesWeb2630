@@ -38,6 +38,7 @@ import co.edu.javeriana.procesosempresariales.dto.PoolRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.RolProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.exception.PoolConContenidoException;
+import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
@@ -691,5 +692,111 @@ class PoolServiceTest {
         Pool cliente = existe(pool(POOL_CLIENTE, "Cliente", TipoPool.EXTERNO, 2, false, null));
 
         assertThat(poolService.poolParaNodo(proceso, POOL_CLIENTE)).isSameAs(cliente);
+    }
+
+    @Test
+    void unPoolActivoDelDiagramaEsDestinoValidoDeUnMensaje() {
+        construirProceso(EMPRESA_PROPIA, false);
+        Pool cliente = existe(pool(POOL_CLIENTE, "Cliente", TipoPool.EXTERNO, 2, true, null));
+
+        assertThat(poolService.poolDestinoDeMensaje(proceso, POOL_CLIENTE)).isSameAs(cliente);
+    }
+
+    @Test
+    void unPoolDeOtroProcesoNoEsDestinoDeUnMensaje() {
+        construirProceso(EMPRESA_PROPIA, false);
+        when(poolRepository.findByIdAndProcesoId(777L, PROCESO_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> poolService.poolDestinoDeMensaje(proceso, 777L))
+                .isInstanceOf(PoolMensajeNoValidoException.class)
+                .hasMessage(PoolService.POOL_MENSAJE_AJENO);
+    }
+
+    @Test
+    void unPoolEliminadoNoEsDestinoDeUnMensaje() {
+        construirProceso(EMPRESA_PROPIA, false);
+        Pool cliente = existe(pool(POOL_CLIENTE, "Cliente", TipoPool.EXTERNO, 2, true, null));
+        cliente.setActivo(false);
+
+        assertThatThrownBy(() -> poolService.poolDestinoDeMensaje(proceso, POOL_CLIENTE))
+                .isInstanceOf(PoolMensajeNoValidoException.class);
+    }
+
+    @Test
+    void unPoolConEventosNoSeElimina() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_PROPIA, false);
+        Pool cliente = existe(pool(POOL_CLIENTE, "Cliente", TipoPool.EXTERNO, 2, false, null));
+        sinContenido(POOL_CLIENTE);
+        when(poolRepository.eventosActivos(POOL_CLIENTE)).thenReturn(2L);
+
+        assertThatThrownBy(() -> poolService.eliminar(PROCESO_ID, POOL_CLIENTE, USERNAME))
+                .isInstanceOf(PoolConContenidoException.class)
+                .hasMessage("El pool 'Cliente' no se puede eliminar: contiene 2 eventos activos");
+
+        assertThat(cliente.isActivo()).isTrue();
+        noSeModificoNada();
+    }
+
+    @Test
+    void unPoolConEventosNoSeConvierteEnCajaNegra() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_PROPIA, false);
+        Pool cliente = existe(pool(POOL_CLIENTE, "Cliente", TipoPool.EXTERNO, 2, false, null));
+        sinContenido(POOL_CLIENTE);
+        when(poolRepository.eventosActivos(POOL_CLIENTE)).thenReturn(1L);
+
+        assertThatThrownBy(() -> poolService.editar(PROCESO_ID, POOL_CLIENTE,
+                new EditarPoolDto("Cliente", true, null), USERNAME))
+                .isInstanceOf(PoolConContenidoException.class)
+                .hasMessage("El pool 'Cliente' no puede convertirse en caja negra: contiene 1 eventos activos");
+
+        assertThat(cliente.isCajaNegra()).isFalse();
+        noSeModificoNada();
+    }
+
+    @Test
+    void unPoolDestinoDeFlujosDeMensajeNoSeElimina() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_PROPIA, false);
+        Pool cliente = existe(pool(POOL_CLIENTE, "Cliente", TipoPool.EXTERNO, 2, true, null));
+        sinContenido(POOL_CLIENTE);
+        when(poolRepository.flujosDeMensajeEntrantes(POOL_CLIENTE)).thenReturn(3L);
+
+        assertThatThrownBy(() -> poolService.eliminar(PROCESO_ID, POOL_CLIENTE, USERNAME))
+                .isInstanceOf(PoolConContenidoException.class)
+                .hasMessage("El pool 'Cliente' no se puede eliminar: es destino de 3 flujos de mensaje activos");
+
+        assertThat(cliente.isActivo()).isTrue();
+        noSeModificoNada();
+    }
+
+    @Test
+    void unSistemaExternoQueRecibeEnviosSigueSiendoCajaNegra() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_PROPIA, false);
+        Pool cliente = existe(pool(POOL_CLIENTE, "Cliente", TipoPool.EXTERNO, 2, true, null));
+        when(poolRepository.enviosExternosEntrantes(POOL_CLIENTE)).thenReturn(1L);
+
+        assertThatThrownBy(() -> poolService.editar(PROCESO_ID, POOL_CLIENTE,
+                new EditarPoolDto("Cliente", false, null), USERNAME))
+                .isInstanceOf(PoolNoValidoException.class)
+                .hasMessage("El pool 'Cliente'" + PoolService.DESTINO_DE_ENVIOS);
+
+        assertThat(cliente.isCajaNegra()).isTrue();
+        noSeModificoNada();
+    }
+
+    @Test
+    void unSistemaExternoSinEnviosPuedeDejarDeSerCajaNegra() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_PROPIA, false);
+        Pool cliente = existe(pool(POOL_CLIENTE, "Cliente", TipoPool.EXTERNO, 2, true, null));
+        when(poolRepository.enviosExternosEntrantes(POOL_CLIENTE)).thenReturn(0L);
+
+        poolService.editar(PROCESO_ID, POOL_CLIENTE, new EditarPoolDto("Cliente", false, null), USERNAME);
+
+        assertThat(cliente.isCajaNegra()).isFalse();
+        assertThat(historialGuardado().getCambiosRealizados()).isEqualTo("pool 'Cliente': caja negra: true -> false");
     }
 }

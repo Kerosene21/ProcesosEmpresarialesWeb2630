@@ -9,12 +9,16 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
+import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.ComparticionNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
+import co.edu.javeriana.procesosempresariales.exception.CorrelacionNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.EnvioExternoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.LaneConActividadesException;
 import co.edu.javeriana.procesosempresariales.exception.LaneDuplicadaException;
 import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.MensajeEntreMismoPoolException;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
@@ -23,6 +27,7 @@ import co.edu.javeriana.procesosempresariales.exception.NombreRolProcesoDuplicad
 import co.edu.javeriana.procesosempresariales.exception.PermisoEstructuraNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.exception.PoolConContenidoException;
+import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.ProcesoYaCompartidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -167,5 +172,35 @@ class ApiExceptionHandlerTest {
     void unPermisoDeEstructuraNoValidoSeReportaComoPeticionIncorrecta() {
         verificar(manejador.permisoEstructuraNoValido(new PermisoEstructuraNoValidoException("Rol fijo")),
                 HttpStatus.BAD_REQUEST, "PERMISO_ESTRUCTURA_NO_VALIDO", "Rol fijo");
+    }
+
+    @Test
+    void unMensajeDentroDelMismoPoolSeReportaComoPeticionIncorrecta() {
+        verificar(manejador.mensajeEntreMismoPool(new MensajeEntreMismoPoolException("Mismo pool")),
+                HttpStatus.BAD_REQUEST, "MENSAJE_ENTRE_MISMO_POOL", "Mismo pool");
+    }
+
+    @Test
+    void unPoolDeMensajeAjenoAlDiagramaSeReportaComoPeticionIncorrecta() {
+        verificar(manejador.poolMensajeNoValido(new PoolMensajeNoValidoException("Pool ajeno")),
+                HttpStatus.BAD_REQUEST, "POOL_MENSAJE_NO_VALIDO", "Pool ajeno");
+    }
+
+    @Test
+    void unCatchDeInicioConEntradaSeReportaComoPeticionIncorrecta() {
+        verificar(manejador.catchInicioConEntrada(new CatchInicioConEntradaException("Sin entradas")),
+                HttpStatus.BAD_REQUEST, "CATCH_INICIO_CON_ENTRADA", "Sin entradas");
+    }
+
+    @Test
+    void unEnvioExternoNoValidoSeReportaComoPeticionIncorrecta() {
+        verificar(manejador.envioExternoNoValido(new EnvioExternoNoValidoException("No es externo")),
+                HttpStatus.BAD_REQUEST, "ENVIO_EXTERNO_NO_VALIDO", "No es externo");
+    }
+
+    @Test
+    void unaCorrelacionNoValidaSeReportaComoPeticionIncorrecta() {
+        verificar(manejador.correlacionNoValida(new CorrelacionNoValidaException("Siempre inicia")),
+                HttpStatus.BAD_REQUEST, "CORRELACION_NO_VALIDA", "Siempre inicia");
     }
 }

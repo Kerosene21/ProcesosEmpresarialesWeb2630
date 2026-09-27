@@ -23,4 +23,13 @@ public interface PoolRepository extends JpaRepository<Pool, Long> {
 
     @Query("select count(g) from Gateway g where g.pool.id = :poolId and g.activo = true")
     long gatewaysActivos(@Param("poolId") Long poolId);
+
+    @Query("select count(e) from Evento e where e.pool.id = :poolId and e.activo = true")
+    long eventosActivos(@Param("poolId") Long poolId);
+
+    @Query("select count(e) from EventoEmisor e where e.poolDestino.id = :poolId and e.activo = true")
+    long flujosDeMensajeEntrantes(@Param("poolId") Long poolId);
+
+    @Query("select count(e) from EnvioExterno e where e.poolDestino.id = :poolId and e.activo = true")
+    long enviosExternosEntrantes(@Param("poolId") Long poolId);
 }

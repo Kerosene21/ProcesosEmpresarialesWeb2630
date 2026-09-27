@@ -3,7 +3,13 @@ package co.edu.javeriana.procesosempresariales.domain;
 import java.util.Objects;
 
 public record NodoFlujo(TipoNodoFlujo tipo, Long id, Long poolId, String nombre, Integer posicionX,
-        Integer posicionY, boolean activo, TipoGateway tipoGateway) {
+        Integer posicionY, boolean activo, TipoGateway tipoGateway, TipoEvento tipoEvento,
+        boolean admiteEntradas) {
+
+    public NodoFlujo(TipoNodoFlujo tipo, Long id, Long poolId, String nombre, Integer posicionX,
+            Integer posicionY, boolean activo, TipoGateway tipoGateway) {
+        this(tipo, id, poolId, nombre, posicionX, posicionY, activo, tipoGateway, null, true);
+    }
 
     public boolean esGateway() {
         return tipo == TipoNodoFlujo.GATEWAY;

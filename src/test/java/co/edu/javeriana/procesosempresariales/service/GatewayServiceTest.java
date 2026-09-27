@@ -51,6 +51,7 @@ import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoExcep
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
 import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
+import co.edu.javeriana.procesosempresariales.repository.EventoRepository;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
 import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
@@ -75,6 +76,9 @@ class GatewayServiceTest {
     private GatewayRepository gatewayRepository;
 
     @Mock
+    private EventoRepository eventoRepository;
+
+    @Mock
     private ArcoRepository arcoRepository;
 
     @Mock
@@ -96,7 +100,7 @@ class GatewayServiceTest {
 
     @BeforeEach
     void inicializar() {
-        NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository);
+        NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository, eventoRepository);
         ConexionesService conexiones = new ConexionesService(arcoRepository, resolver);
         UsuarioService usuarios = new UsuarioService(usuarioRepository, new ModelMapper(),
                 new BCryptPasswordEncoder());

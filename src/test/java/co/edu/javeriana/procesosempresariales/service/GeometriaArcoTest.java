@@ -27,6 +27,25 @@ class GeometriaArcoTest {
     }
 
     @Test
+    void elCentroDeUnEventoUsaElDiametroDelCirculo() {
+        PuntoDiagrama centro = geometriaArco.centro(TipoNodoFlujo.EVENTO, 500, 60);
+
+        assertThat(centro.x()).isEqualTo(518);
+        assertThat(centro.y()).isEqualTo(78);
+    }
+
+    @Test
+    void laLlegadaAUnEventoSeDetieneEnElBordeDelCirculo() {
+        PuntoDiagrama origen = new PuntoDiagrama(165, 78);
+        PuntoDiagrama destino = new PuntoDiagrama(518, 78);
+
+        PuntoDiagrama llegada = geometriaArco.llegada(origen, destino, TipoNodoFlujo.EVENTO);
+
+        assertThat(llegada.x()).isEqualTo(500);
+        assertThat(llegada.y()).isEqualTo(78);
+    }
+
+    @Test
     void unaPosicionSinValorSeTomaComoOrigenDelLienzo() {
         PuntoDiagrama centro = geometriaArco.centro(TipoNodoFlujo.ACTIVIDAD, null, null);
 

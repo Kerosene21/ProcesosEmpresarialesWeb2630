@@ -31,6 +31,7 @@ import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
 import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
+import co.edu.javeriana.procesosempresariales.repository.EventoRepository;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,13 +52,16 @@ class ConexionesServiceTest {
     @Mock
     private GatewayRepository gatewayRepository;
 
+    @Mock
+    private EventoRepository eventoRepository;
+
     private NodoFlujoResolver nodoFlujoResolver;
 
     private ConexionesService conexionesService;
 
     @BeforeEach
     void inicializar() {
-        nodoFlujoResolver = new NodoFlujoResolver(actividadRepository, gatewayRepository);
+        nodoFlujoResolver = new NodoFlujoResolver(actividadRepository, gatewayRepository, eventoRepository);
         conexionesService = new ConexionesService(arcoRepository, nodoFlujoResolver);
     }
 
