@@ -221,8 +221,8 @@ ejecuta `verify` con JaCoCo y envía el análisis a **SonarQube Cloud**, que eva
 
 | Dato | Valor |
 |---|---|
-| Organization | `kerosene21` |
-| Project | `Kerosene21_ProcesosEmpresarialesWeb2630` |
+| Organization | `DDKC` |
+| Project | `ProcesosEmpresarialesWeb2630` |
 
 El token `SONAR_TOKEN` vive únicamente en GitHub Secrets; ningún secreto se versiona. El detalle
 está en [`docs/calidad/sonarqube.md`](docs/calidad/sonarqube.md).
