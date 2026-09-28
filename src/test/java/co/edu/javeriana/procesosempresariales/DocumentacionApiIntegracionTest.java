@@ -272,10 +272,10 @@ class DocumentacionApiIntegracionTest {
                 .containsExactly("/api/procesos/{procesoId}/compartido-con/{empresaId}");
         assertThat(ubicacionesDeEmpresa).containsExactly("path", "path");
         assertThat(cuerpos).isNotEmpty();
-        assertThat(cuerpos).allSatisfy(referencia -> {
+        for (String referencia : cuerpos) {
             String esquema = referencia.substring(referencia.lastIndexOf('/') + 1);
             Map<String, Object> propiedades = JsonPath.read(json, ESQUEMAS + esquema + ".properties");
             assertThat(propiedades).doesNotContainKey("empresaId");
-        });
+        }
     }
 }
