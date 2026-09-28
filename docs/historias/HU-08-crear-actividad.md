@@ -74,11 +74,15 @@ Para que un proceso recién creado pueda recibir actividades, **`ProcesoService.
 con una lane inicial llamada `General`**, que se persiste en cascada junto al pool. Es el mínimo
 estricto: un pool sin lanes no puede contener actividades y HU-08 quedaría sin forma de ejecutarse.
 
-**No se implementó nada más de HU-22**: no hay creación, renombrado, reordenamiento ni eliminación
-de lanes, ni roles de proceso (HU-17), ni permisos por lane (HU-24). Mientras HU-22 no llegue, cada
-proceso tiene **una sola lane**; el resto del código (servicio, formularios, diagrama y pruebas) ya
-trabaja con varias, así que cuando esa historia añada la gestión, el cambio de banda de HU-09 queda
-disponible en la interfaz sin tocar nada de este bloque.
+**En este bloque no se implementó nada más de HU-22**: no había creación, renombrado, reordenamiento
+ni eliminación de lanes, ni roles de proceso (HU-17), ni permisos por lane (HU-24). Mientras HU-22 no
+llegó, cada proceso tenía **una sola lane**; el resto del código (servicio, formularios, diagrama y
+pruebas) ya trabajaba con varias, así que el cambio de banda de HU-09 quedó disponible sin tocar
+nada de este bloque.
+
+> **Estado posterior.** HU-22 añadió la gestión de lanes (crear, editar, reordenar y eliminar), cada
+> lane nueva se asocia a un rol de proceso (HU-17) y los permisos de estructura sobre pools y lanes
+> llegaron con HU-24. La lane `General` se sigue creando con cada proceso.
 
 > **Migración**: los procesos creados **antes** de este bloque tienen un pool sin lanes y no podrán
 > recibir actividades hasta que su pool tenga una. En la base de desarrollo basta con:
@@ -233,8 +237,9 @@ entrada guarda fecha, usuario, estado del proceso en ese momento y el texto
 
 ## Qué quedó pendiente
 
-- **Gestión de lanes (HU-22)**: crear, renombrar, ordenar y eliminar lanes. Aquí solo existe la lane
-  inicial del pool.
-- **Roles de proceso (HU-17)** como responsables de cada lane: hoy la lane solo tiene nombre.
+- **Gestión de lanes (HU-22)**: crear, renombrar, ordenar y eliminar lanes. En este bloque solo
+  existía la lane inicial del pool; la gestión se implementó posteriormente en HU-22.
+- **Roles de proceso (HU-17)** como responsables de cada lane: en este bloque la lane solo tenía
+  nombre; posteriormente, con HU-17, cada lane nueva se asocia a un rol de proceso.
 - **Edición gráfica de la posición**: se escribe en el formulario, no se arrastra.
 - **Arcos, gateways y eventos**: HU-11 en adelante.

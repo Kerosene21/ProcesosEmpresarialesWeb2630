@@ -37,6 +37,8 @@ public class SecurityConfig {
     private static final String ROL_ADMINISTRADOR = "ADMINISTRADOR";
     private static final String ROL_EDITOR = "EDITOR";
     private static final String[] RECURSOS_PUBLICOS = { "/css/**", "/js/**", "/favicon.ico", "/error" };
+    private static final String[] RUTAS_DOCUMENTACION_API = { "/v3/api-docs/**", "/v3/api-docs.yaml/**",
+            "/swagger-ui.html", "/swagger-ui/**" };
     private static final String[] RUTAS_API_EVENTOS = { "/api/procesos/*/message-throws",
             "/api/procesos/*/message-catches", "/api/procesos/*/envios-externos" };
     private static final String[] RUTAS_API_EVENTO = { "/api/procesos/*/message-throws/*",
@@ -54,6 +56,7 @@ public class SecurityConfig {
         return http
                 .authorizeHttpRequests(peticiones -> peticiones
                         .requestMatchers(RECURSOS_PUBLICOS).permitAll()
+                        .requestMatchers(HttpMethod.GET, RUTAS_DOCUMENTACION_API).permitAll()
                         .requestMatchers(RUTA_REGISTRO_EMPRESA).permitAll()
                         .requestMatchers(HttpMethod.POST, "/empresas").permitAll()
                         .requestMatchers(RUTA_USUARIOS).hasRole(ROL_ADMINISTRADOR)

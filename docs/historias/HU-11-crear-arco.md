@@ -10,14 +10,15 @@ Criterios de aceptación:
 | Criterio | Estado |
 |---|---|
 | El origen y el destino son **nodos del proceso** | **Cumplido** |
-| Pueden ser **actividades, gateways o eventos** | **Cumplido para actividades y gateways**; eventos, pendiente |
+| Pueden ser **actividades, gateways o eventos** | **Cumplido para actividades y gateways** en este bloque; eventos, completado posteriormente con HU-25 a HU-27 |
 | **Origen distinto de destino** | **Cumplido** |
 | **No cruza pools** | **Cumplido** |
 | **No se duplica** el mismo par origen-destino | **Cumplido** |
 | Aparece en el diagrama como **línea continua con punta sólida** | **Cumplido** |
 
-> El único criterio abierto es el de los **eventos**, y lo está por una razón concreta: la entidad
-> `Evento` no existe todavía en el dominio. Ver «Dependencia con los eventos».
+> En el bloque original el único criterio abierto era el de los **eventos**, por una razón concreta:
+> la entidad `Evento` no existía todavía en el dominio. El soporte para eventos se completó
+> posteriormente con HU-25 a HU-27. Ver «Dependencia con los eventos».
 
 ## Cómo se referencia un nodo
 
@@ -74,13 +75,14 @@ posición, si está activo y, cuando es un gateway, su `TipoGateway`.
 
 ## No cruzar pools
 
-En este modelo **un proceso tiene exactamente un pool** (`Proceso.pool` es `@OneToOne`, desde
-HU-04). Por tanto, validar que los dos extremos pertenecen al mismo proceso **es** validar que no
-se cruzan pools: no existe forma de construir un nodo que esté en el proceso y fuera de su pool.
+En el modelo de este bloque **un proceso tenía exactamente un pool** (`Proceso.pool` era
+`@OneToOne`, desde HU-04). Por tanto, validar que los dos extremos pertenecían al mismo proceso
+**era** validar que no se cruzaban pools: no existía forma de construir un nodo que estuviera en el
+proceso y fuera de su pool.
 
-Cuando HU-21 permita varios pools por proceso, este criterio necesitará una comprobación adicional
-sobre el pool concreto de cada nodo. Hoy sería una condición imposible de falsear y por eso no se
-escribió.
+> **Estado posterior.** Con HU-21 un proceso puede tener varios pools, y `ArcoService` añadió la
+> comprobación sobre el pool concreto de cada extremo (`validarMismoPool`, que responde con
+> `FlujoEntrePoolsException`).
 
 ## Modelo
 
@@ -136,7 +138,7 @@ POST /api/procesos/{procesoId}/arcos   → ArcoRestController.crear → 201
                                       ├─ validarRolDeEscritura       → SOLO_LECTURA → 403
                                       ├─ procesoActivoDeLaEmpresa    → otra empresa → 403
                                       │                              → eliminado    → 404
-                                      ├─ resolverActivo(origen)      → no existe / inactivo / evento → 400
+                                      ├─ resolverActivo(origen)      → no existe / inactivo → 400
                                       ├─ resolverActivo(destino)     → idem
                                       ├─ validarExtremosDistintos    → origen == destino → 400
                                       ├─ validarQueNoEsteRepetido    → duplicado activo  → 409
@@ -222,7 +224,7 @@ POST /api/procesos/{procesoId}/arcos
 |---|---|
 | Creación correcta | `201 Created` + `Location` + cuerpo |
 | Cuerpo incompleto | `400 Bad Request` |
-| Nodo inexistente, inactivo, de otro proceso, o evento | `400` `NODO_NO_VALIDO` |
+| Nodo inexistente, inactivo o de otro proceso (en el bloque original, también un evento) | `400` `NODO_NO_VALIDO` |
 | Condición que no corresponde, o ausente cuando se exige | `400` `CONDICION_NO_VALIDA` |
 | Sin sesión | `401` `USUARIO_NO_AUTORIZADO` (JSON) |
 | Rol sin permiso, o proceso de otra empresa | `403` `USUARIO_SIN_PERMISO` |
@@ -259,23 +261,27 @@ de otra empresa no resuelve. Hay pruebas de las dos cosas.
 
 ## Dependencia con los eventos
 
-`TipoNodoFlujo` ya incluye `EVENTO` y las columnas del arco lo admiten sin cambios de esquema. Lo
-que **no existe** es la entidad `Evento`: nace con HU-25 y HU-27.
+`TipoNodoFlujo` ya incluía `EVENTO` y las columnas del arco lo admitían sin cambios de esquema. Lo
+que **no existía** en este bloque era la entidad `Evento`, que nació con HU-25 y HU-27.
 
-Por eso `NodoFlujoResolver.resolverActivo` rechaza `EVENTO` con un mensaje explícito —*«Los eventos
-todavía no existen en el modelo del proceso»*— en lugar de fingir que funciona. **No se creó una
-tabla de eventos ficticia solo para marcar el criterio.** Cuando exista la entidad, cerrar este
-criterio es añadir un `case EVENTO` en `buscar` y quitar la guarda; ni el modelo del arco, ni el
-servicio, ni el diagrama cambian.
+Por eso `NodoFlujoResolver.resolverActivo` rechazaba `EVENTO` con un mensaje explícito —*«Los
+eventos todavía no existen en el modelo del proceso»*— en lugar de fingir que funcionaba. **No se
+creó una tabla de eventos ficticia solo para marcar el criterio.** Cerrar el criterio consistiría en
+añadir un `case EVENTO` en `buscar` y quitar la guarda.
+
+> **Estado posterior.** Así se hizo con HU-25 a HU-27: la entidad `Evento` existe, el resolutor
+> incluye el `case EVENTO` y la guarda desapareció, de modo que Message Throw, Message Catch y los
+> envíos externos pueden ser origen o destino de un arco.
 
 ## Pruebas
 
 - `ArcoServiceTest`: los tres roles, origen igual a destino, duplicado activo, nodo de otro proceso,
-  proceso de otra empresa, proceso eliminado, nodo inactivo, gateway inactivo, evento rechazado,
+  proceso de otra empresa, proceso eliminado, nodo inactivo, gateway inactivo, evento inexistente rechazado,
   etiqueta normalizada, las cuatro reglas de condición, historial con su texto exacto, coordenadas
   de los extremos y advertencias del gateway de origen.
-- `NodoFlujoResolverTest`: resolución de actividades y gateways, evento pendiente, nodo inactivo,
-  índice de nodos y descripción de un nodo desaparecido.
+- `NodoFlujoResolverTest`: resolución de actividades y gateways, nodo inactivo, índice de nodos y
+  descripción de un nodo desaparecido; la resolución de eventos se añadió posteriormente con HU-25
+  a HU-27.
 - `GeometriaArcoTest`: centros, llegada horizontal, vertical y diagonal, y nodos superpuestos.
 - `CrearArcoDtoTest`: validación del formulario.
 - `ArcoControllerTest`, `ArcoRestControllerTest`, `SeguridadArcosTest`: formulario MVC, contrato
@@ -294,7 +300,8 @@ servicio, ni el diagrama cambian.
 
 ## Qué quedó pendiente
 
-- **Eventos como extremo del arco**: depende de HU-25 y HU-27. El diseño ya los admite.
-- **Varios pools por proceso**: hoy el proceso tiene uno solo, así que «no cruzar pools» equivale a
-  «mismo proceso». Con HU-21 habrá que comprobar el pool de cada nodo.
+- **Eventos como extremo del arco**: dependía de HU-25 y HU-27; se completó posteriormente con esas
+  historias.
+- **Varios pools por proceso**: en este bloque el proceso tenía uno solo, así que «no cruzar pools»
+  equivalía a «mismo proceso». HU-21 añadió varios pools y la comprobación del pool de cada nodo.
 - **Selector de nodos filtrado por tipo**: exigiría JavaScript; el servicio valida el par.

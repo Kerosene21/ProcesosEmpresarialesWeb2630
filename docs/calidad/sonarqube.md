@@ -131,13 +131,15 @@ Eso ejecuta la suite completa y deja el reporte en `target/site/jacoco/`. Abrir
 `target/site/jacoco/index.html` en el navegador muestra la cobertura clase por clase.
 
 La suite completa **requiere PostgreSQL** en ejecución con las credenciales configuradas (ver el
-README). Si no hay base disponible, se puede generar el reporte solo con las pruebas unitarias:
+README). Si no hay base disponible, se pueden ejecutar las pruebas que no la necesitan con el mismo
+comando del README:
 
 ```bash
-./mvnw -Dtest=EmpresaServiceTest,RegistroEmpresaDtoTest verify
+./mvnw test -Dtest='!*IntegracionTest,!ProcesosEmpresarialesWeb2630ApplicationTests'
 ```
 
-El número que sale de ahí es menor que el real, porque deja fuera la prueba de contexto.
+Ese comando no llega a la fase `verify`, así que no genera el reporte de JaCoCo: la cobertura real
+solo sale de la suite completa, que incluye las pruebas de integración.
 
 Ejecutar el análisis de Sonar desde una máquina local no es el flujo recomendado y exige manejar
 un token propio en el entorno. El camino normal es abrir un pull request y dejar que CI analice.

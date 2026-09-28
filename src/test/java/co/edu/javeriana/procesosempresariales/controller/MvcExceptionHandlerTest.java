@@ -9,8 +9,11 @@ import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
+import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -98,6 +101,36 @@ class MvcExceptionHandlerTest {
         ModelAndView vista = manejador.poolNoValido(new PoolCajaNegraException("El pool es una caja negra"));
 
         assertThat(vista.getModel()).containsEntry("detalle", "El pool es una caja negra");
+    }
+
+    @Test
+    void unNombreDeProcesoDuplicadoSeMuestraEnLaPaginaDeProblema() {
+        ModelAndView vista = manejador.nombreDuplicado(
+                new NombreProcesoDuplicadoException("Ya existe un proceso con ese nombre en la empresa"));
+
+        assertThat(vista.getViewName()).isEqualTo("error/problema");
+        assertThat(vista.getModel()).containsEntry("detalle", "Ya existe un proceso con ese nombre en la empresa");
+        assertThat(vista.getModel().get("titulo")).isNotNull();
+    }
+
+    @Test
+    void unNombreDeActividadDuplicadoSeMuestraEnLaPaginaDeProblema() {
+        ModelAndView vista = manejador.nombreDuplicado(
+                new NombreActividadDuplicadoException("Ya existe una actividad con ese nombre"));
+
+        assertThat(vista.getViewName()).isEqualTo("error/problema");
+        assertThat(vista.getModel()).containsEntry("detalle", "Ya existe una actividad con ese nombre");
+    }
+
+    @Test
+    void unaLaneNoValidaSeMuestraEnLaPaginaDeProblema() {
+        ModelAndView vista = manejador.laneNoValida(
+                new LaneNoValidaException("La lane indicada no existe o no pertenece a este proceso"));
+
+        assertThat(vista.getViewName()).isEqualTo("error/problema");
+        assertThat(vista.getModel())
+                .containsEntry("detalle", "La lane indicada no existe o no pertenece a este proceso");
+        assertThat(vista.getModel().get("titulo")).isNotNull();
     }
 
     @Test

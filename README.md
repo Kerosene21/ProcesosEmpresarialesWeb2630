@@ -1,44 +1,97 @@
 # ProcesosEmpresarialesWeb2630
 
-Editor y visualizador de procesos empresariales basado conceptualmente en BPMN.
-La aplicación permite registrar empresas y documentar sus procesos; **no ejecuta procesos**.
+Backend de una aplicación **multiempresa** para modelar, editar y visualizar procesos
+empresariales con conceptos de **BPMN**.
+
+> El sistema **modela** procesos: **no los ejecuta**. No es un motor BPM, no envía mensajes reales
+> ni invoca sistemas externos; solo documenta cómo funciona cada proceso.
 
 ## Objetivo
 
-Que cada empresa tenga un espacio propio donde registrar, consultar y editar sus procesos,
-manteniendo la información de cada organización aislada de las demás.
+Que cada empresa tenga un espacio propio donde registrar, consultar y editar el modelo de sus
+procesos (quién participa, qué actividades hay, cómo fluye el trabajo y qué mensajes se
+intercambian), manteniendo la información de cada organización aislada de las demás.
+
+## Funcionalidades del backend
+
+- **Empresas y usuarios**: registro de empresas con su administrador inicial; el administrador
+  crea usuarios, cambia su rol y los desactiva (desactivación lógica, sin envío de correo).
+- **Autenticación**: inicio y cierre de sesión con Spring Security (formulario, sesión y
+  contraseñas con BCrypt).
+- **Procesos**: crear, editar, eliminar (eliminación lógica con confirmación) y consultar con
+  búsqueda, filtros y paginación. Estados `BORRADOR` y `PUBLICADO`; publicar valida el modelo.
+- **Historial**: cada cambio de un proceso y de sus elementos queda registrado con fecha, usuario y
+  campos modificados.
+- **Elementos del modelo**: actividades, gateways `EXCLUSIVO` (X), `PARALELO` (+) e `INCLUSIVO` (O)
+  y arcos (flujos de secuencia) entre actividades, gateways y eventos de un mismo pool.
+- **Estructura del diagrama**: pools (`PROPIETARIO`, `PARTICIPANTE`, `EXTERNO`, con opción de caja
+  negra) y lanes que se crean, editan, reordenan y eliminan.
+- **Roles de proceso**: catálogo por empresa, con historial, que se asigna a las lanes.
+- **Permisos de estructura**: configuración por rol de usuario de quién puede crear, editar y
+  eliminar pools y lanes en cada proceso.
+- **Compartición entre empresas**: un proceso puede compartirse en solo lectura con otras empresas
+  registradas; la empresa propietaria conserva la edición.
+- **Eventos de mensaje**: Message Throw, Message Catch (de inicio o intermedio) y envíos externos
+  (correo, servicio web o cola) hacia un pool externo.
+- **Correlación de mensajes**: clave de correlación y advertencias de coherencia entre Message
+  Throw y Message Catch (nombre del mensaje, clave y comportamiento).
+- **Diagrama BPMN**: `GET /api/procesos/{id}/diagrama` devuelve el modelo completo (pools, lanes,
+  actividades, gateways, eventos, arcos y flujos de mensaje).
+
+La empresa nunca se recibe por parámetro: sale del usuario autenticado, y cada empresa solo ve y
+modifica sus propios recursos (más los procesos que otras le compartan, en solo lectura).
+
+### Roles de acceso
+
+| Rol | Alcance general |
+|---|---|
+| `ADMINISTRADOR` | Todas las operaciones, incluidas la gestión de usuarios, las eliminaciones, la compartición y los permisos de estructura |
+| `EDITOR` | Crea y edita procesos y sus elementos, sin eliminar; en pools y lanes depende de los permisos de estructura del proceso |
+| `SOLO_LECTURA` | Solo consulta |
+
+## Historias de usuario
+
+El **backend** correspondiente a las historias **HU-01 a HU-28** está implementado en esta rama.
+
+| Historias | Alcance de backend |
+|---|---|
+| HU-01 | Registro de empresa |
+| HU-02 | Registro y administración de usuarios |
+| HU-03 | Inicio de sesión |
+| HU-04 a HU-07 | Crear, editar, eliminar y consultar procesos, con historial |
+| HU-08 a HU-10 | Crear, editar y eliminar actividades |
+| HU-11 a HU-13 | Crear, editar y eliminar arcos |
+| HU-14 a HU-16 | Crear, editar y eliminar gateways |
+| HU-17 a HU-20 | Roles de proceso: catálogo, edición, eliminación e historial |
+| HU-21 a HU-24 | Pools, gestión de lanes, permisos de estructura y compartición entre empresas |
+| HU-25 a HU-28 | Eventos de mensaje: Message Throw, envíos externos, Message Catch y correlación |
 
 ## Stack
 
-- Java 21
-- Spring Boot 4.1.1
-- Maven
-- Spring MVC
-- Spring Data JPA
-- Spring Validation
-- Spring Security 7.1.1
-- Thymeleaf
-- PostgreSQL
-- ModelMapper
-- Lombok
+| Área | Tecnología |
+|---|---|
+| Lenguaje | Java 21 |
+| Framework | Spring Boot 4.1.1 (Spring MVC, Spring Data JPA, Spring Validation, Spring Security) |
+| Base de datos | PostgreSQL |
+| Utilidades | ModelMapper 3.2.4, Lombok |
+| Documentación de API | springdoc-openapi 3.1.1 (OpenAPI + Swagger UI) |
+| Build | Maven Wrapper (`mvnw`) |
+| Calidad | JaCoCo 0.8.13, SonarQube Cloud, GitHub Actions |
+| Pruebas de carga | Apache JMeter |
 
-## Arquitectura por capas
+## Arquitectura
 
 ```
-Entity → Repository → DTO → Service → Controller → Thymeleaf
+Entity → Repository → DTO → Service → Controller
 ```
 
-- La lógica de negocio vive en los **Service**.
-- Los **Controller** son ligeros: validan la entrada, delegan y eligen la vista.
-- Las entidades JPA no se exponen a las vistas; para eso se usan **DTO**.
-- El código no lleva comentarios: la explicación está en `docs/`.
-
-### Paquetes
+- La lógica de negocio vive en los **Service**; los **Controller** validan, delegan y responden.
+- Las entidades JPA no se exponen: los controladores trabajan con **DTO**.
 
 ```
 co.edu.javeriana.procesosempresariales
-├── config      configuración de beans reutilizables
-├── controller  controladores MVC y REST, y el manejador de excepciones
+├── config      seguridad, OpenAPI y beans reutilizables
+├── controller  controladores MVC y REST, y manejadores de excepciones
 ├── domain      entidades JPA y enumeraciones
 ├── dto         objetos de entrada y salida
 ├── exception   excepciones de negocio
@@ -46,172 +99,30 @@ co.edu.javeriana.procesosempresariales
 └── service     lógica de negocio
 ```
 
-## Estado actual
+## Ejecución local
 
-| Historia | Estado |
-|---|---|
-| HU-01 · Registro de empresa | Implementada |
-| HU-02 · Registro de usuario en empresa | Implementada |
-| HU-03 · Inicio de sesión | Implementada |
-| HU-04 · Crear proceso | Implementada |
-| HU-05 · Editar proceso | Implementada |
-| HU-06 · Eliminar proceso | Implementada |
-| HU-07 · Consultar procesos | Implementada, salvo la visualización del diagrama BPMN completo (faltan los eventos) |
-| HU-08 · Crear actividad | Implementada |
-| HU-09 · Editar actividad | Implementada |
-| HU-10 · Eliminar actividad | Implementada |
-| HU-11 · Crear arco | Implementada para actividades y gateways; los eventos dependen de HU-25 y HU-27 |
-| HU-12 · Editar arco | Implementada |
-| HU-13 · Eliminar arco | Implementada |
-| HU-14 · Crear gateway | Implementada |
-| HU-15 · Editar gateway | Implementada |
-
-Con la autenticación en marcha, las pantallas de proceso que dependen del usuario autenticado ya
-son accesibles de extremo a extremo: se registra una empresa, se inicia sesión con las credenciales
-del administrador inicial y desde ahí se administran los usuarios y los procesos de esa empresa.
-
-El administrador de cada empresa crea usuarios con rol `ADMINISTRADOR`, `EDITOR` o `SOLO_LECTURA`,
-cambia su rol y los desactiva. La desactivación es **lógica** (`activo = false`): el usuario deja de
-poder iniciar sesión, pero su cuenta y su historial de ediciones se conservan, y los procesos de la
-empresa siguen disponibles. La invitación se hace creando la cuenta con el correo como identificador
-de acceso: **no hay envío de correo ni integración SMTP**.
-
-Sobre los procesos, el rol decide qué se puede hacer:
-
-| Rol | Crear | Editar | Eliminar | Consultar proceso e historial |
-|---|---|---|---|---|
-| `ADMINISTRADOR` | ✅ | ✅ | ✅ | ✅ |
-| `EDITOR` | ✅ | ✅ | ❌ | ✅ |
-| `SOLO_LECTURA` | ❌ | ❌ | ❌ | ✅ |
-
-Cada edición que cambia algún dato deja una entrada de historial con la fecha, el usuario, el estado
-anterior y **solo los campos modificados**; se consulta en `GET /procesos/{id}/historial`.
-
-**Solo el administrador de la empresa elimina procesos, y siempre con confirmación previa**: la
-acción abre una página que muestra el proceso y advierte del efecto, y solo el envío de ese
-formulario ejecuta la eliminación. La eliminación es **lógica** (`eliminado = true`, la
-representación persistente del estado inactivo): el proceso permanece en la base de datos con su
-pool, su empresa y todo su historial, la eliminación queda registrada como una entrada más, y el
-proceso pasa a ser solo consultable —no se puede editar ni volver a eliminar—. El nombre de un
-proceso eliminado **sigue reservado** dentro de su empresa.
-
-`GET /procesos` lista los procesos **de la empresa del usuario**, con búsqueda parcial por nombre
-(insensible a mayúsculas), filtros por estado y por categoría, filtro de situación
-(activos / inactivos / todos) y paginación de 10 en 10 con Spring Data. Por defecto solo se ven los
-activos; los inactivos se consultan con el filtro de situación. La empresa nunca llega por
-parámetro: sale siempre del usuario autenticado y entra en la consulta.
-
-El diagrama de cada proceso ya tiene **actividades**. Una actividad tiene nombre y tipo, pertenece a
-un proceso y a **exactamente una lane** —la banda que representa a su responsable—, y guarda la
-posición en la que se dibuja. Su nombre es único dentro del proceso. Con las actividades, el rol
-decide así:
-
-| Rol | Crear actividad | Editar actividad | Eliminar actividad | Ver diagrama |
-|---|---|---|---|---|
-| `ADMINISTRADOR` | ✅ | ✅ | ✅ | ✅ |
-| `EDITOR` | ✅ | ✅ | ❌ | ✅ |
-| `SOLO_LECTURA` | ❌ | ❌ | ❌ | ✅ |
-
-Eliminar una actividad también exige **confirmación previa** y también es **lógica**
-(`activo = false`): la fila se conserva, la actividad desaparece del diagrama y la eliminación queda
-en el historial del proceso. Crear, editar y eliminar actividades se registra en ese mismo historial,
-y la edición solo anota los campos que de verdad cambiaron.
-
-El flujo del proceso se modela con **arcos** y **gateways**. Un arco conecta dos nodos del mismo
-proceso —hoy actividades y gateways— guardando el **tipo y el identificador** de cada extremo, de
-modo que admitirá eventos sin cambiar el modelo. No puede unir un nodo consigo mismo, no puede
-repetir un par origen-destino ya conectado y no puede salir del proceso. Un gateway es `EXCLUSIVO`
-(**X**), `PARALELO` (**+**) o `INCLUSIVO` (**O**), guarda su posición y decide si sus arcos de
-salida llevan condición: los dos primeros tipos la exigen en cada salida y el paralelo no la admite.
-Cambiar el tipo de un gateway a `PARALELO` **elimina** las condiciones de sus salidas; cambiarlo a
-`EXCLUSIVO` o `INCLUSIVO` obliga a que todas terminen con una.
-
-| Rol | Crear arco | Editar arco | Eliminar arco | Crear gateway | Editar gateway |
-|---|---|---|---|---|---|
-| `ADMINISTRADOR` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `EDITOR` | ✅ | ✅ | ❌ | ✅ | ✅ |
-| `SOLO_LECTURA` | ❌ | ❌ | ❌ | ❌ | ❌ |
-
-Eliminar un arco exige **confirmación previa**, es **lógica** (`activo = false`) y **advierte** si
-deja algún nodo sin entradas o sin salidas. Eliminar una actividad desactiva además, en la misma
-transacción, todos sus arcos conectados. En los dos casos las advertencias llegan al detalle del
-proceso y se muestran bajo el mensaje de éxito. Ninguna de ellas bloquea la operación: son
-informativas. **La eliminación de gateways es HU-16** y no está hecha.
-
-Las configuraciones intermedias sí se toleran mientras el proceso está en `BORRADOR` —un gateway
-recién creado no tiene salidas—, pero **pasar el proceso a `PUBLICADO` valida el modelo**: un
-gateway con una sola salida, un `EXCLUSIVO` o `INCLUSIVO` con salidas sin condición o un `PARALELO`
-que conserve condiciones impiden publicar, y el proceso se queda en borrador.
-
-El detalle del proceso dibuja ahora dos vistas: el **Diagrama** con el pool, sus lanes y las
-actividades dentro de su banda, y el **Flujo**, un SVG con las actividades, los gateways como rombos
-con su símbolo y los arcos como líneas continuas con punta sólida, más las advertencias de
-consistencia del modelo (gateways con menos de dos salidas, salidas sin condición o condiciones
-repetidas).
-
-**El criterio de HU-07 sobre visualizar el diagrama BPMN completo sigue abierto por un solo
-elemento.** Ya se muestran el pool, las lanes, las actividades, los gateways y los arcos; faltan los
-**eventos** (HU-25 y HU-27), y la vista lo advierte.
-
-**Las lanes son mínimas a propósito.** HU-08 obliga a que una actividad pertenezca a una lane, así
-que cada proceso nace con una lane `General` dentro de su pool. **La gestión de lanes es HU-22** y no
-está hecha: no se crean, renombran, reordenan ni eliminan lanes desde la aplicación.
-
-## Historias en desarrollo
-
-El bloque actual cubre HU-01 a HU-15. La documentación de cada historia está en
-[`docs/historias/`](docs/historias/).
-
-## Requisitos para ejecutar
+### Requisitos
 
 - Java 21
 - PostgreSQL en ejecución
 - Maven no es necesario: el proyecto incluye el wrapper (`mvnw`)
 
-### PostgreSQL
-
-Se necesitan dos bases de datos:
+### Base de datos y variables de entorno
 
 | Base | Uso | `ddl-auto` |
 |---|---|---|
 | `procesos_empresariales` | desarrollo | `update` |
 | `procesos_empresariales_test` | pruebas con contexto de Spring | `create-drop` |
 
-Las credenciales se leen de variables de entorno o de un archivo `.env` local que no se versiona.
-Para prepararlo, copiar la plantilla y completar la contraseña:
+Las credenciales se leen de variables de entorno o de un archivo `.env` local que no se versiona:
 
 ```bash
 cp .env.example .env
 ```
 
-`DB_PASSWORD` es obligatoria: si no está definida, la aplicación no arranca.
-La URL de la base de pruebas es fija y no se puede redirigir por variables de entorno, porque
-`create-drop` destruye el esquema al terminar.
-
-> **Si la base de desarrollo ya existía antes de HU-03**, hay que migrarla antes de arrancar. La
-> tabla `usuario` tiene dos columnas nuevas obligatorias (`password_hash` y `activo`) y `ddl-auto=update`
-> no puede añadirlas si la tabla ya tiene filas: registra el error como advertencia, la aplicación
-> arranca sin las columnas y el fallo aparece más tarde. Los dos caminos posibles (recrear el
-> esquema o migrar de forma aditiva) están en
-> [HU-03 · Migración de base de datos](docs/historias/HU-03-inicio-sesion.md#migración-de-base-de-datos).
-> En CI no ocurre: el perfil de pruebas usa `create-drop` sobre un contenedor limpio.
->
-> La columna `eliminado` que añadió HU-06 a `proceso` **no** tiene ese problema: se declara con
-> valor por defecto, así que `ddl-auto=update` la añade sola aunque la tabla ya tenga filas.
->
-> La tabla `lane` que añadió HU-08 es nueva y `ddl-auto=update` la crea sola, pero **los pools
-> creados antes de HU-08 se quedan sin lanes** y sus procesos no podrán recibir actividades. Para
-> una base de desarrollo que ya existía:
->
-> ```sql
-> INSERT INTO lane (nombre, pool_id)
-> SELECT 'General', p.id FROM pool p
-> WHERE NOT EXISTS (SELECT 1 FROM lane l WHERE l.pool_id = p.id);
-> ```
->
-> Las tablas `arco` y `gateway` que añadió el bloque HU-11 a HU-15 también son nuevas y
-> `ddl-auto=update` las crea solas, con sus índices. **No necesitan migración**: un proceso anterior
-> a este bloque simplemente no tiene arcos ni gateways, y se le pueden añadir desde la aplicación.
+`DB_PASSWORD` es obligatoria: si no está definida, la aplicación no arranca. La URL de la base de
+pruebas es fija y no se puede redirigir por variables de entorno, porque `create-drop` destruye el
+esquema al terminar.
 
 ### Ejecutar
 
@@ -219,65 +130,136 @@ La URL de la base de pruebas es fija y no se puede redirigir por variables de en
 ./mvnw spring-boot:run
 ```
 
-La aplicación queda disponible en `http://localhost:8080`.
+La aplicación queda disponible en `http://localhost:8080`. El flujo de uso empieza registrando
+una empresa en `/empresas/nueva` e iniciando sesión en `/login` con su administrador inicial.
 
-### Pruebas
+### Datos demo
 
-Las pruebas que no levantan el contexto completo tampoco necesitan base de datos. Eso incluye las
-de seguridad, que usan `@WebMvcTest` y sí ejecutan los filtros de Spring Security:
+El perfil `demo` carga una empresa de ejemplo con usuarios, roles de proceso y un proceso modelado
+(pools, lanes, actividades, gateway, arcos y eventos de mensaje). Para usarlo, definir en el
+entorno o en `.env` las variables `DEMO_ADMIN_PASSWORD` y `DEMO_USER_PASSWORD` (entre 8 y 100
+caracteres) y ejecutar:
 
 ```bash
-./mvnw -Dtest='!ProcesosEmpresarialesWeb2630ApplicationTests,!RegistroYLoginIntegracionTest,!GestionUsuariosIntegracionTest,!ProcesosYHistorialIntegracionTest,!EliminacionProcesosIntegracionTest,!ConsultaProcesosIntegracionTest,!ActividadesIntegracionTest,!ArcosYGatewaysIntegracionTest' test
+./mvnw spring-boot:run -Dspring-boot.run.profiles=demo
 ```
 
-La suite completa incluye ocho clases que levantan el contexto de Spring
-(`ProcesosEmpresarialesWeb2630ApplicationTests`, `RegistroYLoginIntegracionTest`,
-`GestionUsuariosIntegracionTest`, `ProcesosYHistorialIntegracionTest`,
-`EliminacionProcesosIntegracionTest`, `ConsultaProcesosIntegracionTest` y
-`ActividadesIntegracionTest` y `ArcosYGatewaysIntegracionTest`) y sí requieren que PostgreSQL esté disponible con las credenciales
-configuradas. En CI corren todas contra el contenedor `postgres:16-alpine` del workflow.
+| Usuario | Rol |
+|---|---|
+| `admin.demo@example.com` | `ADMINISTRADOR` (contraseña: `DEMO_ADMIN_PASSWORD`) |
+| `editor.demo@example.com` | `EDITOR` (contraseña: `DEMO_USER_PASSWORD`) |
+| `lectura.demo@example.com` | `SOLO_LECTURA` (contraseña: `DEMO_USER_PASSWORD`) |
 
-## Calidad de código
+El dataset se crea solo si no existe: los rearranques no duplican datos ni cambian contraseñas, y
+cuando ya existe las variables dejan de ser necesarias. El perfil `demo` no se activa por defecto
+y no debe usarse en producción.
 
-El proyecto se analiza con **SonarQube Cloud**. La cobertura la mide **JaCoCo** durante
-`mvn verify` y el análisis lo dispara **GitHub Actions**, no el análisis automático de Sonar.
+### Bases de desarrollo creadas con versiones anteriores
+
+Una base nueva no necesita migración: `ddl-auto=update` crea el esquema. Solo una base de
+desarrollo que ya existía requiere pasos manuales, según desde qué versión venga:
+
+- **Anterior a HU-03**: la tabla `usuario` necesita las columnas obligatorias `password_hash` y
+  `activo`. Ver [HU-03 · Migración de base de datos](docs/historias/HU-03-inicio-sesion.md#migración-de-base-de-datos).
+- **Anterior a HU-08**: los pools existentes se quedan sin lanes. Para crearles la lane inicial:
+
+  ```sql
+  INSERT INTO lane (nombre, pool_id)
+  SELECT 'General', p.id FROM pool p
+  WHERE NOT EXISTS (SELECT 1 FROM lane l WHERE l.pool_id = p.id);
+  ```
+
+- **Creada con el esquema de HU-01 a HU-20**: ejecutar una sola vez, con respaldo previo y antes de
+  arrancar la aplicación, [`docs/migrations/hu21-hu24-migracion.sql`](docs/migrations/hu21-hu24-migracion.sql).
+
+El perfil de pruebas y CI usan `create-drop` sobre una base limpia, así que no necesitan migración.
+
+## Documentación de la API (Swagger / OpenAPI)
+
+Con la aplicación en ejecución:
+
+| Recurso | Ruta |
+|---|---|
+| Swagger UI | `http://localhost:8080/swagger-ui/index.html` (`/swagger-ui.html` redirige aquí) |
+| OpenAPI (JSON) | `/v3/api-docs` y `/v3/api-docs/api-rest` (grupo API REST) |
+| OpenAPI (YAML) | `/v3/api-docs.yaml` |
+
+- Swagger UI sirve para explorar y probar la API REST (`/api/**`).
+- Las rutas de documentación son públicas, pero **la API conserva la seguridad real** del sistema.
+- La autenticación usa la **sesión** del sistema: se inicia sesión en `/login` en el mismo
+  navegador y Swagger UI reutiliza la cookie `JSESSIONID`.
+- Las operaciones `POST`, `PUT` y `DELETE` exigen el token **CSRF** de la sesión en el encabezado
+  `X-CSRF-TOKEN` (botón *Authorize*, esquema `csrf`).
+- No existe un JWT ni un esquema Bearer ficticio solo para Swagger.
+
+## Pruebas y calidad
+
+### Ejecutar las pruebas
+
+```bash
+./mvnw clean verify
+```
+
+Ejecuta la suite completa (pruebas unitarias, de controladores y seguridad, y de integración) y
+genera el reporte de cobertura de **JaCoCo** en `target/site/jacoco/index.html`.
+
+Las pruebas de integración (`*IntegracionTest` y `ProcesosEmpresarialesWeb2630ApplicationTests`)
+levantan el contexto de Spring y **requieren PostgreSQL** con la base `procesos_empresariales_test`
+y las credenciales configuradas. El resto, incluidas las de seguridad con `@WebMvcTest`, no
+necesitan base de datos:
+
+```bash
+./mvnw test -Dtest='!*IntegracionTest,!ProcesosEmpresarialesWeb2630ApplicationTests'
+```
+
+### SonarQube Cloud
+
+El workflow [`.github/workflows/sonar.yml`](.github/workflows/sonar.yml) se ejecuta en cada push a
+`main`, en cada pull request hacia `main` y manualmente. Levanta PostgreSQL (`postgres:16-alpine`),
+ejecuta `verify` con JaCoCo y envía el análisis a **SonarQube Cloud**, que evalúa el
+**Quality Gate**.
 
 | Dato | Valor |
 |---|---|
 | Organization | `kerosene21` |
 | Project | `Kerosene21_ProcesosEmpresarialesWeb2630` |
 
-El flujo es:
+El token `SONAR_TOKEN` vive únicamente en GitHub Secrets; ningún secreto se versiona. El detalle
+está en [`docs/calidad/sonarqube.md`](docs/calidad/sonarqube.md).
 
+### Pruebas de carga con JMeter
+
+El plan [`jmeter/backend-procesos.jmx`](jmeter/backend-procesos.jmx) simula usuarios autenticados
+consultando la API:
+
+- 25 usuarios, ramp-up de 10 segundos y 5 iteraciones.
+- Cada usuario se autentica una sola vez: `GET /login`, extracción del token CSRF y `POST /login`.
+- La cookie `JSESSIONID` se mantiene durante toda la prueba.
+- En cada iteración consulta `GET /api/procesos`.
+
+El plan apunta a `localhost:8085`, por lo que la aplicación debe levantarse en ese puerto (por
+ejemplo, `./mvnw spring-boot:run -Dspring-boot.run.arguments=--server.port=8085`). El usuario y la
+contraseña se reciben como propiedades externas y **nunca deben guardarse en el `.jmx`**:
+
+```bash
+jmeter -n -t jmeter/backend-procesos.jmx -Jusername=USUARIO -Jpassword=CONTRASENA -l jmeter/resultados/carga.jtl -e -o jmeter/resultados/reporte-html
 ```
-Código → Maven → Tests → JaCoCo → SonarQube Cloud → Quality Gate
-```
 
-El **Quality Gate se evalúa en CI**: el workflow corre en cada push a `main` y en cada pull
-request hacia `main`, de modo que los cambios de una rama de feature se revisan al abrir el PR.
+La última validación local produjo **175 solicitudes con 0 errores**. Los tiempos obtenidos en una
+máquina local son orientativos y no constituyen una garantía de rendimiento. La carpeta
+`jmeter/resultados/` no se versiona.
 
-El token de análisis (`SONAR_TOKEN`) vive **únicamente en GitHub Secrets** y el workflow lo
-consume como `${{ secrets.SONAR_TOKEN }}`. **Ningún secreto se versiona en este repositorio**:
-ni tokens, ni contraseñas, ni archivos `.env`.
+### Validación manual con Postman
 
-El detalle está en [`docs/calidad/sonarqube.md`](docs/calidad/sonarqube.md).
+La API también se validó manualmente con Postman: autenticación, manejo del token CSRF, consultas
+protegidas, creación y consulta de recursos, y el error de negocio por nombre duplicado. La
+colección se usó de forma local y no forma parte del repositorio.
 
 ## Documentación
 
-Las explicaciones de cada historia de usuario están en [`docs/historias/`](docs/historias/):
-
-- [HU-01 · Registro de empresa](docs/historias/HU-01-registro-empresa.md)
-- [HU-02 · Registro y administración de usuarios](docs/historias/HU-02-registro-usuario.md)
-- [HU-03 · Inicio de sesión](docs/historias/HU-03-inicio-sesion.md)
-- [HU-04 · Crear proceso](docs/historias/HU-04-crear-proceso.md)
-- [HU-05 · Editar proceso](docs/historias/HU-05-editar-proceso.md)
-- [HU-06 · Eliminar proceso](docs/historias/HU-06-eliminar-proceso.md)
-- [HU-07 · Consultar procesos](docs/historias/HU-07-consultar-procesos.md)
-- [HU-08 · Crear actividad](docs/historias/HU-08-crear-actividad.md)
-- [HU-09 · Editar actividad](docs/historias/HU-09-editar-actividad.md)
-- [HU-10 · Eliminar actividad](docs/historias/HU-10-eliminar-actividad.md)
-- [HU-11 · Crear arco](docs/historias/HU-11-crear-arco.md)
-- [HU-12 · Editar arco](docs/historias/HU-12-editar-arco.md)
-- [HU-13 · Eliminar arco](docs/historias/HU-13-eliminar-arco.md)
-- [HU-14 · Crear gateway](docs/historias/HU-14-crear-gateway.md)
-- [HU-15 · Editar gateway](docs/historias/HU-15-editar-gateway.md)
+- [`docs/historias/`](docs/historias/): documento detallado por historia; hoy contiene los de
+  HU-01 a HU-15.
+- Swagger UI: contrato actualizado de toda la API REST, incluidas las funcionalidades de HU-16 a
+  HU-28, que no tienen documento propio en `docs/historias/`.
+- [`docs/migrations/`](docs/migrations/): migraciones manuales para bases de desarrollo existentes.
+- [`docs/calidad/sonarqube.md`](docs/calidad/sonarqube.md): análisis de calidad y cobertura.

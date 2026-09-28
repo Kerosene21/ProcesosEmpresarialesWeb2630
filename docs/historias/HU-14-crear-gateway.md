@@ -55,10 +55,11 @@ public class Gateway {
 unicidad que nadie pidió. Para identificarlo en los desplegables, en el historial y en las
 advertencias se usa `etiqueta()`, derivada del tipo y del identificador: `Gateway EXCLUSIVO #12`.
 
-`activo` nace en `true` y **hoy nadie lo pone en `false`**: la eliminación de gateways es HU-16. El
-campo existe desde ahora para que esa historia sea una marca lógica más, coherente con procesos,
-actividades y arcos, y no una migración de esquema. El repositorio ya filtra por `activo = true` en
-todas sus consultas.
+`activo` nace en `true` y **en este bloque nadie lo ponía en `false`**: la eliminación de gateways
+es HU-16. El campo existió desde entonces para que esa historia fuera una marca lógica más,
+coherente con procesos, actividades y arcos, y no una migración de esquema. El repositorio ya
+filtraba por `activo = true` en todas sus consultas. Así se implementó posteriormente HU-16:
+`GatewayService.eliminar` pone `activo = false` y desactiva los arcos conectados.
 
 ## Posición visual
 
@@ -211,8 +212,9 @@ advertencia para que lo revise una persona.
 La regla está en `GatewayService` y, para las rutas MVC, en `SecurityConfig`
 (`GET /procesos/*/gateways/nuevo` y `POST /procesos/*/gateways`).
 
-**No se implementó `DELETE` de gateway**: pertenece a HU-16 y no hay ruta, ni método de servicio, ni
-enlace en la interfaz.
+**En este bloque no se implementó `DELETE` de gateway**: pertenece a HU-16. Posteriormente HU-16
+añadió `GatewayService.eliminar` y `DELETE /api/procesos/{procesoId}/gateways/{gatewayId}`, con
+previsualización en `GET /api/procesos/{procesoId}/gateways/{gatewayId}/eliminacion`.
 
 ## Interfaz
 
@@ -292,7 +294,8 @@ otra empresa recibe 403 al crear, al consultar y al editar.
 
 ## Qué quedó pendiente
 
-- **Eliminar gateways**: es HU-16. El campo `activo` ya está preparado.
+- **Eliminar gateways**: es HU-16, implementada posteriormente sobre el campo `activo` que este
+  bloque dejó preparado.
 - **Distinguir divergencia de convergencia**: el modelo no lo hace y ninguna historia lo pide; la
   regla de dos salidas se aplica a cualquier gateway que tenga salidas.
 - **Evaluar las condiciones**: el proyecto no ejecuta procesos.

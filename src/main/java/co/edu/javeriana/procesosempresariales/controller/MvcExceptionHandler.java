@@ -11,8 +11,11 @@ import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
+import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -54,6 +57,18 @@ public class MvcExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     ModelAndView poolNoValido(RuntimeException exception) {
         return vista("El pool indicado no admite ese elemento", exception.getMessage());
+    }
+
+    @ExceptionHandler({ NombreProcesoDuplicadoException.class, NombreActividadDuplicadoException.class })
+    @ResponseStatus(HttpStatus.CONFLICT)
+    ModelAndView nombreDuplicado(RuntimeException exception) {
+        return vista("Ya existe un elemento con ese nombre", exception.getMessage());
+    }
+
+    @ExceptionHandler(LaneNoValidaException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    ModelAndView laneNoValida(LaneNoValidaException exception) {
+        return vista("La lane indicada no es valida", exception.getMessage());
     }
 
     private ModelAndView vista(String titulo, String detalle) {

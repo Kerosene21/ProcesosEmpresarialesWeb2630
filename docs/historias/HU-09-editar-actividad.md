@@ -74,12 +74,12 @@ y el detalle del proceso lo refleja solo, porque agrupa las actividades por `lan
 La lane nueva se valida contra el **pool del proceso**, de modo que no se puede mover una actividad
 a una banda de otro proceso ni de otra empresa.
 
-> Mientras HU-22 no exista, cada proceso arranca con **una sola lane** (`General`), así que el
-> desplegable del formulario muestra una única opción. El servicio, el formulario, el diagrama y las
-> pruebas ya funcionan con varias lanes: `ActividadesIntegracionTest` crea una segunda lane en el
-> pool y comprueba de extremo a extremo que la actividad cambia de banda y que el detalle la dibuja
-> bajo la nueva. Cuando HU-22 añada la gestión de lanes, el cambio queda disponible en la interfaz
-> sin tocar este bloque.
+> En el bloque original, mientras HU-22 no existía, cada proceso arrancaba con **una sola lane**
+> (`General`), así que el desplegable del formulario mostraba una única opción. El servicio, el
+> formulario, el diagrama y las pruebas ya funcionaban con varias lanes: `ActividadesIntegracionTest`
+> crea una segunda lane en el pool y comprueba de extremo a extremo que la actividad cambia de banda
+> y que el detalle la dibuja bajo la nueva. Posteriormente HU-22 añadió la gestión de lanes, y las
+> lanes creadas aparecen en el desplegable sin haber tocado este bloque.
 
 ## Los arcos conectados se conservan
 
@@ -202,6 +202,6 @@ de empresa llega del cliente.
 
 ## Qué quedó pendiente
 
-- **Cambio de lane demostrable en la interfaz con más de una banda**: depende de la gestión de lanes
-  de HU-22. El modelo, la vista y las pruebas ya lo soportan.
+- **Cambio de lane demostrable en la interfaz con más de una banda**: dependía de la gestión de
+  lanes de HU-22, implementada posteriormente. El modelo, la vista y las pruebas ya lo soportaban.
 - **Edición de la posición**: fuera de los criterios de esta historia.
