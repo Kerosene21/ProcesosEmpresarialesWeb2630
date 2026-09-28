@@ -185,7 +185,9 @@ class DocumentacionApiIntegracionTest {
         assertThat(identificadores).hasSize(64).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
         assertThat(resumenes).hasSize(64).allMatch(resumen -> !resumen.isBlank());
         assertThat(etiquetas).hasSize(64);
-        assertThat(respuestas).allSatisfy(respuesta -> assertThat(respuesta).containsKey("401"));
+        assertThat(respuestas)
+                .hasSize(64)
+                .allSatisfy(respuesta -> assertThat(respuesta).containsKey("401"));
     }
 
     @Test
