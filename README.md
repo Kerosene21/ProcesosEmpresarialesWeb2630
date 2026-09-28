@@ -133,6 +133,27 @@ esquema al terminar.
 La aplicación queda disponible en `http://localhost:8080`. El flujo de uso empieza registrando
 una empresa en `/empresas/nueva` e iniciando sesión en `/login` con su administrador inicial.
 
+### Datos demo
+
+El perfil `demo` carga una empresa de ejemplo con usuarios, roles de proceso y un proceso modelado
+(pools, lanes, actividades, gateway, arcos y eventos de mensaje). Para usarlo, definir en el
+entorno o en `.env` las variables `DEMO_ADMIN_PASSWORD` y `DEMO_USER_PASSWORD` (entre 8 y 100
+caracteres) y ejecutar:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=demo
+```
+
+| Usuario | Rol |
+|---|---|
+| `admin.demo@example.com` | `ADMINISTRADOR` (contraseña: `DEMO_ADMIN_PASSWORD`) |
+| `editor.demo@example.com` | `EDITOR` (contraseña: `DEMO_USER_PASSWORD`) |
+| `lectura.demo@example.com` | `SOLO_LECTURA` (contraseña: `DEMO_USER_PASSWORD`) |
+
+El dataset se crea solo si no existe: los rearranques no duplican datos ni cambian contraseñas, y
+cuando ya existe las variables dejan de ser necesarias. El perfil `demo` no se activa por defecto
+y no debe usarse en producción.
+
 ### Bases de desarrollo creadas con versiones anteriores
 
 Una base nueva no necesita migración: `ddl-auto=update` crea el esquema. Solo una base de
