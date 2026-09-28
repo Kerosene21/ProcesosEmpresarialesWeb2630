@@ -90,12 +90,12 @@ public class DatosDemoService {
 
     @Transactional(readOnly = true)
     public boolean estaCargado() {
-        return usuarioService.existeUsuarioConCorreo(CORREO_ADMINISTRADOR);
+        return datasetYaExiste();
     }
 
     @Transactional
     public boolean cargar(String passwordAdministrador, String passwordUsuarios) {
-        if (estaCargado()) {
+        if (datasetYaExiste()) {
             return false;
         }
         RegistroEmpresaDto empresa = validado(
@@ -117,6 +117,10 @@ public class DatosDemoService {
                 CORREO_ADMINISTRADOR);
         crearModelo(proceso.getId(), proceso.getPoolId(), supervisor);
         return true;
+    }
+
+    private boolean datasetYaExiste() {
+        return usuarioService.existeUsuarioConCorreo(CORREO_ADMINISTRADOR);
     }
 
     private void crearModelo(Long procesoId, Long propietario, Long rolSupervisor) {

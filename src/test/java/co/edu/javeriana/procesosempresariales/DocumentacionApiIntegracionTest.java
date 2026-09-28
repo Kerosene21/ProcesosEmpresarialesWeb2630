@@ -271,7 +271,8 @@ class DocumentacionApiIntegracionTest {
         assertThat(rutas.keySet().stream().filter(ruta -> ruta.contains("empresa")).toList())
                 .containsExactly("/api/procesos/{procesoId}/compartido-con/{empresaId}");
         assertThat(ubicacionesDeEmpresa).containsExactly("path", "path");
-        assertThat(cuerpos).isNotEmpty().allSatisfy(referencia -> {
+        assertThat(cuerpos).isNotEmpty();
+        assertThat(cuerpos).allSatisfy(referencia -> {
             String esquema = referencia.substring(referencia.lastIndexOf('/') + 1);
             Map<String, Object> propiedades = JsonPath.read(json, ESQUEMAS + esquema + ".properties");
             assertThat(propiedades).doesNotContainKey("empresaId");
