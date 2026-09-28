@@ -36,3 +36,9 @@ build/
 .env
 .env.*
 !.env.example
+
+.postman/
+arranque.log
+postman/
+jmeter/resultados/
+jmeter.log
