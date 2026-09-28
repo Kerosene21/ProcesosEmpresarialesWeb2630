@@ -34,6 +34,8 @@ import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.LaneRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
 
 @ExtendWith(MockitoExtension.class)
@@ -95,6 +97,44 @@ class ActividadControllerTest {
         mockMvc.perform(get(RUTA_NUEVA).principal(PRINCIPAL)).andExpect(status().isOk());
 
         verify(actividadService, never()).crear(anyLong(), any(CrearActividadDto.class), anyString());
+    }
+
+    private MockMvc conManejadores() {
+        return MockMvcBuilders.standaloneSetup(new ActividadController(actividadService))
+                .setControllerAdvice(new ApiExceptionHandler(), new MvcExceptionHandler())
+                .build();
+    }
+
+    @Test
+    void crearConUnNombreDuplicadoMuestraLaPaginaDeProblemaConConflicto() throws Exception {
+        when(actividadService.crear(anyLong(), any(CrearActividadDto.class), anyString()))
+                .thenThrow(new NombreActividadDuplicadoException("Ya existe una actividad con ese nombre"));
+
+        conManejadores().perform(post(RUTA_ACTIVIDADES).principal(PRINCIPAL)
+                .param("nombre", "Revisar solicitud")
+                .param("tipo", "TAREA_USUARIO")
+                .param("laneId", "11")
+                .param("posicionX", "120")
+                .param("posicionY", "40"))
+                .andExpect(status().isConflict())
+                .andExpect(view().name("error/problema"))
+                .andExpect(model().attribute("detalle", "Ya existe una actividad con ese nombre"));
+    }
+
+    @Test
+    void crearConUnaLaneAjenaMuestraLaPaginaDeProblema() throws Exception {
+        when(actividadService.crear(anyLong(), any(CrearActividadDto.class), anyString()))
+                .thenThrow(new LaneNoValidaException("La lane indicada no existe o no pertenece a este proceso"));
+
+        conManejadores().perform(post(RUTA_ACTIVIDADES).principal(PRINCIPAL)
+                .param("nombre", "Revisar solicitud")
+                .param("tipo", "TAREA_USUARIO")
+                .param("laneId", "999")
+                .param("posicionX", "120")
+                .param("posicionY", "40"))
+                .andExpect(status().isBadRequest())
+                .andExpect(view().name("error/problema"))
+                .andExpect(model().attribute("detalle", "La lane indicada no existe o no pertenece a este proceso"));
     }
 
     @Test

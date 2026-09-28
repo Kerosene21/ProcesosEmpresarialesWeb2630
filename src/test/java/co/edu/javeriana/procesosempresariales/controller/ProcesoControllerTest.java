@@ -45,6 +45,7 @@ import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
 import co.edu.javeriana.procesosempresariales.service.ArcoService;
 import co.edu.javeriana.procesosempresariales.service.GatewayService;
@@ -85,6 +86,24 @@ class ProcesoControllerTest {
         proceso.setEstado(EstadoProceso.BORRADOR);
         proceso.setPoolId(80L);
         return proceso;
+    }
+
+    @Test
+    void crearConUnNombreDuplicadoMuestraLaPaginaDeProblemaConConflicto() throws Exception {
+        MockMvc conManejadores = MockMvcBuilders
+                .standaloneSetup(new ProcesoController(procesoService, actividadService, arcoService, gatewayService))
+                .setControllerAdvice(new ApiExceptionHandler(), new MvcExceptionHandler())
+                .build();
+        when(procesoService.crear(any(CrearProcesoDto.class), eq(USERNAME)))
+                .thenThrow(new NombreProcesoDuplicadoException("Ya existe un proceso con ese nombre en la empresa"));
+
+        conManejadores.perform(post("/procesos").principal(PRINCIPAL)
+                .param("nombre", "Ventas")
+                .param("descripcion", "Proceso comercial")
+                .param("categoria", "Comercial"))
+                .andExpect(status().isConflict())
+                .andExpect(view().name("error/problema"))
+                .andExpect(model().attribute("detalle", "Ya existe un proceso con ese nombre en la empresa"));
     }
 
     @Test
