@@ -16,7 +16,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// Registro de editar un proceso
 @Entity
 @Table(name = "historial_proceso")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor

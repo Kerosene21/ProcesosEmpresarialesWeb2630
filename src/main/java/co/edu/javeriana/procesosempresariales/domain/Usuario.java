@@ -17,29 +17,28 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// Usuario que trabaja dentro de una empresa
-@Entity // se guarda en la tabla de usuarios
+@Entity
 @Table(name = "usuario", uniqueConstraints = @UniqueConstraint(name = "uk_usuario_username", columnNames = "username"))
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class Usuario {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id; // id para guardar el usuario
+    private Long id;
 
     @Column(nullable = false, length = 180)
-    private String username; // nombre del usuario
+    private String username;
 
     @Column(name = "password_hash", nullable = false, length = 100)
     private String password;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private RolUsuario rol; // rol que verifica si puede editar o solo consultar
+    private RolUsuario rol;
 
     @Column(nullable = false)
     private boolean activo;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "empresa_id", nullable = false) // Guarda la relación en usuario
-    private Empresa empresa; // Define a qué empresa pertenece el usuario
+    @JoinColumn(name = "empresa_id", nullable = false)
+    private Empresa empresa;
 }

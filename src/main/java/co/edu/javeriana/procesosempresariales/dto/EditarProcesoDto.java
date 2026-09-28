@@ -9,7 +9,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-// DTO de entrada para actualizar la información básica
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class EditarProcesoDto {
     @NotBlank(message = "El nombre es obligatorio")
