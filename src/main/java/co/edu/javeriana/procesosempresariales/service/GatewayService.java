@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.service;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +18,6 @@ import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
-import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
 
 @Service
@@ -28,18 +28,27 @@ public class GatewayService {
     static final String SALIDA_SIN_CONDICION =
             "Cada arco de salida de un gateway exclusivo o inclusivo necesita condición";
     static final String SIN_PERMISO_ESCRITURA = "Solo un administrador o editor puede crear o modificar gateways";
+    static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar gateways";
+    static final String RAMIFICACION_ROTA =
+            ": la ramificación queda sin punto de decisión y el flujo se rompe.";
 
-    private final GatewayRepository gatewayRepository;
-    private final ArcoRepository arcoRepository;
-    private final AccesoProcesoService accesoProcesoService;
-    private final ConexionesService conexionesService;
+    private GatewayRepository gatewayRepository;
+    private AccesoProcesoService accesoProcesoService;
+    private HistorialProcesoService historialProcesoService;
+    private ConexionesService conexionesService;
+    private NodoFlujoResolver nodoFlujoResolver;
+    private PoolService poolService;
 
-    public GatewayService(GatewayRepository gatewayRepository, ArcoRepository arcoRepository,
-            AccesoProcesoService accesoProcesoService, ConexionesService conexionesService) {
+    @Autowired
+    public GatewayService(GatewayRepository gatewayRepository, AccesoProcesoService accesoProcesoService,
+            HistorialProcesoService historialProcesoService, ConexionesService conexionesService,
+            NodoFlujoResolver nodoFlujoResolver, PoolService poolService) {
         this.gatewayRepository = gatewayRepository;
-        this.arcoRepository = arcoRepository;
         this.accesoProcesoService = accesoProcesoService;
+        this.historialProcesoService = historialProcesoService;
         this.conexionesService = conexionesService;
+        this.nodoFlujoResolver = nodoFlujoResolver;
+        this.poolService = poolService;
     }
 
     @Transactional
@@ -51,12 +60,13 @@ public class GatewayService {
         Gateway gateway = new Gateway();
         gateway.setTipo(dto.getTipo());
         gateway.setProceso(proceso);
+        gateway.setPool(poolService.poolParaNodo(proceso, dto.getPoolId()));
         gateway.setPosicionX(dto.getPosicionX());
         gateway.setPosicionY(dto.getPosicionY());
         gateway.setActivo(true);
 
         Gateway guardado = gatewayRepository.save(gateway);
-        accesoProcesoService.registrarHistorial(proceso, usuario, "gateway creado: " + guardado.getTipo() + " #"
+        historialProcesoService.registrar(proceso, usuario, "gateway creado: " + guardado.getTipo() + " #"
                 + guardado.getId() + " en (" + guardado.getPosicionX() + ", " + guardado.getPosicionY() + ")");
 
         return conAdvertencias(toDto(guardado), proceso, guardado);
@@ -65,7 +75,7 @@ public class GatewayService {
     @Transactional(readOnly = true)
     public GatewayRespuestaDto obtener(Long procesoId, Long gatewayId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         Gateway gateway = gatewayActivoDelProceso(gatewayId, proceso);
         return conAdvertencias(toDto(gateway), proceso, gateway);
     }
@@ -73,18 +83,23 @@ public class GatewayService {
     @Transactional(readOnly = true)
     public List<GatewayRespuestaDto> consultarActivos(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
-        return gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId()).stream()
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
+        return activosDelProceso(proceso).stream()
                 .map(this::toDto)
                 .toList();
     }
 
     @Transactional(readOnly = true)
+    public List<Gateway> activosDelProceso(Proceso proceso) {
+        return gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId());
+    }
+
+    @Transactional(readOnly = true)
     public List<String> advertenciasDelProceso(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         List<String> advertencias = new ArrayList<>();
-        for (Gateway gateway : gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId())) {
+        for (Gateway gateway : activosDelProceso(proceso)) {
             advertencias.addAll(advertenciasDe(proceso, gateway));
         }
         return advertencias;
@@ -114,13 +129,81 @@ public class GatewayService {
 
         gateway.setTipo(dto.getTipo());
         gatewayRepository.save(gateway);
-        if (!modificados.isEmpty()) {
-            arcoRepository.saveAll(modificados);
-        }
-        accesoProcesoService.registrarHistorial(proceso, usuario,
+        conexionesService.guardarCambios(modificados);
+        historialProcesoService.registrar(proceso, usuario,
                 "gateway #" + gateway.getId() + ": " + String.join("; ", cambios));
 
         return conAdvertencias(toDto(gateway), proceso, gateway);
+    }
+
+    @Transactional(readOnly = true)
+    public GatewayRespuestaDto obtenerParaEliminar(Long procesoId, Long gatewayId, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolAdministrador(usuario, SIN_PERMISO_ELIMINAR);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        Gateway gateway = gatewayActivoDelProceso(gatewayId, proceso);
+
+        List<Arco> conectados = conexionesService.conectadosActivos(proceso, TipoNodoFlujo.GATEWAY,
+                gateway.getId());
+        List<String> advertencias = new ArrayList<>();
+        if (!conectados.isEmpty()) {
+            advertencias.add((conectados.size() == 1 ? "Se desactivará 1 arco conectado a "
+                    : "Se desactivarán " + conectados.size() + " arcos conectados a ") + gateway.etiqueta() + ".");
+        }
+        advertencias.addAll(ramificacionSinDecision(proceso, gateway, conectados));
+        advertencias.addAll(conexionesService.advertenciasSiSeEliminaNodo(proceso, TipoNodoFlujo.GATEWAY,
+                gateway.getId(), conectados));
+
+        GatewayRespuestaDto respuesta = toDto(gateway);
+        respuesta.setAdvertencias(advertencias);
+        return respuesta;
+    }
+
+    @Transactional
+    public GatewayRespuestaDto eliminar(Long procesoId, Long gatewayId, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolAdministrador(usuario, SIN_PERMISO_ELIMINAR);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        Gateway gateway = gatewayActivoDelProceso(gatewayId, proceso);
+
+        gateway.setActivo(false);
+        gatewayRepository.save(gateway);
+
+        List<Arco> desactivados = conexionesService.desactivarConectadosA(proceso, TipoNodoFlujo.GATEWAY,
+                gateway.getId());
+        historialProcesoService.registrar(proceso, usuario,
+                "gateway eliminado: " + gateway.etiqueta() + resumenDeConexiones(desactivados));
+
+        List<String> advertencias = new ArrayList<>(ramificacionSinDecision(proceso, gateway, desactivados));
+        advertencias.addAll(conexionesService.advertenciasTrasDesactivar(proceso, desactivados,
+                TipoNodoFlujo.GATEWAY, gateway.getId()));
+
+        GatewayRespuestaDto respuesta = toDto(gateway);
+        respuesta.setArcosDesactivados(desactivados.size());
+        respuesta.setAdvertencias(advertencias);
+        return respuesta;
+    }
+
+    private List<String> ramificacionSinDecision(Proceso proceso, Gateway gateway, List<Arco> conectados) {
+        List<String> destinos = conectados.stream()
+                .filter(arco -> arco.getOrigenTipo() == TipoNodoFlujo.GATEWAY
+                        && gateway.getId().equals(arco.getOrigenId()))
+                .map(arco -> "'" + nodoFlujoResolver.describir(proceso, arco.getDestinoTipo(), arco.getDestinoId())
+                        + "'")
+                .distinct()
+                .toList();
+        if (destinos.isEmpty()) {
+            return List.of();
+        }
+        return List.of(gateway.etiqueta() + " deja de decidir el flujo hacia " + String.join(", ", destinos)
+                + RAMIFICACION_ROTA);
+    }
+
+    private String resumenDeConexiones(List<Arco> desactivados) {
+        if (desactivados.isEmpty()) {
+            return "";
+        }
+        return "; arcos desactivados: " + desactivados.size();
     }
 
     private List<Arco> limpiarCondiciones(List<Arco> salientes) {
@@ -169,7 +252,7 @@ public class GatewayService {
     }
 
     private List<String> advertenciasDe(Proceso proceso, Gateway gateway) {
-        return conexionesService.advertenciasDeGateway(proceso, NodoFlujoResolver.desdeGateway(gateway));
+        return conexionesService.advertenciasDeGateway(proceso, nodoFlujoResolver.desdeGateway(gateway));
     }
 
     private GatewayRespuestaDto conAdvertencias(GatewayRespuestaDto respuesta, Proceso proceso, Gateway gateway) {
@@ -188,6 +271,7 @@ public class GatewayService {
         GatewayRespuestaDto respuesta = new GatewayRespuestaDto();
         respuesta.setId(gateway.getId());
         respuesta.setProcesoId(gateway.getProceso().getId());
+        respuesta.setPoolId(gateway.getPool().getId());
         respuesta.setTipo(gateway.getTipo());
         respuesta.setSimbolo(gateway.getTipo().getSimbolo());
         respuesta.setEtiqueta(gateway.etiqueta());

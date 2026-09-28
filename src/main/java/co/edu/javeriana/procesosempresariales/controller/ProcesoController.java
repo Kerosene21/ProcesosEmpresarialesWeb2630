@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.controller;
 import java.security.Principal;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -27,11 +28,12 @@ import co.edu.javeriana.procesosempresariales.service.ProcesoService;
 @Controller
 @RequestMapping("/procesos")
 public class ProcesoController {
-    private final ProcesoService procesoService;
-    private final ActividadService actividadService;
-    private final ArcoService arcoService;
-    private final GatewayService gatewayService;
+    private ProcesoService procesoService;
+    private ActividadService actividadService;
+    private ArcoService arcoService;
+    private GatewayService gatewayService;
 
+    @Autowired
     public ProcesoController(ProcesoService procesoService, ActividadService actividadService,
             ArcoService arcoService, GatewayService gatewayService) {
         this.procesoService = procesoService;

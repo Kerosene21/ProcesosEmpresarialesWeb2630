@@ -113,14 +113,14 @@ class EliminacionProcesosIntegracionTest {
         registrarAlpes();
         ProcesoRespuestaDto proceso = crearProceso("Ventas", EDITOR_ALPES);
         Proceso antes = procesoRepository.findById(proceso.getId()).orElseThrow();
-        Long poolId = antes.getPool().getId();
+        Long poolId = antes.poolPropietario().getId();
         Long empresaId = antes.getEmpresa().getId();
 
         procesoService.eliminar(proceso.getId(), ADMIN_ALPES);
 
         Proceso despues = procesoRepository.findById(proceso.getId()).orElseThrow();
-        assertThat(despues.getPool()).isNotNull();
-        assertThat(despues.getPool().getId()).isEqualTo(poolId);
+        assertThat(despues.getPools()).hasSize(1);
+        assertThat(despues.poolPropietario().getId()).isEqualTo(poolId);
         assertThat(despues.getEmpresa().getId()).isEqualTo(empresaId);
     }
 

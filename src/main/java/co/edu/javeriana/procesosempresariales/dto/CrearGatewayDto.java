@@ -18,4 +18,10 @@ public class CrearGatewayDto {
 
     @NotNull(message = "La posición Y es obligatoria")
     private Integer posicionY;
+
+    private Long poolId;
+
+    public CrearGatewayDto(TipoGateway tipo, Integer posicionX, Integer posicionY) {
+        this(tipo, posicionX, posicionY, null);
+    }
 }

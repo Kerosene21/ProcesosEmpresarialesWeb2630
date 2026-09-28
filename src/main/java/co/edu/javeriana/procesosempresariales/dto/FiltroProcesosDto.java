@@ -12,5 +12,6 @@ public class FiltroProcesosDto {
     private EstadoProceso estado;
     private String categoria;
     private VisibilidadProceso visibilidad;
+    private AlcanceProceso alcance;
     private Integer page;
 }

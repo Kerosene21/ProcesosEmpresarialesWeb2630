@@ -11,11 +11,13 @@ import lombok.Setter;
 public class GatewayRespuestaDto {
     private Long id;
     private Long procesoId;
+    private Long poolId;
     private TipoGateway tipo;
     private String simbolo;
     private String etiqueta;
     private Integer posicionX;
     private Integer posicionY;
     private boolean activo;
+    private int arcosDesactivados;
     private List<String> advertencias = new ArrayList<>();
 }

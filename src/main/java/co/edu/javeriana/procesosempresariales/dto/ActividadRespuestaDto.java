@@ -13,6 +13,7 @@ public class ActividadRespuestaDto {
     private String nombre;
     private TipoActividad tipo;
     private Long procesoId;
+    private Long poolId;
     private Long laneId;
     private String laneNombre;
     private Integer posicionX;

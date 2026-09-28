@@ -52,7 +52,8 @@ class EmpresaServiceTest {
     @BeforeEach
     void inicializar() {
         passwordEncoder = new BCryptPasswordEncoder();
-        empresaService = new EmpresaService(empresaRepository, usuarioRepository, new ModelMapper(), passwordEncoder);
+        UsuarioService usuarioService = new UsuarioService(usuarioRepository, new ModelMapper(), passwordEncoder);
+        empresaService = new EmpresaService(empresaRepository, usuarioService, new ModelMapper());
     }
 
     private RegistroEmpresaDto formularioValido() {
@@ -294,5 +295,21 @@ class EmpresaServiceTest {
 
         assertThatThrownBy(() -> empresaService.listarVisiblesPara(CORREO))
                 .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+    @Test
+    void buscarPorIdDevuelveLaEmpresaExistente() {
+        Empresa empresa = new Empresa(7L, "Alpes Logistica", "900123456-7", CORREO);
+        when(empresaRepository.findById(7L)).thenReturn(Optional.of(empresa));
+
+        assertThat(empresaService.buscarPorId(7L)).isSameAs(empresa);
+    }
+
+    @Test
+    void buscarPorIdDeUnaEmpresaInexistenteFallaConMensajeClaro() {
+        when(empresaRepository.findById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> empresaService.buscarPorId(404L))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage(EmpresaService.EMPRESA_NO_EXISTE);
     }
 }

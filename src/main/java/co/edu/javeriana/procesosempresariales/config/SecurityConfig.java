@@ -1,5 +1,9 @@
 package co.edu.javeriana.procesosempresariales.config;
 
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -9,9 +13,14 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.AccessDeniedHandlerImpl;
+import org.springframework.security.web.access.RequestMatcherDelegatingAccessDeniedHandler;
 import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 @Configuration
 @EnableWebSecurity
@@ -28,6 +37,12 @@ public class SecurityConfig {
     private static final String ROL_ADMINISTRADOR = "ADMINISTRADOR";
     private static final String ROL_EDITOR = "EDITOR";
     private static final String[] RECURSOS_PUBLICOS = { "/css/**", "/js/**", "/favicon.ico", "/error" };
+    private static final String[] RUTAS_API_EVENTOS = { "/api/procesos/*/message-throws",
+            "/api/procesos/*/message-catches", "/api/procesos/*/envios-externos" };
+    private static final String[] RUTAS_API_EVENTO = { "/api/procesos/*/message-throws/*",
+            "/api/procesos/*/message-catches/*", "/api/procesos/*/envios-externos/*" };
+    private static final String[] RUTAS_API_ELIMINACION_EVENTO = { "/api/procesos/*/message-throws/*/eliminacion",
+            "/api/procesos/*/message-catches/*/eliminacion", "/api/procesos/*/envios-externos/*/eliminacion" };
 
     @Bean
     PasswordEncoder passwordEncoder() {
@@ -67,6 +82,10 @@ public class SecurityConfig {
                         .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
                         .requestMatchers(HttpMethod.POST, "/procesos/*/gateways", "/procesos/*/gateways/*")
                         .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .requestMatchers(HttpMethod.GET, RUTAS_API_ELIMINACION_EVENTO).hasRole(ROL_ADMINISTRADOR)
+                        .requestMatchers(HttpMethod.DELETE, RUTAS_API_EVENTO).hasRole(ROL_ADMINISTRADOR)
+                        .requestMatchers(HttpMethod.POST, RUTAS_API_EVENTOS).hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .requestMatchers(HttpMethod.PUT, RUTAS_API_EVENTO).hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
                         .anyRequest().authenticated())
                 .formLogin(login -> login
                         .loginPage(RUTA_LOGIN)
@@ -80,8 +99,20 @@ public class SecurityConfig {
                         .permitAll())
                 .exceptionHandling(errores -> errores
                         .authenticationEntryPoint(puntoDeEntrada())
-                        .accessDeniedPage(RUTA_ACCESO_DENEGADO))
+                        .accessDeniedHandler(accesoDenegado()))
                 .build();
+    }
+
+    private AccessDeniedHandler accesoDenegado() {
+        AccessDeniedHandlerImpl pagina = new AccessDeniedHandlerImpl();
+        pagina.setErrorPage(RUTA_ACCESO_DENEGADO);
+        PathPatternRequestMatcher.Builder rutas = PathPatternRequestMatcher.withDefaults();
+        List<RequestMatcher> apiDeEventos = Arrays.stream(RUTAS_API_EVENTOS)
+                .map(ruta -> (RequestMatcher) rutas.matcher(ruta + "/**"))
+                .toList();
+        LinkedHashMap<RequestMatcher, AccessDeniedHandler> manejadores = new LinkedHashMap<>();
+        manejadores.put(new OrRequestMatcher(apiDeEventos), new ApiAccesoDenegadoHandler());
+        return new RequestMatcherDelegatingAccessDeniedHandler(manejadores, pagina);
     }
 
     private AuthenticationEntryPoint puntoDeEntrada() {

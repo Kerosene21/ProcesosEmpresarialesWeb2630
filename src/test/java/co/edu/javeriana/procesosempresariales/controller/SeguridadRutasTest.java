@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,10 +17,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.view;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.test.context.support.WithMockUser;
@@ -31,6 +36,7 @@ import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EmpresaRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.RegistroEmpresaDto;
 import co.edu.javeriana.procesosempresariales.service.EmpresaService;
@@ -269,5 +275,42 @@ class SeguridadRutasTest {
                 .andExpect(status().isForbidden());
 
         verify(procesoService, never()).crear(any(CrearProcesoDto.class), anyString());
+    }
+    @Test
+    void laApiDeConsultaDeProcesosResponde401EnJsonSinAutenticacion() throws Exception {
+        mockMvc.perform(get("/api/procesos"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
+
+        verify(procesoService, never()).consultarProcesos(any(FiltroProcesosDto.class), anyString());
+    }
+
+    @Test
+    void laApiDeDetalleDeProcesosResponde401EnJsonSinAutenticacion() throws Exception {
+        mockMvc.perform(get("/api/procesos/5"))
+                .andExpect(status().isUnauthorized());
+
+        verify(procesoService, never()).obtenerVisible(anyLong(), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "SOLO_LECTURA")
+    void elDetalleDeLaApiUsaLaVisibilidadConElPrincipalReal() throws Exception {
+        when(procesoService.obtenerVisible(5L, USERNAME)).thenReturn(proceso());
+
+        mockMvc.perform(get("/api/procesos/5")).andExpect(status().isOk());
+
+        verify(procesoService).obtenerVisible(5L, USERNAME);
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "SOLO_LECTURA")
+    void elListadoDeLaApiUsaElPrincipalReal() throws Exception {
+        when(procesoService.consultarProcesos(any(FiltroProcesosDto.class), eq(USERNAME)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
+
+        mockMvc.perform(get("/api/procesos").param("alcance", "TODOS")).andExpect(status().isOk());
+
+        verify(procesoService).consultarProcesos(any(FiltroProcesosDto.class), eq(USERNAME));
     }
 }

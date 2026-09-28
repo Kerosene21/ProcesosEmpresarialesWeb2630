@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.javeriana.procesosempresariales.domain.Actividad;
 import co.edu.javeriana.procesosempresariales.domain.Lane;
+import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
@@ -120,7 +121,9 @@ class ActividadesIntegracionTest {
 
     private Long agregarLane(ProcesoRespuestaDto proceso, String nombre) {
         Proceso persistido = procesoRepository.findById(proceso.getId()).orElseThrow();
-        return laneRepository.save(new Lane(null, nombre, persistido.getPool())).getId();
+        Pool propietario = persistido.poolPropietario();
+        int orden = laneRepository.findByPoolIdAndActivoTrueOrderByOrdenAscIdAsc(propietario.getId()).size() + 1;
+        return laneRepository.save(new Lane(null, nombre, propietario, null, orden, true)).getId();
     }
 
     private ActividadRespuestaDto crearActividad(ProcesoRespuestaDto proceso, String nombre, Long laneId,
@@ -146,7 +149,8 @@ class ActividadesIntegracionTest {
         assertThat(lanes).hasSize(1);
         assertThat(lanes.get(0).getNombre()).isEqualTo("General");
         Proceso persistido = procesoRepository.findById(proceso.getId()).orElseThrow();
-        assertThat(laneRepository.findByIdAndPoolId(lanes.get(0).getId(), persistido.getPool().getId())).isPresent();
+        assertThat(laneRepository.findByIdAndPoolIdAndActivoTrue(lanes.get(0).getId(),
+                persistido.poolPropietario().getId())).isPresent();
     }
 
     @Test
@@ -161,7 +165,8 @@ class ActividadesIntegracionTest {
         Proceso procesoPersistido = procesoRepository.findById(proceso.getId()).orElseThrow();
         assertThat(persistida.getProceso().getId()).isEqualTo(proceso.getId());
         assertThat(persistida.getLane().getId()).isEqualTo(laneId);
-        assertThat(persistida.getLane().getPool().getId()).isEqualTo(procesoPersistido.getPool().getId());
+        assertThat(persistida.getLane().getPool().getId())
+                .isEqualTo(procesoPersistido.poolPropietario().getId());
         assertThat(persistida.getPosicionX()).isEqualTo(120);
         assertThat(persistida.getPosicionY()).isEqualTo(40);
         assertThat(persistida.isActivo()).isTrue();

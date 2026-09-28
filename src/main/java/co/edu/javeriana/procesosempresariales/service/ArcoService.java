@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,7 +20,9 @@ import co.edu.javeriana.procesosempresariales.dto.CrearArcoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarArcoDto;
 import co.edu.javeriana.procesosempresariales.dto.NodoFlujoDto;
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
@@ -37,18 +40,28 @@ public class ArcoService {
     static final String CONDICION_SIN_GATEWAY = "Solo los arcos que salen de un gateway llevan condición";
     static final String SIN_PERMISO_ESCRITURA = "Solo un administrador o editor puede crear o modificar arcos";
     static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar arcos";
+    static final String ENTRE_POOLS = "' están en pools distintos: un flujo de secuencia no cruza pools;"
+            + " entre pools solo se admiten flujos de mensaje";
+    static final String DESTINO_SIN_ENTRADAS = "' es un Message Catch de inicio: no admite flujos de secuencia"
+            + " entrantes";
 
-    private final ArcoRepository arcoRepository;
-    private final AccesoProcesoService accesoProcesoService;
-    private final NodoFlujoResolver nodoFlujoResolver;
-    private final ConexionesService conexionesService;
+    private ArcoRepository arcoRepository;
+    private AccesoProcesoService accesoProcesoService;
+    private HistorialProcesoService historialProcesoService;
+    private NodoFlujoResolver nodoFlujoResolver;
+    private ConexionesService conexionesService;
+    private GeometriaArco geometriaArco;
 
+    @Autowired
     public ArcoService(ArcoRepository arcoRepository, AccesoProcesoService accesoProcesoService,
-            NodoFlujoResolver nodoFlujoResolver, ConexionesService conexionesService) {
+            HistorialProcesoService historialProcesoService, NodoFlujoResolver nodoFlujoResolver,
+            ConexionesService conexionesService, GeometriaArco geometriaArco) {
         this.arcoRepository = arcoRepository;
         this.accesoProcesoService = accesoProcesoService;
+        this.historialProcesoService = historialProcesoService;
         this.nodoFlujoResolver = nodoFlujoResolver;
         this.conexionesService = conexionesService;
+        this.geometriaArco = geometriaArco;
     }
 
     @Transactional
@@ -60,6 +73,8 @@ public class ArcoService {
         NodoFlujo origen = nodoFlujoResolver.resolverActivo(proceso, dto.getOrigenTipo(), dto.getOrigenId());
         NodoFlujo destino = nodoFlujoResolver.resolverActivo(proceso, dto.getDestinoTipo(), dto.getDestinoId());
         validarExtremosDistintos(origen, destino);
+        validarMismoPool(origen, destino);
+        validarQueAdmitaEntradas(destino);
         validarQueNoEsteRepetido(proceso, origen, destino, null);
 
         Arco arco = new Arco();
@@ -73,7 +88,7 @@ public class ArcoService {
         arco.setActivo(true);
 
         Arco guardado = arcoRepository.save(arco);
-        accesoProcesoService.registrarHistorial(proceso, usuario,
+        historialProcesoService.registrar(proceso, usuario,
                 "arco creado: " + descripcion(origen.nombre(), destino.nombre()));
 
         ArcoRespuestaDto respuesta = toDto(guardado, proceso);
@@ -84,14 +99,14 @@ public class ArcoService {
     @Transactional(readOnly = true)
     public ArcoRespuestaDto obtener(Long procesoId, Long arcoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         return toDto(arcoActivoDelProceso(arcoId, proceso), proceso);
     }
 
     @Transactional(readOnly = true)
     public List<ArcoRespuestaDto> consultarActivos(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         Map<String, NodoFlujo> nodos = nodoFlujoResolver.indiceDeNodosActivos(proceso);
         return arcoRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId()).stream()
                 .map(arco -> toDto(arco, proceso, nodos))
@@ -101,7 +116,7 @@ public class ArcoService {
     @Transactional(readOnly = true)
     public List<ArcoRespuestaDto> salientesDe(Long procesoId, TipoNodoFlujo tipo, Long nodoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         Map<String, NodoFlujo> nodos = nodoFlujoResolver.indiceDeNodosActivos(proceso);
         return conexionesService.salientesActivos(proceso.getId(), tipo, nodoId).stream()
                 .map(arco -> toDto(arco, proceso, nodos))
@@ -111,7 +126,7 @@ public class ArcoService {
     @Transactional(readOnly = true)
     public List<NodoFlujoDto> nodosDelProceso(Long procesoId, String username) {
         Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
-        Proceso proceso = accesoProcesoService.procesoDeLaEmpresa(procesoId, usuario);
+        Proceso proceso = accesoProcesoService.procesoVisiblePara(procesoId, usuario);
         return nodoFlujoResolver.nodosActivos(proceso).stream()
                 .map(nodo -> new NodoFlujoDto(nodo.tipo(), nodo.id(), nodo.nombre()))
                 .toList();
@@ -127,6 +142,8 @@ public class ArcoService {
         NodoFlujo origen = nodoFlujoResolver.resolverActivo(proceso, dto.getOrigenTipo(), dto.getOrigenId());
         NodoFlujo destino = nodoFlujoResolver.resolverActivo(proceso, dto.getDestinoTipo(), dto.getDestinoId());
         validarExtremosDistintos(origen, destino);
+        validarMismoPool(origen, destino);
+        validarQueAdmitaEntradas(destino);
         validarQueNoEsteRepetido(proceso, origen, destino, arco.getId());
 
         String etiquetaNueva = textoONulo(dto.getEtiqueta());
@@ -147,7 +164,7 @@ public class ArcoService {
         arco.setCondicion(condicionNueva);
         arcoRepository.save(arco);
 
-        accesoProcesoService.registrarHistorial(proceso, usuario, resumen);
+        historialProcesoService.registrar(proceso, usuario, resumen);
 
         ArcoRespuestaDto respuesta = toDto(arco, proceso);
         respuesta.setAdvertencias(advertenciasDeGateways(proceso, origen, origenAnterior));
@@ -177,7 +194,7 @@ public class ArcoService {
         arco.setActivo(false);
         arcoRepository.save(arco);
 
-        accesoProcesoService.registrarHistorial(proceso, usuario, "arco eliminado: " + descripcion);
+        historialProcesoService.registrar(proceso, usuario, "arco eliminado: " + descripcion);
 
         ArcoRespuestaDto respuesta = toDto(arco, proceso);
         respuesta.setAdvertencias(conexionesService.advertenciasTrasDesactivar(proceso, List.of(arco), null, null));
@@ -196,6 +213,18 @@ public class ArcoService {
     private void validarExtremosDistintos(NodoFlujo origen, NodoFlujo destino) {
         if (origen.tipo() == destino.tipo() && Objects.equals(origen.id(), destino.id())) {
             throw new NodoFlujoNoValidoException(EXTREMOS_IGUALES);
+        }
+    }
+
+    private void validarMismoPool(NodoFlujo origen, NodoFlujo destino) {
+        if (!origen.mismoPool(destino)) {
+            throw new FlujoEntrePoolsException("'" + origen.nombre() + "' y '" + destino.nombre() + ENTRE_POOLS);
+        }
+    }
+
+    private void validarQueAdmitaEntradas(NodoFlujo destino) {
+        if (!destino.admiteEntradas()) {
+            throw new CatchInicioConEntradaException("'" + destino.nombre() + DESTINO_SIN_ENTRADAS);
         }
     }
 
@@ -302,9 +331,9 @@ public class ArcoService {
         Optional<NodoFlujo> origen = buscarEnIndice(proceso, nodos, arco.getOrigenTipo(), arco.getOrigenId());
         Optional<NodoFlujo> destino = buscarEnIndice(proceso, nodos, arco.getDestinoTipo(), arco.getDestinoId());
         respuesta.setOrigenNombre(origen.map(NodoFlujo::nombre)
-                .orElseGet(() -> NodoFlujoResolver.referencia(arco.getOrigenTipo(), arco.getOrigenId())));
+                .orElseGet(() -> nodoFlujoResolver.referencia(arco.getOrigenTipo(), arco.getOrigenId())));
         respuesta.setDestinoNombre(destino.map(NodoFlujo::nombre)
-                .orElseGet(() -> NodoFlujoResolver.referencia(arco.getDestinoTipo(), arco.getDestinoId())));
+                .orElseGet(() -> nodoFlujoResolver.referencia(arco.getDestinoTipo(), arco.getDestinoId())));
         if (origen.isPresent() && destino.isPresent()) {
             ubicarExtremos(respuesta, origen.get(), destino.get());
         }
@@ -313,7 +342,7 @@ public class ArcoService {
 
     private Optional<NodoFlujo> buscarEnIndice(Proceso proceso, Map<String, NodoFlujo> nodos, TipoNodoFlujo tipo,
             Long nodoId) {
-        NodoFlujo nodo = nodos.get(NodoFlujoResolver.clave(tipo, nodoId));
+        NodoFlujo nodo = nodos.get(nodoFlujoResolver.clave(tipo, nodoId));
         if (nodo != null) {
             return Optional.of(nodo);
         }
@@ -321,11 +350,11 @@ public class ArcoService {
     }
 
     private void ubicarExtremos(ArcoRespuestaDto respuesta, NodoFlujo origen, NodoFlujo destino) {
-        GeometriaArco.Punto centroOrigen = GeometriaArco.centro(origen.tipo(), origen.posicionX(),
+        PuntoDiagrama centroOrigen = geometriaArco.centro(origen.tipo(), origen.posicionX(),
                 origen.posicionY());
-        GeometriaArco.Punto centroDestino = GeometriaArco.centro(destino.tipo(), destino.posicionX(),
+        PuntoDiagrama centroDestino = geometriaArco.centro(destino.tipo(), destino.posicionX(),
                 destino.posicionY());
-        GeometriaArco.Punto llegada = GeometriaArco.llegada(centroOrigen, centroDestino, destino.tipo());
+        PuntoDiagrama llegada = geometriaArco.llegada(centroOrigen, centroDestino, destino.tipo());
         respuesta.setOrigenX(centroOrigen.x());
         respuesta.setOrigenY(centroOrigen.y());
         respuesta.setDestinoX(llegada.x());

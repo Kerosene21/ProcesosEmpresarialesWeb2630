@@ -9,6 +9,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -16,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.security.Principal;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -267,5 +269,35 @@ class ActividadRestControllerTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.codigo").value("RECURSO_NO_ENCONTRADO"))
                 .andExpect(jsonPath("$.mensaje").value("La actividad ya fue eliminada"));
+    }
+    @Test
+    void listarDevuelveLasActividadesVigentesConSuPool() throws Exception {
+        ActividadRespuestaDto actividad = actividadCreada();
+        actividad.setPoolId(80L);
+        when(actividadService.consultarActivas(5L, USERNAME)).thenReturn(List.of(actividad));
+
+        mockMvc.perform(get(RUTA_ACTIVIDADES).principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(30))
+                .andExpect(jsonPath("$[0].poolId").value(80))
+                .andExpect(jsonPath("$[0].laneNombre").value("General"));
+    }
+
+    @Test
+    void obtenerDevuelveLaActividadSolicitada() throws Exception {
+        when(actividadService.obtener(5L, 30L, USERNAME)).thenReturn(actividadCreada());
+
+        mockMvc.perform(get(RUTA_ACTIVIDAD).principal(PRINCIPAL))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nombre").value("Revisar solicitud"));
+    }
+
+    @Test
+    void listarLasActividadesDeUnProcesoAjenoNoCompartidoDevuelve403() throws Exception {
+        when(actividadService.consultarActivas(5L, USERNAME))
+                .thenThrow(new UsuarioSinPermisoException("El proceso no pertenece a la empresa del usuario"));
+
+        mockMvc.perform(get(RUTA_ACTIVIDADES).principal(PRINCIPAL))
+                .andExpect(status().isForbidden());
     }
 }

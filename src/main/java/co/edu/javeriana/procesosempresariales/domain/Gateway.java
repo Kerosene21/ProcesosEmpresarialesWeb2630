@@ -18,7 +18,9 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "gateway", indexes = @Index(name = "ix_gateway_proceso", columnList = "proceso_id, activo"))
+@Table(name = "gateway", indexes = {
+        @Index(name = "ix_gateway_proceso", columnList = "proceso_id, activo"),
+        @Index(name = "ix_gateway_pool", columnList = "pool_id, activo") })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
 public class Gateway {
     @Id
@@ -32,6 +34,10 @@ public class Gateway {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "proceso_id", nullable = false)
     private Proceso proceso;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "pool_id", nullable = false)
+    private Pool pool;
 
     @Column(name = "posicion_x", nullable = false)
     private Integer posicionX;

@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,32 +19,42 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.modelmapper.ModelMapper;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import co.edu.javeriana.procesosempresariales.domain.Actividad;
 import co.edu.javeriana.procesosempresariales.domain.Arco;
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
+import co.edu.javeriana.procesosempresariales.domain.Evento;
 import co.edu.javeriana.procesosempresariales.domain.Gateway;
 import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
 import co.edu.javeriana.procesosempresariales.domain.Lane;
+import co.edu.javeriana.procesosempresariales.domain.MessageCatch;
+import co.edu.javeriana.procesosempresariales.domain.MessageThrow;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
 import co.edu.javeriana.procesosempresariales.domain.TipoGateway;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
+import co.edu.javeriana.procesosempresariales.domain.VarianteMessageCatch;
 import co.edu.javeriana.procesosempresariales.dto.ArcoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearArcoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarArcoDto;
 import co.edu.javeriana.procesosempresariales.dto.NodoFlujoDto;
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
 import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
+import co.edu.javeriana.procesosempresariales.repository.EventoRepository;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
 import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
@@ -62,6 +74,8 @@ class ArcoServiceTest {
     private static final Long ACTIVIDAD_DESTINO = 31L;
     private static final Long GATEWAY_ID = 12L;
     private static final Long ARCO_ID = 60L;
+    private static final Long THROW_ID = 40L;
+    private static final Long CATCH_ID = 41L;
     private static final String NOMBRE_ORIGEN = "Revisar solicitud";
     private static final String NOMBRE_DESTINO = "Aprobar solicitud";
     private static final String ETIQUETA_GATEWAY = "Gateway EXCLUSIVO #12";
@@ -76,6 +90,9 @@ class ArcoServiceTest {
     private GatewayRepository gatewayRepository;
 
     @Mock
+    private EventoRepository eventoRepository;
+
+    @Mock
     private UsuarioRepository usuarioRepository;
 
     @Mock
@@ -88,11 +105,13 @@ class ArcoServiceTest {
 
     @BeforeEach
     void inicializar() {
-        NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository);
+        NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository, eventoRepository);
         ConexionesService conexiones = new ConexionesService(arcoRepository, resolver);
-        AccesoProcesoService acceso = new AccesoProcesoService(usuarioRepository, procesoRepository,
-                historialProcesoRepository);
-        arcoService = new ArcoService(arcoRepository, acceso, resolver, conexiones);
+        UsuarioService usuarios = new UsuarioService(usuarioRepository, new ModelMapper(),
+                new BCryptPasswordEncoder());
+        AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
+        arcoService = new ArcoService(arcoRepository, acceso, new HistorialProcesoService(historialProcesoRepository),
+                resolver, conexiones, new GeometriaArco());
     }
 
     private Empresa empresa(Long id) {
@@ -106,12 +125,12 @@ class ArcoServiceTest {
     }
 
     private Pool pool() {
-        return new Pool(POOL_ID, "Alpes Logistica", List.of());
+        return new Pool(POOL_ID, null, "Alpes Logistica", TipoPool.PROPIETARIO, 1, false, true, null, new ArrayList<>());
     }
 
     private Proceso proceso(Long empresaId, boolean eliminado) {
         return new Proceso(PROCESO_ID, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
-                empresa(empresaId), pool(), eliminado);
+                empresa(empresaId), List.of(pool()), eliminado);
     }
 
     private Proceso existeElProceso(Long empresaId, boolean eliminado) {
@@ -126,7 +145,7 @@ class ArcoServiceTest {
 
     private Actividad actividad(Long id, String nombre, int x, int y, boolean activo) {
         return new Actividad(id, nombre, TipoActividad.TAREA_USUARIO, proceso(EMPRESA_PROPIA, false),
-                new Lane(LANE_ID, "General", pool()), x, y, activo);
+                new Lane(LANE_ID, "General", pool(), null, 1, true), x, y, activo);
     }
 
     private void existeLaActividad(Long id, String nombre, int x, int y, boolean activo) {
@@ -141,7 +160,7 @@ class ArcoServiceTest {
 
     private void existeElGateway(TipoGateway tipo, boolean activo) {
         when(gatewayRepository.findByIdAndProcesoId(GATEWAY_ID, PROCESO_ID)).thenReturn(Optional.of(
-                new Gateway(GATEWAY_ID, tipo, proceso(EMPRESA_PROPIA, false), 300, 40, activo)));
+                new Gateway(GATEWAY_ID, tipo, proceso(EMPRESA_PROPIA, false), pool(), 300, 40, activo)));
     }
 
     private void devolverElArcoGuardado() {
@@ -356,16 +375,17 @@ class ArcoServiceTest {
     }
 
     @Test
-    void crearRechazaUnEventoMientrasNoExistaEsaEntidad() {
+    void crearRechazaUnEventoQueNoExisteEnElProceso() {
         autenticar(RolUsuario.ADMINISTRADOR);
         existeElProcesoActivo();
+        when(eventoRepository.findByIdAndProcesoId(1L, PROCESO_ID)).thenReturn(Optional.empty());
 
         CrearArcoDto dto = new CrearArcoDto(TipoNodoFlujo.EVENTO, 1L, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_DESTINO,
                 null, null);
 
         assertThatThrownBy(() -> arcoService.crear(PROCESO_ID, dto, USERNAME))
                 .isInstanceOf(NodoFlujoNoValidoException.class)
-                .hasMessage(NodoFlujoResolver.EVENTO_SIN_MODELO);
+                .hasMessage(NodoFlujoResolver.NODO_NO_EXISTE);
 
         verify(arcoRepository, never()).save(any(Arco.class));
     }
@@ -576,7 +596,7 @@ class ArcoServiceTest {
         when(actividadRepository.activasDelProceso(PROCESO_ID))
                 .thenReturn(List.of(actividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true)));
         when(gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(PROCESO_ID)).thenReturn(
-                List.of(new Gateway(GATEWAY_ID, TipoGateway.EXCLUSIVO, proceso(EMPRESA_PROPIA, false), 300, 40,
+                List.of(new Gateway(GATEWAY_ID, TipoGateway.EXCLUSIVO, proceso(EMPRESA_PROPIA, false), pool(), 300, 40,
                         true)));
 
         List<NodoFlujoDto> nodos = arcoService.nodosDelProceso(PROCESO_ID, USERNAME);
@@ -1015,5 +1035,272 @@ class ArcoServiceTest {
         assertThat(arco.getCondicion()).isNull();
         assertThat(arco.getOrigenTipo()).isEqualTo(TipoNodoFlujo.ACTIVIDAD);
         assertThat(historialGuardado().getCambiosRealizados()).contains("condicion: 'monto alto' -> ''");
+    }
+
+    private Pool poolDelCliente() {
+        return new Pool(90L, null, "Cliente", TipoPool.EXTERNO, 2, false, true, null, new ArrayList<>());
+    }
+
+    private void existeLaActividadEnLaLane(Long id, String nombre, Lane lane) {
+        when(actividadRepository.findByIdAndProcesoId(id, PROCESO_ID)).thenReturn(Optional.of(new Actividad(id,
+                nombre, TipoActividad.TAREA_USUARIO, proceso(EMPRESA_PROPIA, false), lane, 400, 50, true)));
+    }
+
+    @Test
+    void unFlujoDeSecuenciaEntreLanesDistintasDelMismoPoolSePermite() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeLaActividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true);
+        existeLaActividadEnLaLane(ACTIVIDAD_DESTINO, NOMBRE_DESTINO, new Lane(12L, "Cartera", pool(), null, 2, true));
+        devolverElArcoGuardado();
+
+        arcoService.crear(PROCESO_ID, formularioCreacion(), USERNAME);
+
+        assertThat(arcoGuardado().getDestinoId()).isEqualTo(ACTIVIDAD_DESTINO);
+    }
+
+    @Test
+    void unFlujoDeSecuenciaEntreActividadesDePoolsDistintosSeRechaza() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeLaActividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true);
+        existeLaActividadEnLaLane(ACTIVIDAD_DESTINO, NOMBRE_DESTINO,
+                new Lane(21L, "Compras", poolDelCliente(), null, 1, true));
+
+        assertThatThrownBy(() -> arcoService.crear(PROCESO_ID, formularioCreacion(), USERNAME))
+                .isInstanceOf(FlujoEntrePoolsException.class)
+                .hasMessage("'" + NOMBRE_ORIGEN + "' y '" + NOMBRE_DESTINO + ArcoService.ENTRE_POOLS);
+
+        verify(arcoRepository, never()).save(any(Arco.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void unFlujoDeSecuenciaDeActividadAGatewayDelMismoPoolSePermite() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeLaActividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true);
+        existeElGateway(TipoGateway.EXCLUSIVO, true);
+        devolverElArcoGuardado();
+
+        arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ORIGEN,
+                TipoNodoFlujo.GATEWAY, GATEWAY_ID, null, null), USERNAME);
+
+        assertThat(arcoGuardado().getDestinoTipo()).isEqualTo(TipoNodoFlujo.GATEWAY);
+    }
+
+    @Test
+    void unFlujoDeSecuenciaDeGatewayAActividadDeOtroPoolSeRechaza() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, true);
+        existeLaActividadEnLaLane(ACTIVIDAD_DESTINO, NOMBRE_DESTINO,
+                new Lane(21L, "Compras", poolDelCliente(), null, 1, true));
+
+        assertThatThrownBy(() -> arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.GATEWAY, GATEWAY_ID,
+                TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_DESTINO, null, "monto alto"), USERNAME))
+                .isInstanceOf(FlujoEntrePoolsException.class);
+
+        verify(arcoRepository, never()).save(any(Arco.class));
+    }
+
+    @Test
+    void editarUnArcoParaQueCruceDePoolSeRechaza() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        Arco arco = existeElArco(true);
+        existeLaActividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true);
+        existeLaActividadEnLaLane(ACTIVIDAD_DESTINO, NOMBRE_DESTINO,
+                new Lane(21L, "Compras", poolDelCliente(), null, 1, true));
+
+        assertThatThrownBy(() -> arcoService.editar(PROCESO_ID, ARCO_ID, formularioEdicion(), USERNAME))
+                .isInstanceOf(FlujoEntrePoolsException.class);
+
+        assertThat(arco.getDestinoId()).isEqualTo(ACTIVIDAD_DESTINO);
+        verify(arcoRepository, never()).save(any(Arco.class));
+    }
+
+    @Test
+    void unaEmpresaInvitadaConsultaLosArcosPeroNoLosCrea() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_AJENA, false);
+        when(procesoRepository.estaCompartidoCon(PROCESO_ID, EMPRESA_PROPIA)).thenReturn(true);
+        when(arcoRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(PROCESO_ID)).thenReturn(List.of());
+
+        assertThat(arcoService.consultarActivos(PROCESO_ID, USERNAME)).isEmpty();
+        assertThatThrownBy(() -> arcoService.crear(PROCESO_ID, formularioCreacion(), USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+        verify(arcoRepository, never()).save(any(Arco.class));
+    }
+
+    private MessageThrow messageThrow(Pool pool) {
+        MessageThrow messageThrow = new MessageThrow();
+        messageThrow.setId(THROW_ID);
+        messageThrow.setProceso(proceso(EMPRESA_PROPIA, false));
+        messageThrow.setPool(pool);
+        messageThrow.setPoolDestino(poolDelCliente());
+        messageThrow.setNombreMensaje("Solicitud de pago");
+        messageThrow.setPosicionX(600);
+        messageThrow.setPosicionY(50);
+        messageThrow.setActivo(true);
+        return messageThrow;
+    }
+
+    private MessageCatch messageCatch(VarianteMessageCatch variante) {
+        MessageCatch messageCatch = new MessageCatch();
+        messageCatch.setId(CATCH_ID);
+        messageCatch.setProceso(proceso(EMPRESA_PROPIA, false));
+        messageCatch.setPool(pool());
+        messageCatch.setNombreMensaje("Pago recibido");
+        messageCatch.setVariante(variante);
+        messageCatch.setPosicionX(20);
+        messageCatch.setPosicionY(50);
+        messageCatch.setActivo(true);
+        return messageCatch;
+    }
+
+    private void existeElEvento(Long id, Evento evento) {
+        when(eventoRepository.findByIdAndProcesoId(id, PROCESO_ID)).thenReturn(Optional.of(evento));
+    }
+
+    @Test
+    void unArcoDeActividadAMessageThrowSeCreaEnElMismoPool() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeLaActividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true);
+        existeElEvento(THROW_ID, messageThrow(pool()));
+        devolverElArcoGuardado();
+
+        ArcoRespuestaDto creado = arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.ACTIVIDAD,
+                ACTIVIDAD_ORIGEN, TipoNodoFlujo.EVENTO, THROW_ID, null, null), USERNAME);
+
+        assertThat(arcoGuardado().getDestinoTipo()).isEqualTo(TipoNodoFlujo.EVENTO);
+        assertThat(arcoGuardado().getDestinoId()).isEqualTo(THROW_ID);
+        assertThat(creado.getDestinoNombre()).isEqualTo("Message Throw: Solicitud de pago");
+        assertThat(creado.getDestinoX()).isEqualTo(600);
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("arco creado: '" + NOMBRE_ORIGEN + "' -> 'Message Throw: Solicitud de pago'");
+    }
+
+    @Test
+    void unArcoDeMessageCatchDeInicioAActividadSePermite() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeElEvento(CATCH_ID, messageCatch(VarianteMessageCatch.INICIO));
+        existeLaActividad(ACTIVIDAD_DESTINO, NOMBRE_DESTINO, 400, 50, true);
+        devolverElArcoGuardado();
+
+        arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.EVENTO, CATCH_ID, TipoNodoFlujo.ACTIVIDAD,
+                ACTIVIDAD_DESTINO, null, null), USERNAME);
+
+        assertThat(arcoGuardado().getOrigenTipo()).isEqualTo(TipoNodoFlujo.EVENTO);
+        assertThat(arcoGuardado().getOrigenId()).isEqualTo(CATCH_ID);
+    }
+
+    @Test
+    void unArcoHaciaUnMessageCatchDeInicioSeRechaza() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeLaActividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true);
+        existeElEvento(CATCH_ID, messageCatch(VarianteMessageCatch.INICIO));
+
+        assertThatThrownBy(() -> arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.ACTIVIDAD,
+                ACTIVIDAD_ORIGEN, TipoNodoFlujo.EVENTO, CATCH_ID, null, null), USERNAME))
+                .isInstanceOf(CatchInicioConEntradaException.class)
+                .hasMessage("'Message Catch: Pago recibido" + ArcoService.DESTINO_SIN_ENTRADAS);
+
+        verify(arcoRepository, never()).save(any(Arco.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void unArcoHaciaUnMessageCatchIntermedioSePermite() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeLaActividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true);
+        existeElEvento(CATCH_ID, messageCatch(VarianteMessageCatch.INTERMEDIO));
+        devolverElArcoGuardado();
+
+        arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ORIGEN,
+                TipoNodoFlujo.EVENTO, CATCH_ID, null, null), USERNAME);
+
+        assertThat(arcoGuardado().getDestinoId()).isEqualTo(CATCH_ID);
+    }
+
+    @Test
+    void editarUnArcoParaQueEntreAUnMessageCatchDeInicioSeRechaza() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        Arco arco = existeElArco(true);
+        existeLaActividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true);
+        existeElEvento(CATCH_ID, messageCatch(VarianteMessageCatch.INICIO));
+
+        assertThatThrownBy(() -> arcoService.editar(PROCESO_ID, ARCO_ID, new EditarArcoDto(TipoNodoFlujo.ACTIVIDAD,
+                ACTIVIDAD_ORIGEN, TipoNodoFlujo.EVENTO, CATCH_ID, null, null), USERNAME))
+                .isInstanceOf(CatchInicioConEntradaException.class);
+
+        assertThat(arco.getDestinoTipo()).isEqualTo(TipoNodoFlujo.ACTIVIDAD);
+        verify(arcoRepository, never()).save(any(Arco.class));
+    }
+
+    @Test
+    void unArcoDeGatewayAEventoYDeEventoAGatewaySePermiten() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.PARALELO, true);
+        existeElEvento(CATCH_ID, messageCatch(VarianteMessageCatch.INTERMEDIO));
+        devolverElArcoGuardado();
+
+        arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.GATEWAY, GATEWAY_ID, TipoNodoFlujo.EVENTO,
+                CATCH_ID, null, null), USERNAME);
+        arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.EVENTO, CATCH_ID, TipoNodoFlujo.GATEWAY,
+                GATEWAY_ID, null, null), USERNAME);
+
+        ArgumentCaptor<Arco> capturados = ArgumentCaptor.forClass(Arco.class);
+        verify(arcoRepository, times(2)).save(capturados.capture());
+        assertThat(capturados.getAllValues()).extracting(Arco::getOrigenTipo)
+                .containsExactly(TipoNodoFlujo.GATEWAY, TipoNodoFlujo.EVENTO);
+    }
+
+    @Test
+    void unArcoEntreDosEventosDelMismoPoolSePermite() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeElEvento(CATCH_ID, messageCatch(VarianteMessageCatch.INICIO));
+        existeElEvento(THROW_ID, messageThrow(pool()));
+        devolverElArcoGuardado();
+
+        arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.EVENTO, CATCH_ID, TipoNodoFlujo.EVENTO,
+                THROW_ID, null, null), USERNAME);
+
+        assertThat(arcoGuardado().getOrigenTipo()).isEqualTo(TipoNodoFlujo.EVENTO);
+        assertThat(arcoGuardado().getDestinoTipo()).isEqualTo(TipoNodoFlujo.EVENTO);
+    }
+
+    @Test
+    void unFlujoDeSecuenciaHaciaUnEventoDeOtroPoolSeRechaza() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeLaActividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true);
+        existeElEvento(THROW_ID, messageThrow(poolDelCliente()));
+
+        assertThatThrownBy(() -> arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.ACTIVIDAD,
+                ACTIVIDAD_ORIGEN, TipoNodoFlujo.EVENTO, THROW_ID, null, null), USERNAME))
+                .isInstanceOf(FlujoEntrePoolsException.class);
+
+        verify(arcoRepository, never()).save(any(Arco.class));
+    }
+
+    @Test
+    void unArcoQueSaleDeUnEventoNoLlevaCondicion() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeElEvento(THROW_ID, messageThrow(pool()));
+        existeLaActividad(ACTIVIDAD_DESTINO, NOMBRE_DESTINO, 400, 50, true);
+
+        assertThatThrownBy(() -> arcoService.crear(PROCESO_ID, new CrearArcoDto(TipoNodoFlujo.EVENTO, THROW_ID,
+                TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_DESTINO, null, "pago aprobado"), USERNAME))
+                .isInstanceOf(CondicionArcoNoValidaException.class)
+                .hasMessage(ArcoService.CONDICION_SIN_GATEWAY);
     }
 }

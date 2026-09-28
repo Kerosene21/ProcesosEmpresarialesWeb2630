@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.controller;
 import java.security.Principal;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -23,8 +24,9 @@ import co.edu.javeriana.procesosempresariales.service.EmpresaService;
 @RequestMapping("/empresas")
 public class EmpresaController {
 
-    private final EmpresaService empresaService;
+    private EmpresaService empresaService;
 
+    @Autowired
     public EmpresaController(EmpresaService empresaService) {
         this.empresaService = empresaService;
     }

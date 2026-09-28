@@ -7,16 +7,19 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.javeriana.procesosempresariales.domain.Actividad;
+import co.edu.javeriana.procesosempresariales.domain.Evento;
 import co.edu.javeriana.procesosempresariales.domain.Gateway;
 import co.edu.javeriana.procesosempresariales.domain.NodoFlujo;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
+import co.edu.javeriana.procesosempresariales.repository.EventoRepository;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
 
 @Service
@@ -24,14 +27,17 @@ public class NodoFlujoResolver {
 
     static final String NODO_NO_EXISTE = "El nodo indicado no existe en este proceso";
     static final String NODO_INACTIVO = "El nodo indicado fue eliminado del proceso";
-    static final String EVENTO_SIN_MODELO = "Los eventos todavía no existen en el modelo del proceso";
 
-    private final ActividadRepository actividadRepository;
-    private final GatewayRepository gatewayRepository;
+    private ActividadRepository actividadRepository;
+    private GatewayRepository gatewayRepository;
+    private EventoRepository eventoRepository;
 
-    public NodoFlujoResolver(ActividadRepository actividadRepository, GatewayRepository gatewayRepository) {
+    @Autowired
+    public NodoFlujoResolver(ActividadRepository actividadRepository, GatewayRepository gatewayRepository,
+            EventoRepository eventoRepository) {
         this.actividadRepository = actividadRepository;
         this.gatewayRepository = gatewayRepository;
+        this.eventoRepository = eventoRepository;
     }
 
     @Transactional(readOnly = true)
@@ -41,18 +47,16 @@ public class NodoFlujoResolver {
         }
         return switch (tipo) {
             case ACTIVIDAD -> actividadRepository.findByIdAndProcesoId(nodoId, proceso.getId())
-                    .map(NodoFlujoResolver::desdeActividad);
+                    .map(this::desdeActividad);
             case GATEWAY -> gatewayRepository.findByIdAndProcesoId(nodoId, proceso.getId())
-                    .map(NodoFlujoResolver::desdeGateway);
-            case EVENTO -> Optional.empty();
+                    .map(this::desdeGateway);
+            case EVENTO -> eventoRepository.findByIdAndProcesoId(nodoId, proceso.getId())
+                    .map(this::desdeEvento);
         };
     }
 
     @Transactional(readOnly = true)
     public NodoFlujo resolverActivo(Proceso proceso, TipoNodoFlujo tipo, Long nodoId) {
-        if (tipo == TipoNodoFlujo.EVENTO) {
-            throw new NodoFlujoNoValidoException(EVENTO_SIN_MODELO);
-        }
         NodoFlujo nodo = buscar(proceso, tipo, nodoId)
                 .orElseThrow(() -> new NodoFlujoNoValidoException(NODO_NO_EXISTE));
         if (!nodo.activo()) {
@@ -64,10 +68,13 @@ public class NodoFlujoResolver {
     @Transactional(readOnly = true)
     public List<NodoFlujo> nodosActivos(Proceso proceso) {
         List<NodoFlujo> nodos = new ArrayList<>(actividadRepository.activasDelProceso(proceso.getId()).stream()
-                .map(NodoFlujoResolver::desdeActividad)
+                .map(this::desdeActividad)
                 .toList());
         nodos.addAll(gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId()).stream()
-                .map(NodoFlujoResolver::desdeGateway)
+                .map(this::desdeGateway)
+                .toList());
+        nodos.addAll(eventoRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(proceso.getId()).stream()
+                .map(this::desdeEvento)
                 .toList());
         return nodos;
     }
@@ -83,21 +90,27 @@ public class NodoFlujoResolver {
         return buscar(proceso, tipo, nodoId).map(NodoFlujo::nombre).orElseGet(() -> referencia(tipo, nodoId));
     }
 
-    public static String clave(TipoNodoFlujo tipo, Long nodoId) {
+    public String clave(TipoNodoFlujo tipo, Long nodoId) {
         return tipo + ":" + nodoId;
     }
 
-    public static String referencia(TipoNodoFlujo tipo, Long nodoId) {
+    public String referencia(TipoNodoFlujo tipo, Long nodoId) {
         return tipo + " #" + nodoId;
     }
 
-    public static NodoFlujo desdeActividad(Actividad actividad) {
-        return new NodoFlujo(TipoNodoFlujo.ACTIVIDAD, actividad.getId(), actividad.getNombre(),
-                actividad.getPosicionX(), actividad.getPosicionY(), actividad.isActivo(), null);
+    public NodoFlujo desdeActividad(Actividad actividad) {
+        return new NodoFlujo(TipoNodoFlujo.ACTIVIDAD, actividad.getId(), actividad.getLane().getPool().getId(),
+                actividad.getNombre(), actividad.getPosicionX(), actividad.getPosicionY(), actividad.isActivo(), null);
     }
 
-    public static NodoFlujo desdeGateway(Gateway gateway) {
-        return new NodoFlujo(TipoNodoFlujo.GATEWAY, gateway.getId(), gateway.etiqueta(), gateway.getPosicionX(),
-                gateway.getPosicionY(), gateway.isActivo(), gateway.getTipo());
+    public NodoFlujo desdeGateway(Gateway gateway) {
+        return new NodoFlujo(TipoNodoFlujo.GATEWAY, gateway.getId(), gateway.getPool().getId(), gateway.etiqueta(),
+                gateway.getPosicionX(), gateway.getPosicionY(), gateway.isActivo(), gateway.getTipo());
+    }
+
+    public NodoFlujo desdeEvento(Evento evento) {
+        return new NodoFlujo(TipoNodoFlujo.EVENTO, evento.getId(), evento.getPool().getId(), evento.etiqueta(),
+                evento.getPosicionX(), evento.getPosicionY(), evento.isActivo(), null, evento.getTipo(),
+                evento.admiteEntradas());
     }
 }

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -28,6 +29,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
@@ -35,7 +37,9 @@ import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
+import co.edu.javeriana.procesosempresariales.dto.AlcanceProceso;
 import co.edu.javeriana.procesosempresariales.dto.CrearProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
@@ -49,6 +53,7 @@ import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoExcep
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.repository.HistorialProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
+import co.edu.javeriana.procesosempresariales.repository.ProcesoSpecifications;
 import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -75,8 +80,11 @@ class ProcesoServiceTest {
 
     @BeforeEach
     void inicializar() {
-        procesoService = new ProcesoService(procesoRepository, usuarioRepository, historialProcesoRepository,
-                validacionModeloService, new ModelMapper());
+        UsuarioService usuarios = new UsuarioService(usuarioRepository, new ModelMapper(),
+                new BCryptPasswordEncoder());
+        AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
+        procesoService = new ProcesoService(procesoRepository, new ProcesoSpecifications(), acceso,
+                new HistorialProcesoService(historialProcesoRepository), validacionModeloService, new ModelMapper());
     }
 
     private Empresa empresa(Long id, String nombre) {
@@ -99,7 +107,7 @@ class ProcesoServiceTest {
         when(procesoRepository.save(any(Proceso.class))).thenAnswer(invocacion -> {
             Proceso guardado = invocacion.getArgument(0);
             guardado.setId(procesoId);
-            guardado.getPool().setId(poolId);
+            guardado.poolPropietario().setId(poolId);
             return guardado;
         });
     }
@@ -109,8 +117,10 @@ class ProcesoServiceTest {
     }
 
     private Proceso procesoExistente(Long empresaId, boolean eliminado) {
+        Pool propietario = new Pool(80L, null, "Alpes Logistica", TipoPool.PROPIETARIO, 1, false, true, null,
+                new ArrayList<>());
         return new Proceso(5L, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
-                empresa(empresaId, "Alpes Logistica"), new Pool(80L, "Alpes Logistica", List.of()), eliminado);
+                empresa(empresaId, "Alpes Logistica"), List.of(propietario), eliminado);
     }
 
     private void existeElProceso(Proceso proceso) {
@@ -198,7 +208,7 @@ class ProcesoServiceTest {
 
         procesoService.crear(formularioCreacion(), USERNAME);
 
-        Pool pool = procesoGuardado().getPool();
+        Pool pool = procesoGuardado().poolPropietario();
         assertThat(pool.getLanes()).hasSize(1);
         assertThat(pool.getLanes().get(0).getNombre()).isEqualTo("General");
         assertThat(pool.getLanes().get(0).getPool()).isSameAs(pool);
@@ -247,9 +257,20 @@ class ProcesoServiceTest {
 
         procesoService.crear(formularioCreacion(), USERNAME);
 
-        Pool pool = procesoGuardado().getPool();
+        Proceso guardado = procesoGuardado();
+        Pool pool = guardado.poolPropietario();
         assertThat(pool).isNotNull();
         assertThat(pool.getNombre()).isEqualTo("Alpes Logistica");
+        assertThat(guardado.getPools()).containsExactly(pool);
+        assertThat(pool.getProceso()).isSameAs(guardado);
+        assertThat(pool.getTipo()).isEqualTo(TipoPool.PROPIETARIO);
+        assertThat(pool.isCajaNegra()).isFalse();
+        assertThat(pool.isActivo()).isTrue();
+        assertThat(pool.getOrden()).isEqualTo(1);
+        assertThat(pool.getEmpresaParticipante()).isNull();
+        assertThat(pool.getLanes().get(0).getOrden()).isEqualTo(1);
+        assertThat(pool.getLanes().get(0).isActivo()).isTrue();
+        assertThat(pool.getLanes().get(0).getRolProceso()).isNull();
     }
 
     @Test
@@ -624,7 +645,7 @@ class ProcesoServiceTest {
 
         assertThat(respuesta.getId()).isEqualTo(31L);
         assertThat(procesoGuardado().getEstado()).isEqualTo(EstadoProceso.BORRADOR);
-        assertThat(procesoGuardado().getPool()).isNotNull();
+        assertThat(procesoGuardado().poolPropietario()).isNotNull();
     }
 
     @Test
@@ -941,7 +962,7 @@ class ProcesoServiceTest {
         assertThat(guardado.getCategoria()).isEqualTo("Comercial");
         assertThat(guardado.getEstado()).isEqualTo(EstadoProceso.BORRADOR);
         assertThat(guardado.getEmpresa().getId()).isEqualTo(EMPRESA_PROPIA);
-        assertThat(guardado.getPool().getId()).isEqualTo(80L);
+        assertThat(guardado.poolPropietario().getId()).isEqualTo(80L);
     }
 
     @Test
@@ -1374,5 +1395,102 @@ class ProcesoServiceTest {
         procesoService.editar(5L, formularioEdicion(), USERNAME);
 
         verify(validacionModeloService, never()).validarParaSalirDeBorrador(any(Proceso.class));
+    }
+    @Test
+    void obtenerVisibleDeUnProcesoPropioLoDevuelveEditable() {
+        autenticar(usuarioAutenticado(RolUsuario.SOLO_LECTURA));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.obtenerVisible(5L, USERNAME);
+
+        assertThat(respuesta.isSoloLectura()).isFalse();
+        assertThat(respuesta.getEmpresaPropietariaId()).isEqualTo(EMPRESA_PROPIA);
+        assertThat(respuesta.getPoolId()).isEqualTo(80L);
+        verify(procesoRepository, never()).estaCompartidoCon(anyLong(), anyLong());
+    }
+
+    @Test
+    void obtenerVisibleDeUnProcesoCompartidoLoDevuelveEnSoloLectura() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_AJENA));
+        when(procesoRepository.estaCompartidoCon(5L, EMPRESA_PROPIA)).thenReturn(true);
+
+        ProcesoRespuestaDto respuesta = procesoService.obtenerVisible(5L, USERNAME);
+
+        assertThat(respuesta.isSoloLectura()).isTrue();
+        assertThat(respuesta.getEmpresaPropietariaId()).isEqualTo(EMPRESA_AJENA);
+        assertThat(respuesta.getEmpresaPropietariaNombre()).isEqualTo("Alpes Logistica");
+    }
+
+    @Test
+    void obtenerVisibleDeUnProcesoAjenoNoCompartidoSeRechaza() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_AJENA));
+        when(procesoRepository.estaCompartidoCon(5L, EMPRESA_PROPIA)).thenReturn(false);
+
+        assertThatThrownBy(() -> procesoService.obtenerVisible(5L, USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+    }
+
+    @Test
+    void obtenerVisibleDeUnProcesoCompartidoEliminadoNoLoEncuentra() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        existeElProceso(procesoExistente(EMPRESA_AJENA, true));
+        when(procesoRepository.estaCompartidoCon(5L, EMPRESA_PROPIA)).thenReturn(true);
+
+        assertThatThrownBy(() -> procesoService.obtenerVisible(5L, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    @Test
+    void obtenerDevuelveLaEmpresaPropietariaYNoEsSoloLectura() {
+        autenticar(usuarioAutenticado(RolUsuario.EDITOR));
+        existeElProceso(procesoExistente(EMPRESA_PROPIA));
+
+        ProcesoRespuestaDto respuesta = procesoService.obtener(5L, USERNAME);
+
+        assertThat(respuesta.isSoloLectura()).isFalse();
+        assertThat(respuesta.getEmpresaPropietariaId()).isEqualTo(EMPRESA_PROPIA);
+        assertThat(respuesta.getPoolNombre()).isEqualTo("Alpes Logistica");
+    }
+
+    @Test
+    void consultarProcesosSinAlcanceUsaSoloLosProcesosPropios() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        devolverPagina();
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+
+        procesoService.consultarProcesos(filtro, USERNAME);
+
+        assertThat(filtro.getAlcance()).isEqualTo(AlcanceProceso.PROPIOS);
+    }
+
+    @Test
+    void consultarProcesosConservaElAlcanceSolicitado() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        devolverPagina();
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setAlcance(AlcanceProceso.COMPARTIDOS);
+
+        procesoService.consultarProcesos(filtro, USERNAME);
+
+        assertThat(filtro.getAlcance()).isEqualTo(AlcanceProceso.COMPARTIDOS);
+    }
+
+    @Test
+    void consultarProcesosMarcaEnSoloLecturaLosProcesosCompartidosPorOtraEmpresa() {
+        autenticar(usuarioAutenticado(RolUsuario.ADMINISTRADOR));
+        Proceso ajeno = procesoExistente(EMPRESA_AJENA);
+        ajeno.setId(6L);
+        devolverPagina(procesoExistente(EMPRESA_PROPIA), ajeno);
+        FiltroProcesosDto filtro = new FiltroProcesosDto();
+        filtro.setAlcance(AlcanceProceso.TODOS);
+
+        List<ProcesoResumenDto> resumenes = procesoService.consultarProcesos(filtro, USERNAME).getContent();
+
+        assertThat(resumenes).extracting(ProcesoResumenDto::isSoloLectura).containsExactly(false, true);
+        assertThat(resumenes).extracting(ProcesoResumenDto::getEmpresaPropietariaId)
+                .containsExactly(EMPRESA_PROPIA, EMPRESA_AJENA);
+        assertThat(resumenes.get(1).getEmpresaPropietariaNombre()).isEqualTo("Alpes Logistica");
     }
 }

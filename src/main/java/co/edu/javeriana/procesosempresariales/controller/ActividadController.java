@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.controller;
 import java.security.Principal;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -28,8 +29,9 @@ public class ActividadController {
     private static final String VISTA_CONFIRMAR_ELIMINACION = "actividades/confirmareliminacion";
     private static final String DETALLE_DEL_PROCESO = "redirect:/procesos/";
 
-    private final ActividadService actividadService;
+    private ActividadService actividadService;
 
+    @Autowired
     public ActividadController(ActividadService actividadService) {
         this.actividadService = actividadService;
     }

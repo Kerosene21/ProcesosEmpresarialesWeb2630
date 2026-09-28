@@ -244,12 +244,12 @@ class DiagramaFlujoTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void elDiagramaSigueDiciendoQueLosEventosNoExisten() throws Exception {
+    void elDiagramaAdvierteQueEstaVistaNoDibujaLosEventos() throws Exception {
         devolverElDiagrama(List.of(), List.of(), List.of());
 
         mockMvc.perform(get(DETALLE))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Los eventos todavía no forman parte del modelo")));
+                .andExpect(content().string(containsString("esta vista todavía no los dibuja")));
     }
 
     @Test

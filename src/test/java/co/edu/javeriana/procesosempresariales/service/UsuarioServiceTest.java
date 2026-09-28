@@ -404,4 +404,69 @@ class UsuarioServiceTest {
         assertThatThrownBy(() -> usuarioService.listarDeMiEmpresa(ADMINISTRADOR))
                 .isInstanceOf(RecursoNoEncontradoException.class);
     }
+
+    @Test
+    void elUsuarioAutenticadoSeEntregaConSuEmpresa() {
+        autenticar(RolUsuario.EDITOR);
+
+        Usuario usuario = usuarioService.usuarioAutenticado(ADMINISTRADOR);
+
+        assertThat(usuario.getUsername()).isEqualTo(ADMINISTRADOR);
+        assertThat(usuario.getRol()).isEqualTo(RolUsuario.EDITOR);
+        assertThat(usuario.getEmpresa().getId()).isEqualTo(EMPRESA_PROPIA);
+    }
+
+    @Test
+    void elUsuarioAutenticadoInexistenteSeInformaComoNoEncontrado() {
+        when(usuarioRepository.findByUsername(ADMINISTRADOR)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> usuarioService.usuarioAutenticado(ADMINISTRADOR))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage(UsuarioService.USUARIO_AUTENTICADO_NO_EXISTE);
+    }
+
+    @Test
+    void existeUsuarioConCorreoConsultaElIdentificadorUnico() {
+        when(usuarioRepository.existsByUsername(NUEVO_CORREO)).thenReturn(true);
+
+        assertThat(usuarioService.existeUsuarioConCorreo(NUEVO_CORREO)).isTrue();
+        verify(usuarioRepository).existsByUsername(NUEVO_CORREO);
+    }
+
+    @Test
+    void elCorreoDelAdministradorSeBuscaSoloEnLaEmpresaIndicada() {
+        when(usuarioRepository.findFirstByEmpresaIdAndRolOrderByIdAsc(EMPRESA_PROPIA, RolUsuario.ADMINISTRADOR))
+                .thenReturn(Optional.of(usuario(ID_ADMINISTRADOR, ADMINISTRADOR, RolUsuario.ADMINISTRADOR, true,
+                        EMPRESA_PROPIA)));
+
+        assertThat(usuarioService.correoDelAdministrador(EMPRESA_PROPIA)).contains(ADMINISTRADOR);
+        verify(usuarioRepository, never()).findFirstByEmpresaIdAndRolOrderByIdAsc(EMPRESA_AJENA,
+                RolUsuario.ADMINISTRADOR);
+    }
+
+    @Test
+    void elCorreoDelAdministradorEsVacioSiLaEmpresaNoTieneAdministrador() {
+        when(usuarioRepository.findFirstByEmpresaIdAndRolOrderByIdAsc(EMPRESA_PROPIA, RolUsuario.ADMINISTRADOR))
+                .thenReturn(Optional.empty());
+
+        assertThat(usuarioService.correoDelAdministrador(EMPRESA_PROPIA)).isEmpty();
+    }
+
+    @Test
+    void elAdministradorInicialQuedaActivoEnSuEmpresaConCredencialCifrada() {
+        Empresa empresa = empresa(EMPRESA_PROPIA, "Alpes Logistica");
+
+        Usuario administrador = usuarioService.crearAdministradorInicial(empresa, PASSWORD);
+
+        ArgumentCaptor<Usuario> capturado = ArgumentCaptor.forClass(Usuario.class);
+        verify(usuarioRepository).save(capturado.capture());
+        Usuario guardado = capturado.getValue();
+        assertThat(administrador).isSameAs(guardado);
+        assertThat(guardado.getUsername()).isEqualTo("contacto@alpes.com");
+        assertThat(guardado.getRol()).isEqualTo(RolUsuario.ADMINISTRADOR);
+        assertThat(guardado.isActivo()).isTrue();
+        assertThat(guardado.getEmpresa()).isSameAs(empresa);
+        assertThat(guardado.getPassword()).isNotEqualTo(PASSWORD);
+        assertThat(passwordEncoder.matches(PASSWORD, guardado.getPassword())).isTrue();
+    }
 }

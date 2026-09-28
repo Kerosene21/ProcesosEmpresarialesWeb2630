@@ -27,9 +27,11 @@ import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
 import co.edu.javeriana.procesosempresariales.domain.TipoGateway;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
 import co.edu.javeriana.procesosempresariales.repository.ArcoRepository;
+import co.edu.javeriana.procesosempresariales.repository.EventoRepository;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -50,18 +52,28 @@ class ConexionesServiceTest {
     @Mock
     private GatewayRepository gatewayRepository;
 
+    @Mock
+    private EventoRepository eventoRepository;
+
+    private NodoFlujoResolver nodoFlujoResolver;
+
     private ConexionesService conexionesService;
 
     @BeforeEach
     void inicializar() {
-        conexionesService = new ConexionesService(arcoRepository,
-                new NodoFlujoResolver(actividadRepository, gatewayRepository));
+        nodoFlujoResolver = new NodoFlujoResolver(actividadRepository, gatewayRepository, eventoRepository);
+        conexionesService = new ConexionesService(arcoRepository, nodoFlujoResolver);
+    }
+
+    private Pool poolPropietario() {
+        return new Pool(POOL_ID, null, "Alpes Logistica", TipoPool.PROPIETARIO, 1, false, true, null,
+                new ArrayList<>());
     }
 
     private Proceso proceso() {
         return new Proceso(PROCESO_ID, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
                 new Empresa(7L, "Alpes Logistica", "900123456-7", "contacto@alpes.com"),
-                new Pool(POOL_ID, "Alpes Logistica", List.of()), false);
+                List.of(poolPropietario()), false);
     }
 
     private Arco arco(Long id, Long origenId, Long destinoId, boolean activo) {
@@ -75,13 +87,14 @@ class ConexionesServiceTest {
     }
 
     private NodoFlujo gateway(TipoGateway tipo) {
-        return NodoFlujoResolver.desdeGateway(new Gateway(GATEWAY_ID, tipo, proceso(), 300, 120, true));
+        return nodoFlujoResolver.desdeGateway(new Gateway(GATEWAY_ID, tipo, proceso(), poolPropietario(), 300, 120,
+                true));
     }
 
     private void existeLaActividad(Long id, String nombre) {
         when(actividadRepository.findByIdAndProcesoId(id, PROCESO_ID)).thenReturn(Optional.of(
                 new Actividad(id, nombre, TipoActividad.TAREA_USUARIO, proceso(),
-                        new Lane(LANE_ID, "General", new Pool(POOL_ID, "Alpes Logistica", List.of())), 100, 50,
+                        new Lane(LANE_ID, "General", poolPropietario(), null, 1, true), 100, 50,
                         true)));
     }
 
@@ -211,5 +224,100 @@ class ConexionesServiceTest {
 
         assertThat(conexionesService.salientesActivos(PROCESO_ID, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID)).hasSize(1);
         assertThat(conexionesService.entrantesActivos(PROCESO_ID, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID)).hasSize(1);
+    }
+
+    @Test
+    void guardarCambiosPersisteLosArcosModificadosSinDesactivarlos() {
+        List<Arco> modificados = List.of(salienteDelGateway(61L, "monto > 100"), salienteDelGateway(62L, null));
+
+        conexionesService.guardarCambios(modificados);
+
+        verify(arcoRepository).saveAll(modificados);
+        assertThat(modificados).allMatch(Arco::isActivo);
+    }
+
+    @Test
+    void guardarCambiosSinArcosNoTocaLaPersistencia() {
+        conexionesService.guardarCambios(List.of());
+
+        verify(arcoRepository, never()).saveAll(anyList());
+    }
+
+    private void devolverSalidasDelGateway(Arco... salidas) {
+        when(arcoRepository.findByProcesoIdAndOrigenTipoAndOrigenIdAndActivoTrueOrderByIdAsc(PROCESO_ID,
+                TipoNodoFlujo.GATEWAY, GATEWAY_ID)).thenReturn(List.of(salidas));
+    }
+
+    private String condicionRepetida(String condicion) {
+        return "Gateway EXCLUSIVO #12 repite la condición '" + condicion
+                + "' en más de una salida: esas condiciones no son mutuamente excluyentes.";
+    }
+
+    @Test
+    void unGatewayExclusivoDetectaCondicionesQueSoloDifierenEnVariosEspacios() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto > 100"),
+                salienteDelGateway(62L, "monto   >     100"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly(condicionRepetida("monto   >     100"));
+    }
+
+    @Test
+    void unGatewayExclusivoDetectaCondicionesQueSoloDifierenEnTabuladores() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto > 100"), salienteDelGateway(62L, "monto\t>\t100"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly(condicionRepetida("monto\t>\t100"));
+    }
+
+    @Test
+    void unGatewayExclusivoDetectaCondicionesQueSoloDifierenEnSaltosDeLinea() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto >\n100"), salienteDelGateway(62L, "monto\r\n> 100"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly(condicionRepetida("monto\r\n> 100"));
+    }
+
+    @Test
+    void unGatewayExclusivoIgnoraMayusculasYEspaciosExterioresAlCompararCondiciones() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto > 100"),
+                salienteDelGateway(62L, " \t MONTO > 100 \n"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly(condicionRepetida("MONTO > 100"));
+    }
+
+    @Test
+    void unGatewayExclusivoNoConfundeCondicionesDistintasAunqueSeParezcan() {
+        devolverSalidasDelGateway(salienteDelGateway(61L, "monto > 100"), salienteDelGateway(62L, "monto > 1000"));
+
+        assertThat(conexionesService.advertenciasDeGateway(proceso(), gateway(TipoGateway.EXCLUSIVO)))
+                .containsExactly("Gateway EXCLUSIVO #12: revisa que las condiciones de sus salidas sean mutuamente"
+                        + " excluyentes, porque solo una puede cumplirse.");
+    }
+
+    @Test
+    void conectadosActivosConsultaLosArcosDelNodoEnAmbosSentidos() {
+        List<Arco> conectados = List.of(arco(60L, ACTIVIDAD_ID, 31L, true), arco(61L, 29L, ACTIVIDAD_ID, true));
+        when(arcoRepository.conectadosAlNodo(PROCESO_ID, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .thenReturn(conectados);
+
+        assertThat(conexionesService.conectadosActivos(proceso(), TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .isEqualTo(conectados);
+        verify(arcoRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void siSeEliminaUnNodoSusArcosNoCuentanComoConexionesDeLosVecinos() {
+        existeLaActividad(29L, "Registrar solicitud");
+        devolverSalientes(29L, List.of(arco(60L, 29L, ACTIVIDAD_ID, true)));
+        devolverEntrantes(31L, List.of(arco(61L, ACTIVIDAD_ID, 31L, true), arco(62L, 33L, 31L, true)));
+        List<Arco> conectados = List.of(arco(60L, 29L, ACTIVIDAD_ID, true), arco(61L, ACTIVIDAD_ID, 31L, true));
+
+        List<String> advertencias = conexionesService.advertenciasSiSeEliminaNodo(proceso(),
+                TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID, conectados);
+
+        assertThat(advertencias).containsExactly("'Registrar solicitud' quedó sin arcos de salida");
+        assertThat(conectados).allMatch(Arco::isActivo);
     }
 }

@@ -10,22 +10,126 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
+import co.edu.javeriana.procesosempresariales.exception.ComparticionNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
+import co.edu.javeriana.procesosempresariales.exception.CorrelacionNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.EnvioExternoNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
+import co.edu.javeriana.procesosempresariales.exception.LaneConActividadesException;
+import co.edu.javeriana.procesosempresariales.exception.LaneDuplicadaException;
 import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
+import co.edu.javeriana.procesosempresariales.exception.MensajeEntreMismoPoolException;
 import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.NombreRolProcesoDuplicadoException;
+import co.edu.javeriana.procesosempresariales.exception.PermisoEstructuraNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
+import co.edu.javeriana.procesosempresariales.exception.PoolConContenidoException;
+import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
+import co.edu.javeriana.procesosempresariales.exception.ProcesoYaCompartidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
+import co.edu.javeriana.procesosempresariales.exception.RolProcesoEnUsoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
 @RestControllerAdvice(annotations = RestController.class)
 @Order(10)
 public class ApiExceptionHandler {
-    // El cliente recibe códigos estables y no tiene que interpretar el texto del error.
+
+    @ExceptionHandler(PoolNoValidoException.class)
+    ResponseEntity<Map<String, String>> poolNoValido(PoolNoValidoException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "POOL_NO_VALIDO", exception);
+    }
+
+    @ExceptionHandler(PoolCajaNegraException.class)
+    ResponseEntity<Map<String, String>> poolCajaNegra(PoolCajaNegraException exception) {
+        return respuesta(HttpStatus.CONFLICT, "POOL_CAJA_NEGRA", exception);
+    }
+
+    @ExceptionHandler(PoolConContenidoException.class)
+    ResponseEntity<Map<String, String>> poolConContenido(PoolConContenidoException exception) {
+        return respuesta(HttpStatus.CONFLICT, "POOL_CON_CONTENIDO", exception);
+    }
+
+    @ExceptionHandler(LaneConActividadesException.class)
+    ResponseEntity<Map<String, String>> laneConActividades(LaneConActividadesException exception) {
+        return respuesta(HttpStatus.CONFLICT, "LANE_CON_ACTIVIDADES", exception);
+    }
+
+    @ExceptionHandler(LaneDuplicadaException.class)
+    ResponseEntity<Map<String, String>> laneDuplicada(LaneDuplicadaException exception) {
+        return respuesta(HttpStatus.CONFLICT, "LANE_DUPLICADA", exception);
+    }
+
+    @ExceptionHandler(FlujoEntrePoolsException.class)
+    ResponseEntity<Map<String, String>> flujoEntrePools(FlujoEntrePoolsException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "SECUENCIA_ENTRE_POOLS", exception);
+    }
+
+    @ExceptionHandler(ComparticionNoValidaException.class)
+    ResponseEntity<Map<String, String>> comparticionNoValida(ComparticionNoValidaException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "COMPARTICION_NO_VALIDA", exception);
+    }
+
+    @ExceptionHandler(ProcesoYaCompartidoException.class)
+    ResponseEntity<Map<String, String>> procesoYaCompartido(ProcesoYaCompartidoException exception) {
+        return respuesta(HttpStatus.CONFLICT, "PROCESO_YA_COMPARTIDO", exception);
+    }
+
+    @ExceptionHandler(PermisoEstructuraNoValidoException.class)
+    ResponseEntity<Map<String, String>> permisoEstructuraNoValido(PermisoEstructuraNoValidoException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "PERMISO_ESTRUCTURA_NO_VALIDO", exception);
+    }
+
+    @ExceptionHandler(MensajeEntreMismoPoolException.class)
+    ResponseEntity<Map<String, String>> mensajeEntreMismoPool(MensajeEntreMismoPoolException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "MENSAJE_ENTRE_MISMO_POOL", exception);
+    }
+
+    @ExceptionHandler(PoolMensajeNoValidoException.class)
+    ResponseEntity<Map<String, String>> poolMensajeNoValido(PoolMensajeNoValidoException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "POOL_MENSAJE_NO_VALIDO", exception);
+    }
+
+    @ExceptionHandler(CatchInicioConEntradaException.class)
+    ResponseEntity<Map<String, String>> catchInicioConEntrada(CatchInicioConEntradaException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "CATCH_INICIO_CON_ENTRADA", exception);
+    }
+
+    @ExceptionHandler(EnvioExternoNoValidoException.class)
+    ResponseEntity<Map<String, String>> envioExternoNoValido(EnvioExternoNoValidoException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "ENVIO_EXTERNO_NO_VALIDO", exception);
+    }
+
+    @ExceptionHandler(CorrelacionNoValidaException.class)
+    ResponseEntity<Map<String, String>> correlacionNoValida(CorrelacionNoValidaException exception) {
+        return respuesta(HttpStatus.BAD_REQUEST, "CORRELACION_NO_VALIDA", exception);
+    }
+
+    private ResponseEntity<Map<String, String>> respuesta(HttpStatus estado, String codigo,
+            RuntimeException exception) {
+        return ResponseEntity.status(estado).body(Map.of("codigo", codigo, "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(NombreRolProcesoDuplicadoException.class)
+    ResponseEntity<Map<String, String>> rolDuplicado(NombreRolProcesoDuplicadoException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("codigo", "ROL_PROCESO_NOMBRE_DUPLICADO", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(RolProcesoEnUsoException.class)
+    ResponseEntity<Map<String, Object>> rolEnUso(RolProcesoEnUsoException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("codigo", "ROL_PROCESO_EN_USO", "mensaje", exception.getMessage(),
+                        "procesos", exception.getProcesos()));
+    }
+
     @ExceptionHandler(NombreProcesoDuplicadoException.class)
     ResponseEntity<Map<String, String>> duplicado(NombreProcesoDuplicadoException exception) {
         return ResponseEntity.status(HttpStatus.CONFLICT)

@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.controller;
 import java.security.Principal;
 
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -30,8 +31,9 @@ public class ArcoController {
     private static final String MENSAJE = "mensaje";
     private static final String ADVERTENCIAS = "advertencias";
 
-    private final ArcoService arcoService;
+    private ArcoService arcoService;
 
+    @Autowired
     public ArcoController(ArcoService arcoService) {
         this.arcoService = arcoService;
     }

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.modelmapper.ModelMapper;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import co.edu.javeriana.procesosempresariales.domain.Actividad;
 import co.edu.javeriana.procesosempresariales.domain.Arco;
@@ -30,7 +32,9 @@ import co.edu.javeriana.procesosempresariales.domain.HistorialProceso;
 import co.edu.javeriana.procesosempresariales.domain.Lane;
 import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
+import co.edu.javeriana.procesosempresariales.domain.RolProceso;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
+import co.edu.javeriana.procesosempresariales.domain.TipoPool;
 import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
@@ -81,12 +85,27 @@ class ActividadServiceTest {
     @Mock
     private ConexionesService conexionesService;
 
+    @Mock
+    private RolProcesoService rolProcesoService;
+
+    @Mock
+    private PoolService poolService;
+
+    @Mock
+    private PermisoEstructuraService permisoEstructuraService;
+
     private ActividadService actividadService;
 
     @BeforeEach
     void inicializar() {
-        actividadService = new ActividadService(actividadRepository, procesoRepository, laneRepository,
-                usuarioRepository, historialProcesoRepository, conexionesService, new ModelMapper());
+        UsuarioService usuarios = new UsuarioService(usuarioRepository, new ModelMapper(),
+                new BCryptPasswordEncoder());
+        AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
+        HistorialProcesoService historial = new HistorialProcesoService(historialProcesoRepository);
+        LaneService lanes = new LaneService(laneRepository, acceso, rolProcesoService, historial, poolService,
+                permisoEstructuraService);
+        actividadService = new ActividadService(actividadRepository, lanes, acceso, historial, conexionesService,
+                new ModelMapper());
     }
 
     private Empresa empresa(Long id) {
@@ -102,12 +121,12 @@ class ActividadServiceTest {
     }
 
     private Pool pool() {
-        return new Pool(POOL_ID, "Alpes Logistica", List.of());
+        return new Pool(POOL_ID, null, "Alpes Logistica", TipoPool.PROPIETARIO, 1, false, true, null, new ArrayList<>());
     }
 
     private Proceso proceso(Long empresaId, boolean eliminado) {
         return new Proceso(PROCESO_ID, "Ventas", "Proceso comercial", "Comercial", EstadoProceso.BORRADOR,
-                empresa(empresaId), pool(), eliminado);
+                empresa(empresaId), List.of(pool()), eliminado);
     }
 
     private Proceso existeElProceso(Long empresaId, boolean eliminado) {
@@ -121,11 +140,12 @@ class ActividadServiceTest {
     }
 
     private Lane lane(Long id, String nombre) {
-        return new Lane(id, nombre, pool());
+        return new Lane(id, nombre, pool(), null, 1, true);
     }
 
     private void existeLaLane(Long id, String nombre) {
-        when(laneRepository.findByIdAndPoolId(id, POOL_ID)).thenReturn(Optional.of(lane(id, nombre)));
+        when(laneRepository.findByIdAndPoolProcesoIdAndActivoTrueAndPoolActivoTrue(id, PROCESO_ID))
+                .thenReturn(Optional.of(lane(id, nombre)));
     }
 
     private Actividad actividad(Proceso proceso, Lane lane, boolean activo) {
@@ -315,7 +335,7 @@ class ActividadServiceTest {
 
         actividadService.crear(PROCESO_ID, formularioCreacion(), USERNAME);
 
-        verify(laneRepository).findByIdAndPoolId(LANE_ID, POOL_ID);
+        verify(laneRepository).findByIdAndPoolProcesoIdAndActivoTrueAndPoolActivoTrue(LANE_ID, PROCESO_ID);
         assertThat(actividadGuardada().getLane().getId()).isEqualTo(LANE_ID);
     }
 
@@ -323,7 +343,8 @@ class ActividadServiceTest {
     void crearRechazaUnaLaneQueNoPerteneceAlPoolDelProceso() {
         autenticar(RolUsuario.ADMINISTRADOR);
         existeElProcesoActivo();
-        when(laneRepository.findByIdAndPoolId(LANE_ID, POOL_ID)).thenReturn(Optional.empty());
+        when(laneRepository.findByIdAndPoolProcesoIdAndActivoTrueAndPoolActivoTrue(LANE_ID, PROCESO_ID))
+                .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> actividadService.crear(PROCESO_ID, formularioCreacion(), USERNAME))
                 .isInstanceOf(LaneNoValidaException.class)
@@ -604,7 +625,8 @@ class ActividadServiceTest {
         autenticar(RolUsuario.ADMINISTRADOR);
         Proceso proceso = existeElProcesoActivo();
         existeLaActividad(proceso, lane(LANE_ID, "General"), true);
-        when(laneRepository.findByIdAndPoolId(LANE_DESTINO_ID, POOL_ID)).thenReturn(Optional.empty());
+        when(laneRepository.findByIdAndPoolProcesoIdAndActivoTrueAndPoolActivoTrue(LANE_DESTINO_ID, PROCESO_ID))
+                .thenReturn(Optional.empty());
         EditarActividadDto dto = formularioEdicion();
         dto.setLaneId(LANE_DESTINO_ID);
 
@@ -795,13 +817,52 @@ class ActividadServiceTest {
     void lanesDelProcesoDevuelveLasBandasDeSuPool() {
         autenticar(RolUsuario.SOLO_LECTURA);
         existeElProcesoActivo();
-        when(laneRepository.findByPoolIdOrderByIdAsc(POOL_ID))
+        when(laneRepository.activasDelProceso(PROCESO_ID))
                 .thenReturn(List.of(lane(LANE_ID, "General"), lane(LANE_DESTINO_ID, "Cartera")));
 
         List<LaneRespuestaDto> lanes = actividadService.lanesDelProceso(PROCESO_ID, USERNAME);
 
         assertThat(lanes).extracting(LaneRespuestaDto::getNombre).containsExactly("General", "Cartera");
         assertThat(lanes).extracting(LaneRespuestaDto::getId).containsExactly(LANE_ID, LANE_DESTINO_ID);
+    }
+
+    @Test
+    void unaLaneConRolDeProcesoMuestraElNombreDelRolEnLasLanesYEnSusActividades() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+        Proceso proceso = existeElProcesoActivo();
+        RolProceso analista = new RolProceso(40L, "Analista de credito", "Evalua el riesgo", empresa(EMPRESA_PROPIA),
+                true);
+        Lane laneConRol = new Lane(LANE_DESTINO_ID, "Cartera", pool(), analista, 1, true);
+        when(laneRepository.activasDelProceso(PROCESO_ID))
+                .thenReturn(List.of(lane(LANE_ID, "General"), laneConRol));
+        when(actividadRepository.activasDelProceso(PROCESO_ID))
+                .thenReturn(List.of(actividad(proceso, laneConRol, true)));
+
+        List<LaneRespuestaDto> lanes = actividadService.lanesDelProceso(PROCESO_ID, USERNAME);
+        List<ActividadRespuestaDto> actividades = actividadService.consultarActivas(PROCESO_ID, USERNAME);
+
+        assertThat(lanes).extracting(LaneRespuestaDto::getNombre).containsExactly("General", "Analista de credito");
+        assertThat(lanes).extracting(LaneRespuestaDto::getRolProcesoId).containsExactly(null, 40L);
+        assertThat(actividades.get(0).getLaneNombre()).isEqualTo("Analista de credito");
+    }
+
+    @Test
+    void moverUnaActividadAUnaLaneConRolRegistraElNombreDelRolEnElHistorial() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        RolProceso analista = new RolProceso(40L, "Analista de credito", "Evalua el riesgo", empresa(EMPRESA_PROPIA),
+                true);
+        when(laneRepository.findByIdAndPoolProcesoIdAndActivoTrueAndPoolActivoTrue(LANE_DESTINO_ID, PROCESO_ID))
+                .thenReturn(Optional.of(new Lane(LANE_DESTINO_ID, "Cartera", pool(), analista, 1, true)));
+        EditarActividadDto dto = formularioEdicion();
+        dto.setLaneId(LANE_DESTINO_ID);
+
+        ActividadRespuestaDto editada = actividadService.editar(PROCESO_ID, ACTIVIDAD_ID, dto, USERNAME);
+
+        assertThat(editada.getLaneNombre()).isEqualTo("Analista de credito");
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("actividad 'Revisar solicitud': lane: 'General' -> 'Analista de credito'");
     }
 
     @Test
@@ -900,5 +961,50 @@ class ActividadServiceTest {
 
         assertThat(eliminada.getAdvertencias())
                 .containsExactly("'Aprobar solicitud' quedó sin arcos de entrada");
+    }
+    @Test
+    void laRespuestaDeUnaActividadIncluyeElPoolDeSuLane() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+
+        ActividadRespuestaDto actividad = actividadService.obtener(PROCESO_ID, ACTIVIDAD_ID, USERNAME);
+
+        assertThat(actividad.getPoolId()).isEqualTo(POOL_ID);
+    }
+
+    @Test
+    void unaEmpresaInvitadaConsultaLasActividadesDelProcesoCompartido() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+        Proceso proceso = existeElProceso(EMPRESA_AJENA, false);
+        when(procesoRepository.estaCompartidoCon(PROCESO_ID, EMPRESA_PROPIA)).thenReturn(true);
+        when(actividadRepository.activasDelProceso(PROCESO_ID))
+                .thenReturn(List.of(actividad(proceso, lane(LANE_ID, "General"), true)));
+
+        List<ActividadRespuestaDto> activas = actividadService.consultarActivas(PROCESO_ID, USERNAME);
+
+        assertThat(activas).extracting(ActividadRespuestaDto::getId).containsExactly(ACTIVIDAD_ID);
+    }
+
+    @Test
+    void unaEmpresaInvitadaNoPuedeCrearActividadesEnElProcesoCompartido() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_AJENA, false);
+
+        assertThatThrownBy(() -> actividadService.crear(PROCESO_ID, formularioCreacion(), USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+
+        verify(actividadRepository, never()).save(any(Actividad.class));
+        verify(procesoRepository, never()).estaCompartidoCon(anyLong(), anyLong());
+    }
+
+    @Test
+    void unaEmpresaInvitadaNoVeUnProcesoCompartidoQueFueEliminado() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_AJENA, true);
+        when(procesoRepository.estaCompartidoCon(PROCESO_ID, EMPRESA_PROPIA)).thenReturn(true);
+
+        assertThatThrownBy(() -> actividadService.lanesDelProceso(PROCESO_ID, USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
     }
 }
