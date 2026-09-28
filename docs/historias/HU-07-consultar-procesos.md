@@ -19,10 +19,12 @@ HU-06 añade además que los procesos inactivos no aparezcan por defecto y pueda
 filtro.
 
 > **Aviso sobre el último criterio del diagrama.** Seis de los siete criterios quedaron cerrados en
-> el bloque HU-01 a HU-07. El de la visualización del diagrama **sigue abierto**, aunque avanzó dos
-> veces: con HU-08 a HU-10 el detalle empezó a dibujar el pool, sus lanes y las actividades activas,
-> y con HU-11 a HU-15 añadió los **gateways** y los **arcos**. Lo único que falta ya son los
-> **eventos**, y la vista lo advierte de forma explícita. Ver «Estado real del diagrama BPMN».
+> el bloque HU-01 a HU-07. El de la visualización del diagrama quedó abierto en ese bloque y avanzó
+> dos veces: con HU-08 a HU-10 el detalle empezó a dibujar el pool, sus lanes y las actividades
+> activas, y con HU-11 a HU-15 añadió los **gateways** y los **arcos**. En el bloque original
+> faltaban los **eventos**; su soporte se completó posteriormente con HU-25 a HU-27, y el diagrama
+> completo, eventos incluidos, se consulta en `GET /api/procesos/{id}/diagrama`. Ver «Estado real
+> del diagrama BPMN».
 
 ## Listado por empresa
 
@@ -183,11 +185,12 @@ mantuvo, porque sigue siendo útil.
 
 ## Detalle del proceso y estado real del diagrama BPMN
 
-Esta es la parte que **todavía no se puede declarar cerrada**, y conviene ser explícito.
+En el bloque original esta era la parte que **todavía no se podía declarar cerrada**, y conviene ser
+explícito.
 
-El dominio actual contiene:
+El dominio de ese bloque contenía:
 
-| Elemento BPMN del criterio | ¿Existe hoy? |
+| Elemento BPMN del criterio | ¿Existía en el bloque original? |
 |---|---|
 | Pools | **Sí**, entidad `Pool` con `id` y `nombre`; uno por proceso, varios pools son HU-21 |
 | Lanes | **Mínima**, entidad `Lane` dentro del pool, añadida por HU-08; su gestión es HU-22 |
@@ -195,6 +198,11 @@ El dominio actual contiene:
 | Arcos | **Sí**, entidad `Arco` con origen, destino, etiqueta y condición, de HU-11 a HU-13 |
 | Gateways | **Sí**, entidad `Gateway` con tipo y posición, de HU-14 a HU-15; su eliminación es HU-16 |
 | Eventos | **No**, llegan con HU-25 y HU-27 |
+
+> **Estado posterior.** Lo que esta tabla marcaba como pendiente ya está implementado: la
+> eliminación de gateways (HU-16), los pools múltiples (HU-21), la gestión de lanes (HU-22) y los
+> eventos Message Throw, envío externo y Message Catch (HU-25 a HU-27), que además pueden ser
+> extremo de un arco.
 
 El detalle muestra dos vistas complementarias del mismo proceso:
 
@@ -212,9 +220,10 @@ bandas con nodos que pueden estar en cualquier posición exigiría un enrutado q
 pide. El pool venía de HU-04; las lanes y las actividades, de HU-08 a HU-10; los gateways y los
 arcos, de HU-11 a HU-15.
 
-> **HU-07 queda completa para consulta de procesos, búsqueda, filtros, paginación, detalle e
-> historial. La visualización del diagrama BPMN completo sigue abierta por un solo elemento: ya
-> muestra pool, lanes, actividades, gateways y arcos, y le faltan los eventos (HU-25 y HU-27).**
+> **HU-07 quedó completa para consulta de procesos, búsqueda, filtros, paginación, detalle e
+> historial. En el bloque original la visualización del diagrama BPMN completo quedó abierta por un
+> solo elemento, los eventos; se completó posteriormente con HU-25 a HU-27, y el diagrama con
+> eventos se consulta en `GET /api/procesos/{id}/diagrama`.**
 
 ## Historial
 
@@ -281,10 +290,13 @@ igual que el resto de pruebas de persistencia del proyecto.
 ## Qué quedó pendiente
 
 - **Visualización del diagrama BPMN completo.** Avanzó con HU-08 a HU-10 (pool, lanes y actividades)
-  y con HU-11 a HU-15 (gateways y arcos). Faltan los **eventos** (HU-25 y HU-27), y siguen abiertas
-  la gestión de lanes (HU-22) y los pools múltiples (HU-21).
+  y con HU-11 a HU-15 (gateways y arcos). En el bloque original quedaban abiertos los **eventos**
+  (HU-25 y HU-27), la gestión de lanes (HU-22) y los pools múltiples (HU-21); los tres se
+  implementaron posteriormente, y el diagrama completo se consulta en
+  `GET /api/procesos/{id}/diagrama`.
 - **Ordenación configurable.** El listado ordena por nombre ascendente y no es elegible desde la
   interfaz.
 - **Tamaño de página configurable.** Está fijo en 10.
 - **Búsqueda solo por nombre.** No busca dentro de la descripción; el criterio pedía por nombre.
-- **Sin API REST de listado.** HU-07 se expone solo por MVC, como el resto del bloque.
+- **API REST de listado.** En el bloque original HU-07 se exponía solo por MVC, como el resto del
+  bloque; posteriormente se añadió `GET /api/procesos` con los mismos filtros.

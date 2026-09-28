@@ -207,4 +207,4 @@ La empresa sale del usuario autenticado y el gateway debe pertenecer a un proces
 - **Editar la posición del gateway**: fuera de los criterios de esta historia.
 - **Comprobar de verdad la exclusividad**: exigiría evaluar expresiones, y el proyecto no ejecuta
   procesos.
-- **Eliminar gateways**: es HU-16.
+- **Eliminar gateways**: es HU-16, implementada posteriormente.

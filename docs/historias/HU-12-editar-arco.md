@@ -183,4 +183,5 @@ del cliente.
 
 - **Editar el proceso al que pertenece el arco**: no lo pide ningún criterio y rompería el
   aislamiento.
-- **Eventos como extremo**: depende de HU-25 y HU-27, igual que en HU-11.
+- **Eventos como extremo**: dependía de HU-25 y HU-27, igual que en HU-11; se completó
+  posteriormente con esas historias.
