@@ -34,6 +34,7 @@ import co.edu.javeriana.procesosempresariales.domain.TipoDestinoExterno;
 import co.edu.javeriana.procesosempresariales.dto.CrearEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EnvioExternoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.EnvioExternoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.service.EnvioExternoService;

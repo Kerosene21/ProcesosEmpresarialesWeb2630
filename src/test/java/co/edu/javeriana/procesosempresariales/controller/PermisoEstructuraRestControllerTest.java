@@ -29,6 +29,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.dto.ConfigurarPermisoEstructuraDto;
 import co.edu.javeriana.procesosempresariales.dto.PermisoEstructuraDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.PermisoEstructuraNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.service.PermisoEstructuraService;

@@ -33,6 +33,7 @@ import co.edu.javeriana.procesosempresariales.domain.VarianteMessageCatch;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageCatchRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CorrelacionNoValidaException;
 import co.edu.javeriana.procesosempresariales.service.MessageCatchService;

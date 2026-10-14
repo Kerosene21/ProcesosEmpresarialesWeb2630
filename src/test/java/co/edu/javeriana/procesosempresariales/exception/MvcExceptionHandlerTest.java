@@ -1,23 +1,9 @@
-package co.edu.javeriana.procesosempresariales.controller;
+package co.edu.javeriana.procesosempresariales.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.ModelAndView;
-
-import co.edu.javeriana.procesosempresariales.exception.ArcoDuplicadoException;
-import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
-import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
-import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
-import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
-import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
-import co.edu.javeriana.procesosempresariales.exception.NodoFlujoNoValidoException;
-import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
-import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
-import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
-import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
-import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
-import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
 class MvcExceptionHandlerTest {
 

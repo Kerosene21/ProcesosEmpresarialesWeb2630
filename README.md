@@ -91,10 +91,10 @@ Entity → Repository → DTO → Service → Controller
 ```
 co.edu.javeriana.procesosempresariales
 ├── config      seguridad, OpenAPI y beans reutilizables
-├── controller  controladores MVC y REST, y manejadores de excepciones
+├── controller  controladores MVC y REST
 ├── domain      entidades JPA y enumeraciones
 ├── dto         objetos de entrada y salida
-├── exception   excepciones de negocio
+├── exception   excepciones de negocio y manejadores globales de excepciones
 ├── repository  repositorios Spring Data
 └── service     lógica de negocio
 ```

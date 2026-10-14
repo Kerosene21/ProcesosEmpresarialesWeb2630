@@ -19,6 +19,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import co.edu.javeriana.procesosempresariales.domain.TipoEvento;
 import co.edu.javeriana.procesosempresariales.dto.DiagramaProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.FlujoMensajeDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 import co.edu.javeriana.procesosempresariales.service.DiagramaProcesoService;
 

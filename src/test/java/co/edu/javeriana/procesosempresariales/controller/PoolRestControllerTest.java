@@ -34,6 +34,7 @@ import co.edu.javeriana.procesosempresariales.dto.CrearPoolDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarPoolDto;
 import co.edu.javeriana.procesosempresariales.dto.PoolRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.RolProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.PoolConContenidoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;

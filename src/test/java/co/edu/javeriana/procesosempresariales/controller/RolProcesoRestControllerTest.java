@@ -40,6 +40,7 @@ import co.edu.javeriana.procesosempresariales.dto.ProcesoUsoRolDto;
 import co.edu.javeriana.procesosempresariales.dto.RolProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.RolProcesoResumenDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadRolProceso;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.NombreRolProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.RolProcesoEnUsoException;

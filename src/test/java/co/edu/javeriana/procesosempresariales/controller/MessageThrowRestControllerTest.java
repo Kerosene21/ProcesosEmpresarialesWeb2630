@@ -33,6 +33,7 @@ import co.edu.javeriana.procesosempresariales.domain.ComportamientoSinCaso;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageThrowDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageThrowDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageThrowRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.MensajeEntreMismoPoolException;
 import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;

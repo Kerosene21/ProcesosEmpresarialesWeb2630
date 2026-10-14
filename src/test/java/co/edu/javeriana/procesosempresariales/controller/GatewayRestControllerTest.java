@@ -33,6 +33,7 @@ import co.edu.javeriana.procesosempresariales.domain.TipoGateway;
 import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;

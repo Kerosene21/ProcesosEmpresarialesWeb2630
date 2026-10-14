@@ -45,6 +45,8 @@ import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
 import co.edu.javeriana.procesosempresariales.dto.VisibilidadProceso;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
+import co.edu.javeriana.procesosempresariales.exception.MvcExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
 import co.edu.javeriana.procesosempresariales.service.ArcoService;

@@ -1,4 +1,4 @@
-package co.edu.javeriana.procesosempresariales.controller;
+package co.edu.javeriana.procesosempresariales.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -8,32 +8,6 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-
-import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
-import co.edu.javeriana.procesosempresariales.exception.ComparticionNoValidaException;
-import co.edu.javeriana.procesosempresariales.exception.CorreoAdministradorEnUsoException;
-import co.edu.javeriana.procesosempresariales.exception.CorrelacionNoValidaException;
-import co.edu.javeriana.procesosempresariales.exception.EnvioExternoNoValidoException;
-import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
-import co.edu.javeriana.procesosempresariales.exception.LaneConActividadesException;
-import co.edu.javeriana.procesosempresariales.exception.LaneDuplicadaException;
-import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
-import co.edu.javeriana.procesosempresariales.exception.MensajeEntreMismoPoolException;
-import co.edu.javeriana.procesosempresariales.exception.ModeloDeProcesoNoValidoException;
-import co.edu.javeriana.procesosempresariales.exception.NitEmpresaDuplicadoException;
-import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
-import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
-import co.edu.javeriana.procesosempresariales.exception.NombreRolProcesoDuplicadoException;
-import co.edu.javeriana.procesosempresariales.exception.PermisoEstructuraNoValidoException;
-import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
-import co.edu.javeriana.procesosempresariales.exception.PoolConContenidoException;
-import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
-import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
-import co.edu.javeriana.procesosempresariales.exception.ProcesoYaCompartidoException;
-import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
-import co.edu.javeriana.procesosempresariales.exception.RolProcesoEnUsoException;
-import co.edu.javeriana.procesosempresariales.exception.UsuarioNoAutorizadoException;
-import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
 
 class ApiExceptionHandlerTest {
 
