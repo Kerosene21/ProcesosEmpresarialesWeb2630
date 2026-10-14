@@ -1,0 +1,140 @@
+
+* {
+  box-sizing: border-box;
+}
+
+:host {
+  display: block;
+  color: #000;
+  background: #fff;
+  font-family: Arial, sans-serif;
+  min-height: 100%;
+}
+
+.page-shell {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px 16px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  font-weight: bold;
+}
+
+h1 {
+  margin: 0 0 16px;
+  font-size: 32px;
+}
+
+.intro {
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+.panel {
+  width: 100%;
+}
+
+form {
+  display: grid;
+  gap: 4px;
+  max-width: 520px;
+}
+
+label {
+  margin-top: 12px;
+  font-weight: bold;
+}
+
+input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #000;
+  border-radius: 0;
+  color: #000;
+  background: #fff;
+  font: inherit;
+}
+
+input:focus {
+  outline: 2px solid #000;
+  outline-offset: 1px;
+}
+
+input.invalido {
+  border: 2px solid #a00000;
+}
+
+button {
+  margin-top: 20px;
+  padding: 10px 16px;
+  border: 1px solid #000;
+  color: #fff;
+  background: #000;
+  cursor: pointer;
+  font: inherit;
+  font-weight: bold;
+}
+
+button:hover {
+  color: #000;
+  background: #fff;
+}
+
+.error {
+  color: #a00000;
+  font-weight: bold;
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.mensaje {
+  max-width: 520px;
+  margin-bottom: 20px;
+  padding: 12px;
+  border: 1px solid #000;
+  font-weight: bold;
+  line-height: 1.5;
+}
+
+.mensaje.error {
+  color: #a00000;
+  border-color: #a00000;
+}
+
+.mensaje.exito {
+  color: #000;
+  border-color: #000;
+}
+
+.acciones {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.acciones a {
+  color: #000;
+  text-decoration: underline;
+}
+
+.acciones a:hover {
+  text-decoration: none;
+}
+
+@media (max-width: 600px) {
+  .page-shell {
+    padding: 24px 16px;
+  }
+
+  h1 {
+    font-size: 28px;
+  }
+
+  .acciones {
+    flex-direction: column;
+    gap: 12px;
+  }
+}

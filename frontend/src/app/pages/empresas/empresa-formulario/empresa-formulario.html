@@ -1,0 +1,163 @@
+
+<main class="page-shell">
+  <section class="panel" aria-labelledby="form-title">
+
+    <p class="eyebrow">Empresas</p>
+
+    <h1 id="form-title">Registrar empresa</h1>
+
+    <p class="intro">
+      Al registrar la empresa se crea también su usuario administrador
+      inicial, identificado con el correo de contacto. Con esa contraseña
+      podrás iniciar sesión.
+    </p>
+
+    <div
+      *ngIf="mensaje"
+      class="mensaje"
+      [ngClass]="tipoMensaje"
+      role="status"
+      aria-live="polite"
+    >
+      {{ mensaje }}
+    </div>
+
+    <form
+      [formGroup]="empresaForm"
+      (ngSubmit)="registrarEmpresa()"
+      novalidate
+    >
+      <label for="nombre">Nombre de la empresa</label>
+
+      <input
+        id="nombre"
+        type="text"
+        formControlName="nombre"
+        maxlength="150"
+        autofocus
+        autocomplete="organization"
+        [class.invalido]="campos.nombre.invalid &&
+                          (campos.nombre.touched || enviado)"
+      >
+
+      <small
+        class="error"
+        *ngIf="campos.nombre.hasError('required') &&
+               (campos.nombre.touched || enviado)"
+      >
+        El nombre de la empresa es obligatorio.
+      </small>
+
+      <small
+        class="error"
+        *ngIf="campos.nombre.hasError('maxlength')"
+      >
+        El nombre no puede superar los 150 caracteres.
+      </small>
+
+      <label for="nit">NIT</label>
+
+      <input
+        id="nit"
+        type="text"
+        formControlName="nit"
+        maxlength="20"
+        autocomplete="off"
+        [class.invalido]="campos.nit.invalid &&
+                          (campos.nit.touched || enviado)"
+      >
+
+      <small
+        class="error"
+        *ngIf="campos.nit.hasError('required') &&
+               (campos.nit.touched || enviado)"
+      >
+        El NIT es obligatorio.
+      </small>
+
+      <small
+        class="error"
+        *ngIf="campos.nit.hasError('maxlength')"
+      >
+        El NIT no puede superar los 20 caracteres.
+      </small>
+
+      <label for="correoContacto">Correo de contacto</label>
+
+      <input
+        id="correoContacto"
+        type="email"
+        formControlName="correoContacto"
+        maxlength="180"
+        autocomplete="email"
+        [class.invalido]="campos.correoContacto.invalid &&
+                          (campos.correoContacto.touched || enviado)"
+      >
+
+      <small
+        class="error"
+        *ngIf="campos.correoContacto.hasError('required') &&
+               (campos.correoContacto.touched || enviado)"
+      >
+        El correo de contacto es obligatorio.
+      </small>
+
+      <small
+        class="error"
+        *ngIf="campos.correoContacto.hasError('email') &&
+               (campos.correoContacto.touched || enviado)"
+      >
+        Introduce un correo electrónico válido.
+      </small>
+
+      <small
+        class="error"
+        *ngIf="campos.correoContacto.hasError('maxlength')"
+      >
+        El correo no puede superar los 180 caracteres.
+      </small>
+
+      <label for="passwordAdministrador">
+        Contraseña del administrador inicial
+      </label>
+
+      <input
+        id="passwordAdministrador"
+        type="password"
+        formControlName="passwordAdministrador"
+        maxlength="100"
+        autocomplete="new-password"
+        [class.invalido]="campos.passwordAdministrador.invalid &&
+                          (campos.passwordAdministrador.touched || enviado)"
+      >
+
+      <small
+        class="error"
+        *ngIf="campos.passwordAdministrador.hasError('required') &&
+               (campos.passwordAdministrador.touched || enviado)"
+      >
+        La contraseña es obligatoria.
+      </small>
+
+      <small
+        class="error"
+        *ngIf="campos.passwordAdministrador.hasError('maxlength')"
+      >
+        La contraseña no puede superar los 100 caracteres.
+      </small>
+
+      <button type="submit">Registrar empresa</button>
+    </form>
+
+    <div class="acciones">
+      <a routerLink="/login">
+        Ya tengo cuenta, iniciar sesión
+      </a>
+
+      <a routerLink="/empresas">
+        Volver a empresas
+      </a>
+    </div>
+
+  </section>
+</main>
