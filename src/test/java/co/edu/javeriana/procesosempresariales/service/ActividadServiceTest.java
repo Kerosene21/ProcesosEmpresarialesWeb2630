@@ -103,7 +103,7 @@ class ActividadServiceTest {
         AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
         HistorialProcesoService historial = new HistorialProcesoService(historialProcesoRepository);
         LaneService lanes = new LaneService(laneRepository, acceso, rolProcesoService, historial, poolService,
-                permisoEstructuraService);
+                permisoEstructuraService, new ModelMapper());
         actividadService = new ActividadService(actividadRepository, lanes, acceso, historial, conexionesService,
                 new ModelMapper());
     }

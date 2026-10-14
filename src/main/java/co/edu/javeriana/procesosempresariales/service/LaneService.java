@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,17 +43,19 @@ public class LaneService {
     private HistorialProcesoService historialProcesoService;
     private PoolService poolService;
     private PermisoEstructuraService permisoEstructuraService;
+    private ModelMapper modelMapper;
 
     @Autowired
     public LaneService(LaneRepository laneRepository, AccesoProcesoService accesoProcesoService,
             RolProcesoService rolProcesoService, HistorialProcesoService historialProcesoService,
-            PoolService poolService, PermisoEstructuraService permisoEstructuraService) {
+            PoolService poolService, PermisoEstructuraService permisoEstructuraService, ModelMapper modelMapper) {
         this.laneRepository = laneRepository;
         this.accesoProcesoService = accesoProcesoService;
         this.rolProcesoService = rolProcesoService;
         this.historialProcesoService = historialProcesoService;
         this.poolService = poolService;
         this.permisoEstructuraService = permisoEstructuraService;
+        this.modelMapper = modelMapper;
     }
 
     @Transactional(readOnly = true)
@@ -213,10 +216,8 @@ public class LaneService {
     }
 
     private LaneRespuestaDto toDto(Lane lane) {
-        LaneRespuestaDto respuesta = new LaneRespuestaDto(lane.getId(), lane.nombreFuncional());
-        respuesta.setRolProcesoId(lane.getRolProceso() == null ? null : lane.getRolProceso().getId());
-        respuesta.setPoolId(lane.getPool().getId());
-        respuesta.setOrden(lane.getOrden());
+        LaneRespuestaDto respuesta = modelMapper.map(lane, LaneRespuestaDto.class);
+        respuesta.setNombre(lane.nombreFuncional());
         return respuesta;
     }
 }

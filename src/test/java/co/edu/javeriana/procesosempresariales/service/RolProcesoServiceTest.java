@@ -92,7 +92,7 @@ class RolProcesoServiceTest {
                 new BCryptPasswordEncoder());
         AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
         rolProcesoService = new RolProcesoService(rolProcesoRepository, historialRolProcesoRepository,
-                rolProcesoSpecifications, acceso);
+                rolProcesoSpecifications, acceso, new ModelMapper());
     }
 
     private Empresa empresa(Long id) {
@@ -749,6 +749,49 @@ class RolProcesoServiceTest {
         assertThat(roles).extracting(RolProcesoRespuestaDto::getId).containsExactly(ROL_ID, OTRO_ROL_ID);
         assertThat(roles).extracting(RolProcesoRespuestaDto::getNombre).containsExactly(ANALISTA, "Tesorero");
         assertThat(roles).allMatch(RolProcesoRespuestaDto::isActivo);
+    }
+
+    @Test
+    void laRespuestaYElResumenDelRolConservanTodosSusCamposSinModificarLaEntidad() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        RolProceso rol = existeElRol(EMPRESA_PROPIA, true);
+        usadoEn();
+        when(rolProcesoRepository.findByEmpresaIdAndActivoTrueOrderByNombreAsc(EMPRESA_PROPIA))
+                .thenReturn(List.of(rol));
+
+        RolProcesoResumenDto resumen = rolProcesoService.obtener(ROL_ID, USERNAME);
+        List<RolProcesoRespuestaDto> respuestas = rolProcesoService.activosDeLaEmpresa(EMPRESA_PROPIA);
+
+        RolProcesoResumenDto resumenEsperado = new RolProcesoResumenDto();
+        resumenEsperado.setId(ROL_ID);
+        resumenEsperado.setNombre(ANALISTA);
+        resumenEsperado.setDescripcion(DESCRIPCION);
+        resumenEsperado.setActivo(true);
+        resumenEsperado.setEnUso(false);
+        resumenEsperado.setPuedeEliminar(true);
+        RolProcesoRespuestaDto respuestaEsperada = new RolProcesoRespuestaDto();
+        respuestaEsperada.setId(ROL_ID);
+        respuestaEsperada.setNombre(ANALISTA);
+        respuestaEsperada.setDescripcion(DESCRIPCION);
+        respuestaEsperada.setActivo(true);
+        assertThat(resumen).usingRecursiveComparison().isEqualTo(resumenEsperado);
+        assertThat(respuestas).usingRecursiveFieldByFieldElementComparator().containsExactly(respuestaEsperada);
+        assertThat(rol).usingRecursiveComparison().isEqualTo(rol(ROL_ID, ANALISTA, EMPRESA_PROPIA, true));
+    }
+
+    @Test
+    void unRolSinDescripcionSeEntregaSinInventarValores() {
+        when(rolProcesoRepository.findByEmpresaIdAndActivoTrueOrderByNombreAsc(EMPRESA_PROPIA))
+                .thenReturn(List.of(new RolProceso(ROL_ID, ANALISTA, null, empresa(EMPRESA_PROPIA), false)));
+
+        List<RolProcesoRespuestaDto> roles = rolProcesoService.activosDeLaEmpresa(EMPRESA_PROPIA);
+
+        assertThat(roles).singleElement().satisfies(rol -> {
+            assertThat(rol.getId()).isEqualTo(ROL_ID);
+            assertThat(rol.getNombre()).isEqualTo(ANALISTA);
+            assertThat(rol.getDescripcion()).isNull();
+            assertThat(rol.isActivo()).isFalse();
+        });
     }
 
     @Test

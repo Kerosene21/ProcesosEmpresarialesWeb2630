@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.modelmapper.ModelMapper;
 
 import co.edu.javeriana.procesosempresariales.domain.Arco;
 import co.edu.javeriana.procesosempresariales.domain.Empresa;
@@ -69,7 +70,7 @@ class ValidacionModeloServiceTest {
         NodoFlujoResolver resolver = new NodoFlujoResolver(actividadRepository, gatewayRepository, eventoRepository);
         ConexionesService conexiones = new ConexionesService(arcoRepository, resolver);
         GatewayService gatewayService = new GatewayService(gatewayRepository, accesoProcesoService,
-                historialProcesoService, conexiones, resolver, poolService);
+                historialProcesoService, conexiones, resolver, poolService, new ModelMapper());
         validacionModeloService = new ValidacionModeloService(gatewayService, conexiones);
     }
 

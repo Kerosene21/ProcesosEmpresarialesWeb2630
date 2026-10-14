@@ -102,10 +102,11 @@ class LaneServiceTest {
         AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
         HistorialProcesoService historial = new HistorialProcesoService(historialProcesoRepository);
         RolProcesoService roles = new RolProcesoService(rolProcesoRepository, historialRolProcesoRepository,
-                new RolProcesoSpecifications(), acceso);
+                new RolProcesoSpecifications(), acceso, new ModelMapper());
         PermisoEstructuraService permisos = new PermisoEstructuraService(permisoEstructuraProcesoRepository, acceso,
                 historial);
-        laneService = new LaneService(laneRepository, acceso, roles, historial, poolService, permisos);
+        laneService = new LaneService(laneRepository, acceso, roles, historial, poolService, permisos,
+                new ModelMapper());
         pool = new Pool(POOL_ID, null, POOL, TipoPool.PROPIETARIO, 1, false, true, null, new ArrayList<>());
     }
 
@@ -183,6 +184,14 @@ class LaneServiceTest {
         verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
     }
 
+    private LaneRespuestaDto respuesta(Long id, String nombre, Long rolProcesoId, int orden) {
+        LaneRespuestaDto respuesta = new LaneRespuestaDto(id, nombre);
+        respuesta.setRolProcesoId(rolProcesoId);
+        respuesta.setPoolId(POOL_ID);
+        respuesta.setOrden(orden);
+        return respuesta;
+    }
+
     @Test
     void laLaneDeUnaActividadSeBuscaEntreLasLanesActivasDeLosPoolsDelProceso() {
         Lane general = lane(11L, "General", 1);
@@ -218,6 +227,23 @@ class LaneServiceTest {
         assertThat(lanes).extracting(LaneRespuestaDto::getRolProcesoId).containsExactly(null, ROL_ID);
         assertThat(lanes).extracting(LaneRespuestaDto::getPoolId).containsExactly(POOL_ID, POOL_ID);
         assertThat(lanes).extracting(LaneRespuestaDto::getOrden).containsExactly(1, 2);
+    }
+
+    @Test
+    void laRespuestaDeCadaLaneConservaTodosSusCamposSinModificarLaEntidad() {
+        Lane general = lane(11L, "General", 1);
+        Lane conRol = new Lane(12L, null, pool, rol(ROL_ID, ANALISTA, EMPRESA_PROPIA, true), 2, true);
+        when(laneRepository.activasDelProceso(PROCESO_ID)).thenReturn(List.of(general, conRol));
+        Proceso proceso = new Proceso(PROCESO_ID, "Ventas", "d", "c", EstadoProceso.BORRADOR,
+                empresa(EMPRESA_PROPIA), List.of(pool), false);
+
+        List<LaneRespuestaDto> lanes = laneService.lanesDe(proceso);
+
+        assertThat(lanes).usingRecursiveFieldByFieldElementComparator()
+                .containsExactly(respuesta(11L, "General", null, 1), respuesta(12L, ANALISTA, ROL_ID, 2));
+        assertThat(general).usingRecursiveComparison().isEqualTo(lane(11L, "General", 1));
+        assertThat(conRol).usingRecursiveComparison()
+                .isEqualTo(new Lane(12L, null, pool, rol(ROL_ID, ANALISTA, EMPRESA_PROPIA, true), 2, true));
     }
 
     @Test

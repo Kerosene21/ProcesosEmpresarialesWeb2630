@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -57,15 +58,18 @@ public class RolProcesoService {
     private HistorialRolProcesoRepository historialRolProcesoRepository;
     private RolProcesoSpecifications rolProcesoSpecifications;
     private AccesoProcesoService accesoProcesoService;
+    private ModelMapper modelMapper;
 
     @Autowired
     public RolProcesoService(RolProcesoRepository rolProcesoRepository,
             HistorialRolProcesoRepository historialRolProcesoRepository,
-            RolProcesoSpecifications rolProcesoSpecifications, AccesoProcesoService accesoProcesoService) {
+            RolProcesoSpecifications rolProcesoSpecifications, AccesoProcesoService accesoProcesoService,
+            ModelMapper modelMapper) {
         this.rolProcesoRepository = rolProcesoRepository;
         this.historialRolProcesoRepository = historialRolProcesoRepository;
         this.rolProcesoSpecifications = rolProcesoSpecifications;
         this.accesoProcesoService = accesoProcesoService;
+        this.modelMapper = modelMapper;
     }
 
     @Transactional
@@ -260,20 +264,11 @@ public class RolProcesoService {
     }
 
     private RolProcesoRespuestaDto toDto(RolProceso rol) {
-        RolProcesoRespuestaDto respuesta = new RolProcesoRespuestaDto();
-        respuesta.setId(rol.getId());
-        respuesta.setNombre(rol.getNombre());
-        respuesta.setDescripcion(rol.getDescripcion());
-        respuesta.setActivo(rol.isActivo());
-        return respuesta;
+        return modelMapper.map(rol, RolProcesoRespuestaDto.class);
     }
 
     private RolProcesoResumenDto toResumen(RolProceso rol, List<UsoRolProceso> usos, boolean administrador) {
-        RolProcesoResumenDto resumen = new RolProcesoResumenDto();
-        resumen.setId(rol.getId());
-        resumen.setNombre(rol.getNombre());
-        resumen.setDescripcion(rol.getDescripcion());
-        resumen.setActivo(rol.isActivo());
+        RolProcesoResumenDto resumen = modelMapper.map(rol, RolProcesoResumenDto.class);
         resumen.setEnUso(!usos.isEmpty());
         resumen.setProcesos(procesosDe(usos));
         resumen.setPuedeEliminar(administrador && rol.isActivo() && usos.isEmpty());

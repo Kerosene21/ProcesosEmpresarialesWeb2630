@@ -106,7 +106,8 @@ class GatewayServiceTest {
                 new BCryptPasswordEncoder());
         AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
         gatewayService = new GatewayService(gatewayRepository, acceso,
-                new HistorialProcesoService(historialProcesoRepository), conexiones, resolver, poolService);
+                new HistorialProcesoService(historialProcesoRepository), conexiones, resolver, poolService,
+                new ModelMapper());
     }
 
     private Empresa empresa(Long id) {
@@ -388,6 +389,29 @@ class GatewayServiceTest {
         assertThat(gateways).hasSize(1);
         assertThat(gateways.get(0).getSimbolo()).isEqualTo("O");
         assertThat(gateways.get(0).getPosicionX()).isEqualTo(300);
+    }
+
+    @Test
+    void laRespuestaDelGatewayConservaTodosSusCamposSinModificarLaEntidad() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+        existeElProcesoActivo();
+        Gateway gateway = gateway(TipoGateway.EXCLUSIVO, true);
+        when(gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(PROCESO_ID)).thenReturn(List.of(gateway));
+
+        List<GatewayRespuestaDto> gateways = gatewayService.consultarActivos(PROCESO_ID, USERNAME);
+
+        GatewayRespuestaDto esperado = new GatewayRespuestaDto();
+        esperado.setId(GATEWAY_ID);
+        esperado.setProcesoId(PROCESO_ID);
+        esperado.setPoolId(POOL_ID);
+        esperado.setTipo(TipoGateway.EXCLUSIVO);
+        esperado.setSimbolo("X");
+        esperado.setEtiqueta("Gateway EXCLUSIVO #12");
+        esperado.setPosicionX(300);
+        esperado.setPosicionY(120);
+        esperado.setActivo(true);
+        assertThat(gateways).singleElement().usingRecursiveComparison().isEqualTo(esperado);
+        assertThat(gateway).usingRecursiveComparison().isEqualTo(gateway(TipoGateway.EXCLUSIVO, true));
     }
 
     @Test

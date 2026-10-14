@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.service;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,17 +39,19 @@ public class GatewayService {
     private ConexionesService conexionesService;
     private NodoFlujoResolver nodoFlujoResolver;
     private PoolService poolService;
+    private ModelMapper modelMapper;
 
     @Autowired
     public GatewayService(GatewayRepository gatewayRepository, AccesoProcesoService accesoProcesoService,
             HistorialProcesoService historialProcesoService, ConexionesService conexionesService,
-            NodoFlujoResolver nodoFlujoResolver, PoolService poolService) {
+            NodoFlujoResolver nodoFlujoResolver, PoolService poolService, ModelMapper modelMapper) {
         this.gatewayRepository = gatewayRepository;
         this.accesoProcesoService = accesoProcesoService;
         this.historialProcesoService = historialProcesoService;
         this.conexionesService = conexionesService;
         this.nodoFlujoResolver = nodoFlujoResolver;
         this.poolService = poolService;
+        this.modelMapper = modelMapper;
     }
 
     @Transactional
@@ -268,16 +271,9 @@ public class GatewayService {
     }
 
     private GatewayRespuestaDto toDto(Gateway gateway) {
-        GatewayRespuestaDto respuesta = new GatewayRespuestaDto();
-        respuesta.setId(gateway.getId());
-        respuesta.setProcesoId(gateway.getProceso().getId());
-        respuesta.setPoolId(gateway.getPool().getId());
-        respuesta.setTipo(gateway.getTipo());
+        GatewayRespuestaDto respuesta = modelMapper.map(gateway, GatewayRespuestaDto.class);
         respuesta.setSimbolo(gateway.getTipo().getSimbolo());
         respuesta.setEtiqueta(gateway.etiqueta());
-        respuesta.setPosicionX(gateway.getPosicionX());
-        respuesta.setPosicionY(gateway.getPosicionY());
-        respuesta.setActivo(gateway.isActivo());
         return respuesta;
     }
 }
