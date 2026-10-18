@@ -1,0 +1,108 @@
+<section class="pagina">
+  <header class="encabezado-pagina">
+    <div class="encabezado-pagina__texto">
+      <p class="encabezado-pagina__antetitulo">Catálogo</p>
+      <h1>Procesos</h1>
+      <p class="encabezado-pagina__descripcion">
+        Consulta los procesos de tu empresa y los que otras empresas comparten contigo en solo lectura.
+      </p>
+    </div>
+    <a class="boton boton--primario" routerLink="/procesos/nuevo">Nuevo proceso</a>
+  </header>
+
+  <form class="tarjeta filtros" role="search" aria-label="Filtrar procesos" [formGroup]="filtros" (submit)="$event.preventDefault()">
+    <div class="campo filtros__busqueda">
+      <label class="campo__etiqueta" for="filtro-q">Buscar por nombre</label>
+      <input id="filtro-q" class="campo__control" type="search" formControlName="q" autocomplete="off" placeholder="Ej.: Atención de solicitudes" />
+    </div>
+    <div class="campo">
+      <label class="campo__etiqueta" for="filtro-estado">Estado</label>
+      <select id="filtro-estado" class="campo__control" formControlName="estado">
+        <option value="">Todos</option>
+        @for (estado of estados; track estado) {
+          <option [value]="estado">{{ textoEstado[estado] }}</option>
+        }
+      </select>
+    </div>
+    <div class="campo">
+      <label class="campo__etiqueta" for="filtro-categoria">Categoría</label>
+      <input id="filtro-categoria" class="campo__control" type="text" formControlName="categoria" autocomplete="off" aria-describedby="ayuda-categoria" />
+      <span id="ayuda-categoria" class="campo__ayuda">Coincidencia exacta, sin distinguir mayúsculas</span>
+    </div>
+    <div class="campo">
+      <label class="campo__etiqueta" for="filtro-alcance">Alcance</label>
+      <select id="filtro-alcance" class="campo__control" formControlName="alcance">
+        @for (alcance of alcances; track alcance) {
+          <option [value]="alcance">{{ textoAlcance[alcance] }}</option>
+        }
+      </select>
+    </div>
+    <div class="campo">
+      <label class="campo__etiqueta" for="filtro-visibilidad">Visibilidad</label>
+      <select id="filtro-visibilidad" class="campo__control" formControlName="visibilidad">
+        @for (visibilidad of visibilidades; track visibilidad) {
+          <option [value]="visibilidad">{{ textoVisibilidad[visibilidad] }}</option>
+        }
+      </select>
+    </div>
+    <div class="filtros__acciones">
+      <button type="button" class="boton boton--texto" (click)="limpiarFiltros()">Limpiar filtros</button>
+    </div>
+  </form>
+
+  <section class="tarjeta resultados" aria-labelledby="titulo-resultados" [attr.aria-busy]="cargando()">
+    <h2 id="titulo-resultados" class="visualmente-oculto">Resultados</h2>
+    @if (cargando()) {
+      <app-aviso tipo="carga" titulo="Cargando procesos…" />
+    } @else if (fallo(); as falloActual) {
+      <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="explicacionFallo()" accion="Reintentar" (accionSolicitada)="reintentar()" />
+    } @else if (pagina(); as datos) {
+      @if (datos.content.length === 0) {
+        <app-aviso tipo="vacio" titulo="No hay procesos que coincidan con los filtros" detalle="Cambia los filtros o crea un proceso nuevo." />
+      } @else {
+        <div class="tabla-contenedor">
+          <table class="tabla tabla--adaptable">
+            <caption class="visualmente-oculto">Procesos encontrados</caption>
+            <thead>
+              <tr>
+                <th scope="col">Proceso</th>
+                <th scope="col">Categoría</th>
+                <th scope="col">Estado</th>
+                <th scope="col">Empresa propietaria</th>
+                <th scope="col">Acceso</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (proceso of datos.content; track proceso.id) {
+                <tr>
+                  <td data-etiqueta="Proceso">
+                    <a class="resultados__enlace" [routerLink]="['/procesos', proceso.id]">{{ proceso.nombre }}</a>
+                    <p class="resultados__descripcion">{{ proceso.descripcion }}</p>
+                  </td>
+                  <td data-etiqueta="Categoría">{{ proceso.categoria }}</td>
+                  <td data-etiqueta="Estado">
+                    <span class="grupo-chips">
+                      <app-etiqueta-estado [estado]="proceso.estado" />
+                      @if (proceso.eliminado) {
+                        <span class="chip chip--peligro">Eliminado</span>
+                      }
+                    </span>
+                  </td>
+                  <td data-etiqueta="Empresa">{{ proceso.empresaPropietariaNombre }}</td>
+                  <td data-etiqueta="Acceso">
+                    @if (proceso.soloLectura) {
+                      <span class="chip chip--informacion">Solo lectura</span>
+                    } @else {
+                      <span class="chip">Propio</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <app-paginacion [pagina]="datos.page" etiqueta="Paginación de procesos" (cambio)="cambiarPagina($event)" />
+      }
+    }
+  </section>
+</section>

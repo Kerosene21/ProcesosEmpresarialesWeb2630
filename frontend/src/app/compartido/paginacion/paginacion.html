@@ -1,0 +1,33 @@
+<nav class="paginacion" [attr.aria-label]="etiqueta()">
+  <p class="paginacion__resumen">
+    Mostrando <strong>{{ desde() }}–{{ hasta() }}</strong> de <strong>{{ pagina().totalElements }}</strong>
+  </p>
+  @if (total() > 1) {
+    <ul class="paginacion__lista">
+      <li>
+        <button type="button" class="paginacion__boton" [disabled]="actual() === 0" (click)="ir(actual() - 1)">
+          <span aria-hidden="true">‹</span> Anterior
+        </button>
+      </li>
+      @for (indice of indices(); track indice) {
+        <li>
+          <button
+            type="button"
+            class="paginacion__boton"
+            [class.paginacion__boton--actual]="indice === actual()"
+            [attr.aria-current]="indice === actual() ? 'page' : null"
+            [attr.aria-label]="'Página ' + (indice + 1)"
+            (click)="ir(indice)"
+          >
+            {{ indice + 1 }}
+          </button>
+        </li>
+      }
+      <li>
+        <button type="button" class="paginacion__boton" [disabled]="actual() >= total() - 1" (click)="ir(actual() + 1)">
+          Siguiente <span aria-hidden="true">›</span>
+        </button>
+      </li>
+    </ul>
+  }
+</nav>

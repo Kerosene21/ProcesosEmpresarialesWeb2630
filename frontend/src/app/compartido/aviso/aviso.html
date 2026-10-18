@@ -1,0 +1,19 @@
+<div class="aviso" [class]="'aviso--' + tipo()" [attr.role]="rol()">
+  @if (tipo() === 'carga') {
+    <span class="aviso__indicador" aria-hidden="true"></span>
+  } @else {
+    <span class="aviso__icono" aria-hidden="true">{{ icono() }}</span>
+  }
+  <div class="aviso__texto">
+    <p class="aviso__titulo">{{ titulo() }}</p>
+    @if (detalle()) {
+      <p class="aviso__detalle">{{ detalle() }}</p>
+    }
+    <ng-content />
+  </div>
+  @if (accion(); as etiqueta) {
+    <button type="button" class="boton boton--secundario aviso__accion" (click)="accionSolicitada.emit()">
+      {{ etiqueta }}
+    </button>
+  }
+</div>

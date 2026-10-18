@@ -1,0 +1,41 @@
+<a class="saltar" href="#contenido">Saltar al contenido</a>
+
+<header class="cabecera">
+  <div class="contenedor cabecera__interior">
+    <a class="marca" routerLink="/procesos">
+      <span class="marca__simbolo" aria-hidden="true">PE</span>
+      <span class="marca__texto">
+        <strong>Procesos Empresariales</strong>
+        <span>Modelado BPMN multiempresa</span>
+      </span>
+    </a>
+    <nav class="navegacion" aria-label="Navegación principal">
+      <a
+        class="navegacion__enlace"
+        routerLink="/procesos"
+        routerLinkActive="navegacion__enlace--activo"
+        [routerLinkActiveOptions]="{ exact: true }"
+        ariaCurrentWhenActive="page"
+        >Procesos</a
+      >
+      <a
+        class="navegacion__enlace"
+        routerLink="/procesos/nuevo"
+        routerLinkActive="navegacion__enlace--activo"
+        ariaCurrentWhenActive="page"
+        >Nuevo proceso</a
+      >
+    </nav>
+  </div>
+</header>
+
+<main id="contenido" class="contenedor principal" tabindex="-1">
+  <router-outlet />
+</main>
+
+<footer class="pie">
+  <div class="contenedor pie__interior">
+    <span>Procesos Empresariales Web</span>
+    <span>Datos servidos por la API REST del backend</span>
+  </div>
+</footer>

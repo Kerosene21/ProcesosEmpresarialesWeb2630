@@ -1,0 +1,115 @@
+<section class="pagina">
+  <header class="encabezado-pagina">
+    <div class="encabezado-pagina__texto">
+      <p class="encabezado-pagina__antetitulo">{{ modoEdicion() ? 'Edición' : 'Creación' }}</p>
+      <h1>{{ modoEdicion() ? 'Editar proceso' : 'Nuevo proceso' }}</h1>
+      <p class="encabezado-pagina__descripcion">
+        @if (modoEdicion()) {
+          Modifica el nombre, la descripción, la categoría y el estado del proceso.
+        } @else {
+          El proceso se crea en estado borrador con el pool de tu empresa y una lane inicial.
+        }
+      </p>
+    </div>
+  </header>
+
+  <app-aviso
+    id="aviso-guardado"
+    titulo="El guardado todavía no está habilitado"
+    detalle="La API exige una sesión iniciada y el token CSRF, que aún no están integrados en esta aplicación. Puedes revisar los datos con las mismas reglas del backend, pero no se enviará nada al servidor."
+  />
+
+  @if (modoEdicion() && carga()?.tipo === 'cargando') {
+    <app-aviso tipo="carga" titulo="Cargando el proceso…" />
+  } @else if (fallo(); as falloActual) {
+    <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="explicar(falloActual)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+    <a class="boton boton--secundario formulario__volver" routerLink="/procesos">Volver al listado</a>
+  } @else if (mostrarFormulario()) {
+    @if (soloConsulta()) {
+      <app-aviso
+        titulo="Este proceso no se puede editar"
+        [detalle]="proceso()?.soloLectura ? 'Pertenece a otra empresa y se comparte en solo lectura.' : 'El proceso fue eliminado.'"
+      />
+    }
+
+    <form class="tarjeta formulario" [formGroup]="formulario" (ngSubmit)="revisar()" novalidate>
+      <div class="campo">
+        <label class="campo__etiqueta" for="campo-nombre">Nombre</label>
+        <input
+          id="campo-nombre"
+          class="campo__control"
+          type="text"
+          formControlName="nombre"
+          autocomplete="off"
+          [attr.aria-invalid]="error('nombre') !== null"
+          aria-describedby="pie-nombre"
+        />
+        <div id="pie-nombre" class="campo__pie">
+          <span class="campo__error">{{ error('nombre') }}</span>
+          <span class="campo__ayuda">{{ longitud('nombre') }} / {{ limites.nombre }}</span>
+        </div>
+      </div>
+
+      <div class="campo">
+        <label class="campo__etiqueta" for="campo-categoria">Categoría</label>
+        <input
+          id="campo-categoria"
+          class="campo__control"
+          type="text"
+          formControlName="categoria"
+          autocomplete="off"
+          [attr.aria-invalid]="error('categoria') !== null"
+          aria-describedby="pie-categoria"
+        />
+        <div id="pie-categoria" class="campo__pie">
+          <span class="campo__error">{{ error('categoria') }}</span>
+          <span class="campo__ayuda">{{ longitud('categoria') }} / {{ limites.categoria }}</span>
+        </div>
+      </div>
+
+      <div class="campo formulario__completo">
+        <label class="campo__etiqueta" for="campo-descripcion">Descripción</label>
+        <textarea
+          id="campo-descripcion"
+          class="campo__control"
+          formControlName="descripcion"
+          rows="6"
+          [attr.aria-invalid]="error('descripcion') !== null"
+          aria-describedby="pie-descripcion"
+        ></textarea>
+        <div id="pie-descripcion" class="campo__pie">
+          <span class="campo__error">{{ error('descripcion') }}</span>
+        </div>
+      </div>
+
+      @if (modoEdicion()) {
+        <div class="campo">
+          <label class="campo__etiqueta" for="campo-estado">Estado</label>
+          <select id="campo-estado" class="campo__control" formControlName="estado" aria-describedby="ayuda-estado">
+            @for (estado of estados; track estado) {
+              <option [value]="estado">{{ textoEstado[estado] }}</option>
+            }
+          </select>
+          <span id="ayuda-estado" class="campo__ayuda">Para publicar, el backend exige que el modelo del proceso sea válido.</span>
+          <span class="campo__error">{{ error('estado') }}</span>
+        </div>
+      }
+
+      @if (revision() === 'valida') {
+        <app-aviso
+          class="formulario__completo"
+          titulo="Los datos cumplen las validaciones del formulario"
+          detalle="No se ha enviado nada al servidor: el guardado sigue deshabilitado."
+        />
+      } @else if (revision() === 'con-errores') {
+        <app-aviso class="formulario__completo" tipo="error" titulo="Revisa los campos marcados antes de continuar" />
+      }
+
+      <div class="formulario__acciones">
+        <a class="boton boton--texto" [routerLink]="rutaCancelar()">Cancelar</a>
+        <button type="submit" class="boton boton--secundario" [disabled]="soloConsulta()">Revisar datos</button>
+        <button type="button" class="boton boton--primario" disabled aria-describedby="aviso-guardado">Guardar proceso</button>
+      </div>
+    </form>
+  }
+</section>
