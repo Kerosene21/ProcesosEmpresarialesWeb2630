@@ -19,6 +19,7 @@ import io.swagger.v3.oas.models.media.ComposedSchema;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.DateTimeSchema;
 import io.swagger.v3.oas.models.media.IntegerSchema;
+import io.swagger.v3.oas.models.media.MapSchema;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
@@ -47,18 +48,21 @@ public class OpenApiConfig {
             ni invoca sistemas externos.
 
             **Autenticación.** La API usa la misma sesión que la aplicación web. Inicia sesión en \
-            `/login` en este navegador y Swagger UI reutilizará la cookie `JSESSIONID`.
+            `/login` en este navegador y Swagger UI reutilizará la cookie `JSESSIONID`. Los clientes SPA \
+            inician sesión con `POST /api/sesion` y la cierran con `DELETE /api/sesion`.
 
-            **Operaciones de escritura.** `POST`, `PUT` y `DELETE` exigen el token CSRF de la sesión \
-            en el encabezado `X-CSRF-TOKEN` (botón *Authorize*, esquema `csrf`).
+            **Operaciones de escritura.** `POST`, `PUT` y `DELETE` exigen el token CSRF en el encabezado \
+            `X-XSRF-TOKEN` (botón *Authorize*, esquema `csrf`). El valor es el de la cookie `XSRF-TOKEN`, \
+            que `GET /api/sesion` emite.
 
             **Multiempresa.** La empresa se toma del usuario autenticado. Cada empresa solo ve y \
             modifica sus propios recursos; los procesos que otra empresa le comparte son de solo \
             lectura y la empresa propietaria conserva la edición.
 
             **Errores.** Las reglas de negocio, la autenticación y los permisos responden \
-            `{ "codigo", "mensaje" }` (`ErrorApi`). Bean Validation, JSON mal formado o parámetros \
-            con tipo inválido responden el error estándar de Spring Boot (`ErrorValidacion`).
+            `{ "codigo", "mensaje" }` (`ErrorApi`). Bean Validation responde `DATOS_NO_VALIDOS` con el \
+            mensaje de cada campo en `campos`. JSON mal formado o parámetros con tipo inválido responden \
+            el error estándar de Spring Boot (`ErrorValidacion`).
             """;
 
     @Bean
@@ -78,11 +82,10 @@ public class OpenApiConfig {
                         .addSecuritySchemes(ESQUEMA_CSRF, new SecurityScheme()
                                 .type(SecurityScheme.Type.APIKEY)
                                 .in(SecurityScheme.In.HEADER)
-                                .name("X-CSRF-TOKEN")
-                                .description("Token CSRF de la sesión, obligatorio en POST, PUT y DELETE. Se "
-                                        + "obtiene del campo oculto `_csrf` de cualquier formulario de la aplicación "
-                                        + "después de iniciar sesión (por ejemplo, el de cerrar sesión en "
-                                        + "`/empresas`).")));
+                                .name("X-XSRF-TOKEN")
+                                .description("Token CSRF, obligatorio en POST, PUT y DELETE. Es el valor de la "
+                                        + "cookie `XSRF-TOKEN`, que `GET /api/sesion` emite y que se renueva al "
+                                        + "iniciar y cerrar sesión.")));
     }
 
     @Bean
@@ -121,8 +124,9 @@ public class OpenApiConfig {
         }
         agregarSiFalta(respuestas, "401", "No hay una sesión autenticada (`USUARIO_NO_AUTORIZADO`).");
         if (operacion.getRequestBody() != null) {
-            agregarSiFalta(respuestas, "400", "Datos no válidos: Bean Validation o JSON mal formado "
-                    + "(`ErrorValidacion`), o una regla del modelo incumplida (`ErrorApi`).");
+            agregarSiFalta(respuestas, "400", "Datos no válidos: Bean Validation (`DATOS_NO_VALIDOS`, "
+                    + "`ErrorApi` con `campos`), JSON mal formado (`ErrorValidacion`) o una regla del modelo "
+                    + "incumplida (`ErrorApi`).");
         }
         if (tieneFiltros(operacion)) {
             agregarSiFalta(respuestas, "400", "Un filtro tiene un valor no válido (`ErrorValidacion`).");
@@ -173,13 +177,15 @@ public class OpenApiConfig {
                         .example("El proceso no existe"))
                 .addProperty("procesos", new ArraySchema().items(new StringSchema())
                         .description("Solo en `ROL_PROCESO_EN_USO`: procesos que usan el rol."))
+                .addProperty("campos", new MapSchema().additionalProperties(new StringSchema())
+                        .description("Solo en `DATOS_NO_VALIDOS`: mensaje de validación de cada campo."))
                 .required(List.of("codigo", "mensaje"));
     }
 
     private Schema<?> errorValidacion() {
         return new ObjectSchema()
-                .description("Error estándar de Spring Boot para Bean Validation, JSON mal formado o "
-                        + "parámetros con tipo inválido.")
+                .description("Error estándar de Spring Boot para JSON mal formado o parámetros con tipo "
+                        + "inválido.")
                 .addProperty("timestamp", new DateTimeSchema())
                 .addProperty("status", new IntegerSchema().example(400))
                 .addProperty("error", new StringSchema().example("Bad Request"))

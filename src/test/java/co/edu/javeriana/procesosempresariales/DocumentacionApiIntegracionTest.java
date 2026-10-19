@@ -166,7 +166,7 @@ class DocumentacionApiIntegracionTest {
                 .andExpect(jsonPath("$.components.securitySchemes.sesion.in").value("cookie"))
                 .andExpect(jsonPath("$.components.securitySchemes.sesion.name").value("JSESSIONID"))
                 .andExpect(jsonPath("$.components.securitySchemes.csrf.in").value("header"))
-                .andExpect(jsonPath("$.components.securitySchemes.csrf.name").value("X-CSRF-TOKEN"))
+                .andExpect(jsonPath("$.components.securitySchemes.csrf.name").value("X-XSRF-TOKEN"))
                 .andExpect(jsonPath("$.components.securitySchemes", not(hasKey("bearerAuth"))))
                 .andExpect(jsonPath("$.paths['" + DIAGRAMA + "'].get.security[0]", hasKey("sesion")))
                 .andExpect(jsonPath("$.paths['" + DIAGRAMA + "'].get.security[0]", not(hasKey("csrf"))))
@@ -182,11 +182,11 @@ class DocumentacionApiIntegracionTest {
         List<String> etiquetas = JsonPath.read(json, "$.paths.*.*.tags[0]");
         List<Map<String, Object>> respuestas = JsonPath.read(json, "$.paths.*.*.responses");
 
-        assertThat(identificadores).hasSize(64).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
-        assertThat(resumenes).hasSize(64).allMatch(resumen -> !resumen.isBlank());
-        assertThat(etiquetas).hasSize(64);
+        assertThat(identificadores).hasSize(67).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
+        assertThat(resumenes).hasSize(67).allMatch(resumen -> !resumen.isBlank());
+        assertThat(etiquetas).hasSize(67);
         assertThat(respuestas)
-                .hasSize(64)
+                .hasSize(67)
                 .allSatisfy(respuesta -> assertThat(respuesta).containsKey("401"));
     }
 
@@ -271,7 +271,8 @@ class DocumentacionApiIntegracionTest {
         List<String> cuerpos = JsonPath.read(json, "$.paths.*.*.requestBody.content['application/json'].schema.$ref");
 
         assertThat(rutas.keySet().stream().filter(ruta -> ruta.contains("empresa")).toList())
-                .containsExactly("/api/procesos/{procesoId}/compartido-con/{empresaId}");
+                .containsExactly("/api/empresas", "/api/empresas/actual",
+                        "/api/procesos/{procesoId}/compartido-con/{empresaId}");
         assertThat(ubicacionesDeEmpresa).containsExactly("path", "path");
         assertThat(cuerpos).isNotEmpty();
         for (String referencia : cuerpos) {

@@ -12,7 +12,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -190,10 +189,10 @@ class SeguridadMensajesTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void lasApisAnterioresConservanSuRespuestaDeAccesoDenegado() throws Exception {
+    void lasDemasApisTambienRespondenJsonAnteElAccesoDenegado() throws Exception {
         mockMvc.perform(post("/api/procesos/5/gateways").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden())
-                .andExpect(forwardedUrl("/acceso-denegado"));
+                .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
     }
 
     @Test

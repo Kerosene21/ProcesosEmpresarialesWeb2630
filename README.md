@@ -188,8 +188,10 @@ Con la aplicación en ejecución:
 - Las rutas de documentación son públicas, pero **la API conserva la seguridad real** del sistema.
 - La autenticación usa la **sesión** del sistema: se inicia sesión en `/login` en el mismo
   navegador y Swagger UI reutiliza la cookie `JSESSIONID`.
-- Las operaciones `POST`, `PUT` y `DELETE` exigen el token **CSRF** de la sesión en el encabezado
-  `X-CSRF-TOKEN` (botón *Authorize*, esquema `csrf`).
+- Las operaciones `POST`, `PUT` y `DELETE` exigen el token **CSRF** en el encabezado
+  `X-XSRF-TOKEN` (botón *Authorize*, esquema `csrf`), con el valor de la cookie `XSRF-TOKEN` que
+  emite `GET /api/sesion`.
+- Los clientes SPA inician sesión con `POST /api/sesion` y la cierran con `DELETE /api/sesion`.
 - No existe un JWT ni un esquema Bearer ficticio solo para Swagger.
 
 ## Pruebas y calidad

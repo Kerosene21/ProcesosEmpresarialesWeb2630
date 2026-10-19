@@ -1,12 +1,12 @@
 package co.edu.javeriana.procesosempresariales.config;
 
-import java.util.Arrays;
 import java.util.LinkedHashMap;
-import java.util.List;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -18,8 +18,8 @@ import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.access.RequestMatcherDelegatingAccessDeniedHandler;
 import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
-import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
 @Configuration
@@ -45,6 +45,11 @@ public class SecurityConfig {
             "/api/procesos/*/message-catches/*", "/api/procesos/*/envios-externos/*" };
     private static final String[] RUTAS_API_ELIMINACION_EVENTO = { "/api/procesos/*/message-throws/*/eliminacion",
             "/api/procesos/*/message-catches/*/eliminacion", "/api/procesos/*/envios-externos/*/eliminacion" };
+    private static final String RUTA_API_SESION = "/api/sesion";
+    private static final String RUTA_API_EMPRESAS = "/api/empresas";
+    private static final String PARAMETRO_CORREO = "correo";
+    private static final String PARAMETRO_PASSWORD = "password";
+    private static final String COOKIE_SESION = "JSESSIONID";
 
     @Bean
     PasswordEncoder passwordEncoder() {
@@ -52,13 +57,44 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(1)
+    SecurityFilterChain sesionApiFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .securityMatcher(RUTA_API_SESION)
+                .csrf(csrf -> csrf.spa())
+                .authorizeHttpRequests(peticiones -> peticiones.anyRequest().permitAll())
+                .formLogin(login -> login
+                        .loginPage(RUTA_API_SESION)
+                        .loginProcessingUrl(RUTA_API_SESION)
+                        .usernameParameter(PARAMETRO_CORREO)
+                        .passwordParameter(PARAMETRO_PASSWORD)
+                        .successHandler((peticion, respuesta, autenticacion) ->
+                                respuesta.setStatus(HttpStatus.NO_CONTENT.value()))
+                        .failureHandler(new ApiCredencialesInvalidasHandler()))
+                .logout(logout -> logout
+                        .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults()
+                                .matcher(HttpMethod.DELETE, RUTA_API_SESION))
+                        .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT))
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
+                        .deleteCookies(COOKIE_SESION))
+                .exceptionHandling(errores -> errores
+                        .authenticationEntryPoint(new ApiNoAutorizadoEntryPoint())
+                        .accessDeniedHandler(new ApiAccesoDenegadoHandler()))
+                .build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
+                .csrf(csrf -> csrf.spa())
                 .authorizeHttpRequests(peticiones -> peticiones
                         .requestMatchers(RECURSOS_PUBLICOS).permitAll()
                         .requestMatchers(HttpMethod.GET, RUTAS_DOCUMENTACION_API).permitAll()
                         .requestMatchers(RUTA_REGISTRO_EMPRESA).permitAll()
                         .requestMatchers(HttpMethod.POST, "/empresas").permitAll()
+                        .requestMatchers(HttpMethod.POST, RUTA_API_EMPRESAS).permitAll()
                         .requestMatchers(RUTA_USUARIOS).hasRole(ROL_ADMINISTRADOR)
                         .requestMatchers(HttpMethod.GET, RUTA_ELIMINAR_PROCESO).hasRole(ROL_ADMINISTRADOR)
                         .requestMatchers(HttpMethod.POST, RUTA_ELIMINAR_PROCESO).hasRole(ROL_ADMINISTRADOR)
@@ -109,12 +145,8 @@ public class SecurityConfig {
     private AccessDeniedHandler accesoDenegado() {
         AccessDeniedHandlerImpl pagina = new AccessDeniedHandlerImpl();
         pagina.setErrorPage(RUTA_ACCESO_DENEGADO);
-        PathPatternRequestMatcher.Builder rutas = PathPatternRequestMatcher.withDefaults();
-        List<RequestMatcher> apiDeEventos = Arrays.stream(RUTAS_API_EVENTOS)
-                .map(ruta -> (RequestMatcher) rutas.matcher(ruta + "/**"))
-                .toList();
         LinkedHashMap<RequestMatcher, AccessDeniedHandler> manejadores = new LinkedHashMap<>();
-        manejadores.put(new OrRequestMatcher(apiDeEventos), new ApiAccesoDenegadoHandler());
+        manejadores.put(PathPatternRequestMatcher.withDefaults().matcher(RUTA_API), new ApiAccesoDenegadoHandler());
         return new RequestMatcherDelegatingAccessDeniedHandler(manejadores, pagina);
     }
 

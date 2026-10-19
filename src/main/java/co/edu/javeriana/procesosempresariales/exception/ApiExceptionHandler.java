@@ -1,10 +1,12 @@
 package co.edu.javeriana.procesosempresariales.exception;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -165,6 +167,16 @@ public class ApiExceptionHandler {
     ResponseEntity<Map<String, String>> noAutorizado(UsuarioNoAutorizadoException exception) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Map.of("codigo", "USUARIO_NO_AUTORIZADO", "mensaje", exception.getMessage()));
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ResponseEntity<Map<String, Object>> datosNoValidos(MethodArgumentNotValidException exception) {
+        Map<String, String> campos = new LinkedHashMap<>();
+        exception.getBindingResult().getFieldErrors()
+                .forEach(error -> campos.putIfAbsent(error.getField(), error.getDefaultMessage()));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("codigo", "DATOS_NO_VALIDOS", "mensaje", "Hay campos con valores no válidos",
+                        "campos", campos));
     }
 
     @ExceptionHandler(UsuarioSinPermisoException.class)
