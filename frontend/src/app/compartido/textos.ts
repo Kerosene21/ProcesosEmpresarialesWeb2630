@@ -1,6 +1,13 @@
 import { TipoActividad, TipoPool } from '../core/modelos/diagrama';
 import { FalloHttp, TipoFallo } from '../core/modelos/fallo-http';
 import { AlcanceProceso, EstadoProceso, VisibilidadProceso } from '../core/modelos/proceso';
+import { RolUsuario } from '../core/modelos/sesion';
+
+export const TEXTO_ROL: Record<RolUsuario, string> = {
+  ADMINISTRADOR: 'Administrador',
+  EDITOR: 'Editor',
+  SOLO_LECTURA: 'Solo lectura',
+};
 
 export const TEXTO_ESTADO: Record<EstadoProceso, string> = {
   BORRADOR: 'Borrador',
@@ -34,8 +41,7 @@ export const TEXTO_TIPO_ACTIVIDAD: Record<TipoActividad, string> = {
 
 const EXPLICACION_FALLO: Record<TipoFallo, string> = {
   conexion: 'Comprueba que el backend esté en ejecución y que el proxy de desarrollo apunte a él.',
-  'no-autenticado':
-    'La API exige una sesión iniciada. El inicio de sesión desde esta aplicación todavía no está integrado.',
+  'no-autenticado': 'La sesión no está iniciada o expiró. Inicia sesión para continuar.',
   'sin-permiso': 'El recurso pertenece a otra empresa o tu rol no permite consultarlo.',
   'no-encontrado': 'Puede que no exista o que haya sido eliminado.',
   'datos-no-validos': 'Revisa los valores enviados.',

@@ -1,0 +1,56 @@
+<section class="pagina acceso">
+  <header class="encabezado-pagina">
+    <div class="encabezado-pagina__texto">
+      <p class="encabezado-pagina__antetitulo">Acceso</p>
+      <h1>Iniciar sesión</h1>
+      <p class="encabezado-pagina__descripcion">Ingresa con el correo y la contraseña de tu usuario.</p>
+    </div>
+  </header>
+
+  @if (aviso(); as texto) {
+    <app-aviso [titulo]="texto" />
+  }
+
+  <form class="tarjeta acceso__formulario" [formGroup]="formulario" (ngSubmit)="iniciar()" novalidate>
+    <div class="campo">
+      <label class="campo__etiqueta" for="campo-correo">Correo</label>
+      <input
+        id="campo-correo"
+        class="campo__control"
+        type="email"
+        formControlName="correo"
+        autocomplete="username"
+        [attr.maxlength]="limites.correo"
+        [attr.aria-invalid]="error('correo') !== null"
+        aria-describedby="error-correo"
+      />
+      <span id="error-correo" class="campo__error">{{ error('correo') }}</span>
+    </div>
+
+    <div class="campo">
+      <label class="campo__etiqueta" for="campo-password">Contraseña</label>
+      <input
+        id="campo-password"
+        class="campo__control"
+        type="password"
+        formControlName="password"
+        autocomplete="current-password"
+        [attr.maxlength]="limites.password"
+        [attr.aria-invalid]="error('password') !== null"
+        aria-describedby="error-password"
+      />
+      <span id="error-password" class="campo__error">{{ error('password') }}</span>
+    </div>
+
+    @if (mensajeFallo(); as mensaje) {
+      <app-aviso tipo="error" [titulo]="mensaje.titulo" [detalle]="mensaje.detalle" />
+    }
+
+    <div class="acceso__acciones">
+      <button type="submit" class="boton boton--primario" [disabled]="enviando()">
+        {{ enviando() ? 'Iniciando sesión…' : 'Iniciar sesión' }}
+      </button>
+      <a class="boton boton--texto" routerLink="/registro-empresa">Registrar una empresa</a>
+    </div>
+  </form>
+</section>

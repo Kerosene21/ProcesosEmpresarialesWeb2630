@@ -1,0 +1,51 @@
+<section class="pagina">
+  <header class="encabezado-pagina">
+    <div class="encabezado-pagina__texto">
+      <p class="encabezado-pagina__antetitulo">Empresas</p>
+      <h1>Mi empresa</h1>
+      <p class="encabezado-pagina__descripcion">
+        Cada empresa administra sus propios procesos de forma independiente.
+      </p>
+    </div>
+  </header>
+
+  @if (estado().tipo === 'cargando') {
+    <app-aviso tipo="carga" titulo="Cargando la empresa…" />
+  } @else if (fallo(); as falloActual) {
+    <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="explicar(falloActual)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+  } @else if (empresa(); as datos) {
+    <article class="tarjeta" aria-labelledby="titulo-empresa">
+      <h2 id="titulo-empresa" class="tarjeta__titulo">{{ datos.nombre }}</h2>
+      <dl class="lista-datos">
+        <div>
+          <dt>NIT</dt>
+          <dd>{{ datos.nit }}</dd>
+        </div>
+        <div>
+          <dt>Correo de contacto</dt>
+          <dd>{{ datos.correoContacto }}</dd>
+        </div>
+        <div>
+          <dt>Administrador inicial</dt>
+          <dd>{{ datos.administradorUsername ?? 'Sin administrador activo' }}</dd>
+        </div>
+      </dl>
+    </article>
+  }
+
+  @if (sesion(); as actual) {
+    <article class="tarjeta" aria-labelledby="titulo-sesion">
+      <h2 id="titulo-sesion" class="tarjeta__titulo">Tu sesión</h2>
+      <dl class="lista-datos">
+        <div>
+          <dt>Usuario</dt>
+          <dd>{{ actual.correo }}</dd>
+        </div>
+        <div>
+          <dt>Rol de acceso</dt>
+          <dd>{{ actual.rol ? textoRol[actual.rol] : '' }}</dd>
+        </div>
+      </dl>
+    </article>
+  }
+</section>

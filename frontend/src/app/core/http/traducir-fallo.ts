@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { Observable, throwError } from 'rxjs';
 
 import { ErrorApi, FalloHttp, TipoFallo } from '../modelos/fallo-http';
 
@@ -36,6 +37,10 @@ export function traducirFallo(error: unknown): FalloHttp {
   return crearFallo(tipoSegunEstado(error.status), error.status, esErrorApi(error.error) ? error.error : null);
 }
 
+export function lanzarFallo(error: unknown): Observable<never> {
+  return throwError(() => traducirFallo(error));
+}
+
 function tipoSegunEstado(estado: number): TipoFallo {
   return TIPOS_POR_ESTADO[estado] ?? (estado >= 500 ? 'servidor' : 'desconocido');
 }
@@ -50,11 +55,22 @@ function esErrorApi(cuerpo: unknown): cuerpo is ErrorApi {
 }
 
 function crearFallo(tipo: TipoFallo, estado: number, cuerpo: ErrorApi | null): FalloHttp {
-  return {
+  const fallo: FalloHttp = {
     tipo,
     estado,
     codigo: cuerpo?.codigo ?? null,
     titulo: TITULOS[tipo],
     detalle: cuerpo?.mensaje ?? null,
   };
+  const campos = camposDe(cuerpo);
+  return campos ? { ...fallo, campos } : fallo;
+}
+
+function camposDe(cuerpo: ErrorApi | null): Record<string, string> | null {
+  const campos = cuerpo?.campos;
+  if (typeof campos !== 'object' || campos === null) {
+    return null;
+  }
+  const validos = Object.entries(campos).filter(([, mensaje]) => typeof mensaje === 'string');
+  return validos.length > 0 ? Object.fromEntries(validos) : null;
 }

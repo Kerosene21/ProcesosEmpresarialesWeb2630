@@ -230,6 +230,27 @@ a:hover {
   background: var(--color-primario-tenue);
 }
 
+.boton--peligro {
+  color: #ffffff;
+  background: var(--color-peligro);
+}
+
+.boton--peligro:hover:not(:disabled) {
+  color: #ffffff;
+  background: #8f1c13;
+}
+
+.boton--peligro-suave {
+  color: var(--color-peligro);
+  background: var(--color-superficie);
+  border-color: var(--color-peligro);
+}
+
+.boton--peligro-suave:hover:not(:disabled) {
+  color: var(--color-peligro);
+  background: var(--color-peligro-tenue);
+}
+
 .boton:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -399,6 +420,26 @@ textarea.campo__control {
   margin: var(--espacio-1) 0 0;
   font-weight: 500;
   overflow-wrap: anywhere;
+}
+
+.acceso {
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+.acceso__formulario {
+  display: grid;
+  gap: var(--espacio-4);
+}
+
+.acceso__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espacio-3);
+  padding-top: var(--espacio-4);
+  border-top: 1px solid var(--color-borde);
 }
 
 @media (max-width: 720px) {

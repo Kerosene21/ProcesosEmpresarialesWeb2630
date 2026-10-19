@@ -2,6 +2,7 @@ export interface ErrorApi {
   codigo: string;
   mensaje: string;
   procesos?: string[];
+  campos?: Record<string, string>;
 }
 
 export interface ErrorValidacion {
@@ -27,4 +28,5 @@ export interface FalloHttp {
   codigo: string | null;
   titulo: string;
   detalle: string | null;
+  campos?: Record<string, string>;
 }

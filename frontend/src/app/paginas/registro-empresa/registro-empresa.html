@@ -1,0 +1,91 @@
+<section class="pagina acceso">
+  <header class="encabezado-pagina">
+    <div class="encabezado-pagina__texto">
+      <p class="encabezado-pagina__antetitulo">Empresas</p>
+      <h1>Registrar empresa</h1>
+      <p class="encabezado-pagina__descripcion">
+        Al registrar la empresa se crea también su usuario administrador inicial, identificado con el correo de
+        contacto. Con esa contraseña podrás iniciar sesión.
+      </p>
+    </div>
+  </header>
+
+  <form class="tarjeta acceso__formulario" [formGroup]="formulario" (ngSubmit)="registrar()" novalidate>
+    <div class="campo">
+      <label class="campo__etiqueta" for="campo-nombre">Nombre de la empresa</label>
+      <input
+        id="campo-nombre"
+        class="campo__control"
+        type="text"
+        formControlName="nombre"
+        autocomplete="organization"
+        [attr.maxlength]="limites.nombre"
+        [attr.aria-invalid]="error('nombre') !== null"
+        aria-describedby="error-nombre"
+      />
+      <span id="error-nombre" class="campo__error">{{ error('nombre') }}</span>
+    </div>
+
+    <div class="campo">
+      <label class="campo__etiqueta" for="campo-nit">NIT</label>
+      <input
+        id="campo-nit"
+        class="campo__control"
+        type="text"
+        formControlName="nit"
+        autocomplete="off"
+        [attr.maxlength]="limites.nit"
+        [attr.aria-invalid]="error('nit') !== null"
+        aria-describedby="error-nit"
+      />
+      <span id="error-nit" class="campo__error">{{ error('nit') }}</span>
+    </div>
+
+    <div class="campo">
+      <label class="campo__etiqueta" for="campo-correo">Correo de contacto</label>
+      <input
+        id="campo-correo"
+        class="campo__control"
+        type="email"
+        formControlName="correoContacto"
+        autocomplete="email"
+        [attr.maxlength]="limites.correoContacto"
+        [attr.aria-invalid]="error('correoContacto') !== null"
+        aria-describedby="error-correo"
+      />
+      <span id="error-correo" class="campo__error">{{ error('correoContacto') }}</span>
+    </div>
+
+    <div class="campo">
+      <label class="campo__etiqueta" for="campo-password">Contraseña del administrador inicial</label>
+      <input
+        id="campo-password"
+        class="campo__control"
+        type="password"
+        formControlName="passwordAdministrador"
+        autocomplete="new-password"
+        [attr.maxlength]="limites.passwordMaximo"
+        [attr.aria-invalid]="error('passwordAdministrador') !== null"
+        aria-describedby="ayuda-password error-password"
+      />
+      <span id="ayuda-password" class="campo__ayuda">
+        Entre {{ limites.passwordMinimo }} y {{ limites.passwordMaximo }} caracteres.
+      </span>
+      <span id="error-password" class="campo__error">{{ error('passwordAdministrador') }}</span>
+    </div>
+
+    @if (conErrores()) {
+      <app-aviso tipo="error" titulo="Revisa los campos marcados antes de continuar" />
+    }
+    @if (fallo(); as falloActual) {
+      <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="explicar(falloActual)" />
+    }
+
+    <div class="acceso__acciones">
+      <button type="submit" class="boton boton--primario" [disabled]="enviando()">
+        {{ enviando() ? 'Registrando…' : 'Registrar empresa' }}
+      </button>
+      <a class="boton boton--texto" routerLink="/iniciar-sesion">Ya tengo cuenta, iniciar sesión</a>
+    </div>
+  </form>
+</section>

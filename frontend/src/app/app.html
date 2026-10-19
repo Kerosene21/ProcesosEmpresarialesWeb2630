@@ -2,7 +2,7 @@
 
 <header class="cabecera">
   <div class="contenedor cabecera__interior">
-    <a class="marca" routerLink="/procesos">
+    <a class="marca" [routerLink]="autenticado() ? '/procesos' : '/iniciar-sesion'">
       <span class="marca__simbolo" aria-hidden="true">PE</span>
       <span class="marca__texto">
         <strong>Procesos Empresariales</strong>
@@ -10,23 +10,63 @@
       </span>
     </a>
     <nav class="navegacion" aria-label="Navegación principal">
-      <a
-        class="navegacion__enlace"
-        routerLink="/procesos"
-        routerLinkActive="navegacion__enlace--activo"
-        [routerLinkActiveOptions]="{ exact: true }"
-        ariaCurrentWhenActive="page"
-        >Procesos</a
-      >
-      <a
-        class="navegacion__enlace"
-        routerLink="/procesos/nuevo"
-        routerLinkActive="navegacion__enlace--activo"
-        ariaCurrentWhenActive="page"
-        >Nuevo proceso</a
-      >
+      @if (autenticado()) {
+        <a
+          class="navegacion__enlace"
+          routerLink="/procesos"
+          routerLinkActive="navegacion__enlace--activo"
+          [routerLinkActiveOptions]="{ exact: true }"
+          ariaCurrentWhenActive="page"
+          >Procesos</a
+        >
+        @if (puedeCrear()) {
+          <a
+            class="navegacion__enlace"
+            routerLink="/procesos/nuevo"
+            routerLinkActive="navegacion__enlace--activo"
+            ariaCurrentWhenActive="page"
+            >Nuevo proceso</a
+          >
+        }
+        <a
+          class="navegacion__enlace"
+          routerLink="/mi-empresa"
+          routerLinkActive="navegacion__enlace--activo"
+          ariaCurrentWhenActive="page"
+          >Mi empresa</a
+        >
+      } @else {
+        <a
+          class="navegacion__enlace"
+          routerLink="/iniciar-sesion"
+          routerLinkActive="navegacion__enlace--activo"
+          ariaCurrentWhenActive="page"
+          >Iniciar sesión</a
+        >
+        <a
+          class="navegacion__enlace"
+          routerLink="/registro-empresa"
+          routerLinkActive="navegacion__enlace--activo"
+          ariaCurrentWhenActive="page"
+          >Registrar empresa</a
+        >
+      }
     </nav>
+    @if (autenticado() && sesion(); as actual) {
+      <div class="usuario">
+        <span class="usuario__datos">
+          <strong>{{ actual.correo }}</strong>
+          <span>{{ actual.rol ? textoRol[actual.rol] : '' }} · {{ actual.empresaNombre }}</span>
+        </span>
+        <button type="button" class="usuario__salir" [disabled]="cerrando()" (click)="cerrarSesion()">
+          {{ cerrando() ? 'Cerrando…' : 'Cerrar sesión' }}
+        </button>
+      </div>
+    }
   </div>
+  @if (falloCierre(); as fallo) {
+    <p class="contenedor cabecera__error" role="alert">No se pudo cerrar la sesión: {{ fallo.titulo }}</p>
+  }
 </header>
 
 <main id="contenido" class="contenedor principal" tabindex="-1">
