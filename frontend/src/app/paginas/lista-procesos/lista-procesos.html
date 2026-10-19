@@ -7,7 +7,9 @@
         Consulta los procesos de tu empresa y los que otras empresas comparten contigo en solo lectura.
       </p>
     </div>
-    <a class="boton boton--primario" routerLink="/procesos/nuevo">Nuevo proceso</a>
+    @if (puedeCrear()) {
+      <a class="boton boton--primario" routerLink="/procesos/nuevo">Nuevo proceso</a>
+    }
   </header>
 
   <form class="tarjeta filtros" role="search" aria-label="Filtrar procesos" [formGroup]="filtros" (submit)="$event.preventDefault()">

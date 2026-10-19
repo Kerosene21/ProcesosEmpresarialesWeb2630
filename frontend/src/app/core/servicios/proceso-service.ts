@@ -1,9 +1,10 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, throwError } from 'rxjs';
+import { Observable, catchError } from 'rxjs';
 
-import { traducirFallo } from '../http/traducir-fallo';
+import { lanzarFallo } from '../http/traducir-fallo';
 import { DiagramaProceso } from '../modelos/diagrama';
+import { Historial } from '../modelos/historial';
 import { Pagina } from '../modelos/pagina';
 import { CrearProceso, EditarProceso, FiltroProcesos, Proceso, ProcesoResumen } from '../modelos/proceso';
 
@@ -28,12 +29,20 @@ export class ProcesoService {
     return this.http.get<DiagramaProceso>(`${this.ruta}/${id}/diagrama`).pipe(catchError(lanzarFallo));
   }
 
+  historial(id: number): Observable<Historial[]> {
+    return this.http.get<Historial[]>(`${this.ruta}/${id}/historial`).pipe(catchError(lanzarFallo));
+  }
+
   crear(datos: CrearProceso): Observable<Proceso> {
     return this.http.post<Proceso>(this.ruta, datos).pipe(catchError(lanzarFallo));
   }
 
   editar(id: number, datos: EditarProceso): Observable<Proceso> {
     return this.http.put<Proceso>(`${this.ruta}/${id}`, datos).pipe(catchError(lanzarFallo));
+  }
+
+  eliminar(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.ruta}/${id}`).pipe(catchError(lanzarFallo));
   }
 }
 
@@ -42,8 +51,4 @@ function parametrosDe(filtro: FiltroProcesos): HttpParams {
     const texto = valor === null || valor === undefined ? '' : String(valor).trim();
     return texto ? parametros.set(clave, texto) : parametros;
   }, new HttpParams());
-}
-
-function lanzarFallo(error: unknown): Observable<never> {
-  return throwError(() => traducirFallo(error));
 }

@@ -20,8 +20,10 @@ import {
   VISIBILIDADES_PROCESO,
   VisibilidadProceso,
 } from '../../core/modelos/proceso';
+import { ROLES_ESCRITURA } from '../../core/modelos/sesion';
 import { conEstadoCarga } from '../../core/rxjs/con-estado-carga';
 import { ProcesoService } from '../../core/servicios/proceso-service';
+import { SesionService } from '../../core/servicios/sesion-service';
 
 interface ValoresFiltro {
   q: string;
@@ -40,6 +42,9 @@ interface ValoresFiltro {
 })
 export class ListaProcesos {
   private readonly procesos = inject(ProcesoService);
+  private readonly sesion = inject(SesionService);
+
+  protected readonly puedeCrear = computed(() => this.sesion.tieneRol(ROLES_ESCRITURA));
 
   protected readonly estados = ESTADOS_PROCESO;
   protected readonly alcances = ALCANCES_PROCESO;

@@ -1,0 +1,30 @@
+@if (abierto()) {
+  <div class="dialogo__fondo" (click)="cancelar()"></div>
+  <div
+    class="dialogo"
+    role="alertdialog"
+    aria-modal="true"
+    [attr.aria-labelledby]="id + '-titulo'"
+    [attr.aria-describedby]="id + '-mensaje'"
+    (keydown.escape)="cancelar()"
+  >
+    <h2 class="dialogo__titulo" [id]="id + '-titulo'">{{ titulo() }}</h2>
+    <div class="dialogo__mensaje" [id]="id + '-mensaje'">
+      @if (mensaje(); as texto) {
+        <p>{{ texto }}</p>
+      }
+      <ng-content />
+    </div>
+    @if (error(); as texto) {
+      <p class="dialogo__error" role="alert">{{ texto }}</p>
+    }
+    <div class="dialogo__acciones">
+      <button #botonCancelar type="button" class="boton boton--secundario" [disabled]="procesando()" (click)="cancelar()">
+        Cancelar
+      </button>
+      <button type="button" class="boton boton--peligro" [disabled]="procesando()" (click)="confirmado.emit()">
+        {{ procesando() ? 'Procesando…' : textoConfirmar() }}
+      </button>
+    </div>
+  </div>
+}

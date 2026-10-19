@@ -1,0 +1,61 @@
+<section class="pagina">
+  <nav class="migas" aria-label="Ruta de navegación">
+    <a routerLink="/procesos">Procesos</a>
+    <span aria-hidden="true">/</span>
+    <a [routerLink]="['/procesos', id()]">{{ proceso()?.nombre ?? 'Proceso' }}</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">Historial</span>
+  </nav>
+
+  <header class="encabezado-pagina">
+    <div class="encabezado-pagina__texto">
+      <p class="encabezado-pagina__antetitulo">Historial de cambios</p>
+      <h1>{{ proceso()?.nombre ?? 'Historial del proceso' }}</h1>
+      <p class="encabezado-pagina__descripcion">
+        Cada cambio sobre el proceso y su modelo queda registrado con el usuario que lo hizo y la fecha.
+      </p>
+    </div>
+    <div class="encabezado-pagina__acciones">
+      <a class="boton boton--secundario" [routerLink]="['/procesos', id()]">Volver al proceso</a>
+    </div>
+  </header>
+
+  <section class="tarjeta" aria-labelledby="titulo-historial" [attr.aria-busy]="estadoHistorial().tipo === 'cargando'">
+    <h2 id="titulo-historial" class="visualmente-oculto">Cambios registrados</h2>
+    @if (estadoHistorial().tipo === 'cargando') {
+      <app-aviso tipo="carga" titulo="Cargando el historial…" />
+    } @else if (fallo(); as falloActual) {
+      <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="explicar(falloActual)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+    } @else if (entradas(); as lista) {
+      @if (lista.length === 0) {
+        <app-aviso tipo="vacio" titulo="El proceso todavía no tiene cambios registrados" />
+      } @else {
+        <div class="tabla-contenedor">
+          <table class="tabla tabla--adaptable">
+            <caption class="visualmente-oculto">Cambios del proceso, del más reciente al más antiguo</caption>
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Usuario</th>
+                <th scope="col">Estado anterior</th>
+                <th scope="col">Cambios realizados</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (entrada of lista; track $index) {
+                <tr>
+                  <td data-etiqueta="Fecha">
+                    <time [attr.datetime]="entrada.fecha">{{ entrada.fecha | date: 'dd/MM/yyyy HH:mm' }}</time>
+                  </td>
+                  <td data-etiqueta="Usuario">{{ entrada.usuarioCorreo }}</td>
+                  <td data-etiqueta="Estado anterior">{{ estadoAnterior(entrada.estadoAnterior) }}</td>
+                  <td data-etiqueta="Cambios" class="historial__cambios">{{ entrada.cambiosRealizados }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </section>
+</section>

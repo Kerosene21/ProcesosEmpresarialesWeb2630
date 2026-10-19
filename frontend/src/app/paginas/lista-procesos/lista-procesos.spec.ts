@@ -5,7 +5,9 @@ import { Observable, of, throwError } from 'rxjs';
 import { FalloHttp } from '../../core/modelos/fallo-http';
 import { Pagina } from '../../core/modelos/pagina';
 import { FiltroProcesos, ProcesoResumen } from '../../core/modelos/proceso';
+import { RolUsuario } from '../../core/modelos/sesion';
 import { ProcesoService } from '../../core/servicios/proceso-service';
+import { SesionService } from '../../core/servicios/sesion-service';
 import { ListaProcesos } from './lista-procesos';
 
 const PROCESO: ProcesoResumen = {
@@ -29,10 +31,14 @@ describe('ListaProcesos', () => {
   let elemento: HTMLElement;
   let listar: ReturnType<typeof vi.fn<(filtro: FiltroProcesos) => Observable<Pagina<ProcesoResumen>>>>;
 
-  async function crear(respuesta: Observable<Pagina<ProcesoResumen>>): Promise<void> {
+  async function crear(respuesta: Observable<Pagina<ProcesoResumen>>, rol: RolUsuario = 'EDITOR'): Promise<void> {
     listar = vi.fn<(filtro: FiltroProcesos) => Observable<Pagina<ProcesoResumen>>>().mockReturnValue(respuesta);
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), { provide: ProcesoService, useValue: { listar } }],
+      providers: [
+        provideRouter([]),
+        { provide: ProcesoService, useValue: { listar } },
+        { provide: SesionService, useValue: { tieneRol: (roles: readonly RolUsuario[]) => roles.includes(rol) } },
+      ],
     });
     fixture = TestBed.createComponent(ListaProcesos);
     elemento = fixture.nativeElement;
@@ -43,6 +49,18 @@ describe('ListaProcesos', () => {
     await new Promise((resolver) => setTimeout(resolver, 350));
     await fixture.whenStable();
   }
+
+  it('ofrece crear procesos solo a los roles con permiso de escritura', async () => {
+    await crear(of(pagina([PROCESO])), 'EDITOR');
+    const enlaceNuevo = (): Element | undefined =>
+      Array.from(elemento.querySelectorAll('a')).find((enlace) => enlace.textContent?.trim() === 'Nuevo proceso');
+    expect(enlaceNuevo()?.getAttribute('href')).toBe('/procesos/nuevo');
+
+    TestBed.resetTestingModule();
+    await crear(of(pagina([PROCESO])), 'SOLO_LECTURA');
+
+    expect(enlaceNuevo()).toBeUndefined();
+  });
 
   it('consulta con los filtros por defecto del backend y muestra los procesos', async () => {
     await crear(of(pagina([PROCESO, { ...PROCESO, id: 2, nombre: 'Compras', soloLectura: true, estado: 'BORRADOR' }])));
@@ -82,7 +100,7 @@ describe('ListaProcesos', () => {
 
     const alerta = elemento.querySelector('[role="alert"]');
     expect(alerta?.textContent).toContain('Se requiere iniciar sesión');
-    expect(alerta?.textContent).toContain('todavía no está integrado');
+    expect(alerta?.textContent).toContain('Inicia sesión para continuar');
     alerta!.querySelector<HTMLButtonElement>('button')!.click();
     await fixture.whenStable();
     expect(listar).toHaveBeenCalledTimes(2);

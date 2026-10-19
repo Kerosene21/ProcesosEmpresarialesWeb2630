@@ -5,19 +5,13 @@
       <h1>{{ modoEdicion() ? 'Editar proceso' : 'Nuevo proceso' }}</h1>
       <p class="encabezado-pagina__descripcion">
         @if (modoEdicion()) {
-          Modifica el nombre, la descripción, la categoría y el estado del proceso.
+          Modifica el nombre, la descripción, la categoría y el estado del proceso. Cada cambio queda en el historial.
         } @else {
           El proceso se crea en estado borrador con el pool de tu empresa y una lane inicial.
         }
       </p>
     </div>
   </header>
-
-  <app-aviso
-    id="aviso-guardado"
-    titulo="El guardado todavía no está habilitado"
-    detalle="La API exige una sesión iniciada y el token CSRF, que aún no están integrados en esta aplicación. Puedes revisar los datos con las mismas reglas del backend, pero no se enviará nada al servidor."
-  />
 
   @if (modoEdicion() && carga()?.tipo === 'cargando') {
     <app-aviso tipo="carga" titulo="Cargando el proceso…" />
@@ -32,7 +26,7 @@
       />
     }
 
-    <form class="tarjeta formulario" [formGroup]="formulario" (ngSubmit)="revisar()" novalidate>
+    <form class="tarjeta formulario" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate>
       <div class="campo">
         <label class="campo__etiqueta" for="campo-nombre">Nombre</label>
         <input
@@ -95,20 +89,18 @@
         </div>
       }
 
-      @if (revision() === 'valida') {
-        <app-aviso
-          class="formulario__completo"
-          titulo="Los datos cumplen las validaciones del formulario"
-          detalle="No se ha enviado nada al servidor: el guardado sigue deshabilitado."
-        />
-      } @else if (revision() === 'con-errores') {
+      @if (conErrores()) {
         <app-aviso class="formulario__completo" tipo="error" titulo="Revisa los campos marcados antes de continuar" />
+      }
+      @if (mensajeGuardado(); as mensaje) {
+        <app-aviso class="formulario__completo" tipo="error" [titulo]="mensaje.titulo" [detalle]="mensaje.detalle" />
       }
 
       <div class="formulario__acciones">
         <a class="boton boton--texto" [routerLink]="rutaCancelar()">Cancelar</a>
-        <button type="submit" class="boton boton--secundario" [disabled]="soloConsulta()">Revisar datos</button>
-        <button type="button" class="boton boton--primario" disabled aria-describedby="aviso-guardado">Guardar proceso</button>
+        <button type="submit" class="boton boton--primario" [disabled]="soloConsulta() || guardando()">
+          {{ guardando() ? 'Guardando…' : modoEdicion() ? 'Guardar cambios' : 'Crear proceso' }}
+        </button>
       </div>
     </form>
   }

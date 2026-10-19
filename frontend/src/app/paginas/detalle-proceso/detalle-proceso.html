@@ -27,11 +27,35 @@
       </div>
       <div class="encabezado-pagina__acciones">
         <a class="boton boton--secundario" routerLink="/procesos">Volver al listado</a>
+        @if (puedeVerHistorial()) {
+          <a class="boton boton--secundario" [routerLink]="['/procesos', datos.id, 'historial']">Ver historial</a>
+        }
+        @if (puedeEliminar()) {
+          <button type="button" class="boton boton--peligro-suave" (click)="solicitarEliminacion()">Eliminar proceso</button>
+        }
         @if (puedeEditar()) {
           <a class="boton boton--primario" [routerLink]="['/procesos', datos.id, 'editar']">Editar proceso</a>
         }
       </div>
     </header>
+
+    @if (eliminacionConfirmada() && datos.eliminado) {
+      <app-aviso
+        titulo="El proceso se eliminó"
+        detalle="La eliminación es lógica: el proceso se conserva junto a su historial y se consulta con el filtro de eliminados."
+      />
+    }
+
+    <app-dialogo-confirmacion
+      [abierto]="confirmandoEliminacion()"
+      titulo="¿Eliminar este proceso?"
+      [mensaje]="'El proceso «' + datos.nombre + '» dejará de aparecer en el listado por defecto. Se conserva con su historial y no se borra de la base de datos.'"
+      textoConfirmar="Eliminar proceso"
+      [procesando]="eliminando()"
+      [error]="falloEliminacion()"
+      (confirmado)="eliminar()"
+      (cancelado)="cancelarEliminacion()"
+    />
 
     <article class="tarjeta" aria-labelledby="titulo-informacion">
       <h2 id="titulo-informacion" class="tarjeta__titulo">Información general</h2>

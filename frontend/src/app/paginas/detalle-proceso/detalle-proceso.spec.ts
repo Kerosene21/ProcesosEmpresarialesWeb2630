@@ -4,7 +4,9 @@ import { Observable, of, throwError } from 'rxjs';
 
 import { DiagramaProceso } from '../../core/modelos/diagrama';
 import { Proceso } from '../../core/modelos/proceso';
+import { RolUsuario } from '../../core/modelos/sesion';
 import { ProcesoService } from '../../core/servicios/proceso-service';
+import { SesionService } from '../../core/servicios/sesion-service';
 import { DetalleProceso } from './detalle-proceso';
 
 const PROCESO: Proceso = {
@@ -75,12 +77,23 @@ describe('DetalleProceso', () => {
   let elemento: HTMLElement;
   let obtener: ReturnType<typeof vi.fn<(id: number) => Observable<Proceso>>>;
   let obtenerDiagrama: ReturnType<typeof vi.fn<(id: number) => Observable<DiagramaProceso>>>;
+  const eliminar = vi.fn<(id: number) => Observable<void>>();
 
-  async function crear(id: string, proceso: Observable<Proceso>, diagrama = of(DIAGRAMA)): Promise<void> {
+  async function crear(
+    id: string,
+    proceso: Observable<Proceso>,
+    diagrama = of(DIAGRAMA),
+    rol: RolUsuario = 'ADMINISTRADOR',
+  ): Promise<void> {
     obtener = vi.fn<(id: number) => Observable<Proceso>>().mockReturnValue(proceso);
     obtenerDiagrama = vi.fn<(id: number) => Observable<DiagramaProceso>>().mockReturnValue(diagrama);
+    eliminar.mockReset();
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), { provide: ProcesoService, useValue: { obtener, obtenerDiagrama } }],
+      providers: [
+        provideRouter([]),
+        { provide: ProcesoService, useValue: { obtener, obtenerDiagrama, eliminar } },
+        { provide: SesionService, useValue: { tieneRol: (roles: readonly RolUsuario[]) => roles.includes(rol) } },
+      ],
     });
     fixture = TestBed.createComponent(DetalleProceso);
     elemento = fixture.nativeElement;
@@ -139,5 +152,100 @@ describe('DetalleProceso', () => {
 
     expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('El recurso solicitado no existe');
     expect(elemento.querySelector('.metricas')).toBeNull();
+  });
+
+  function acciones(): string[] {
+    return Array.from(elemento.querySelectorAll('.encabezado-pagina__acciones a, .encabezado-pagina__acciones button')).map(
+      (accion) => accion.textContent?.trim() ?? '',
+    );
+  }
+
+  function boton(texto: string): HTMLButtonElement | undefined {
+    return Array.from(elemento.querySelectorAll<HTMLButtonElement>('button')).find(
+      (candidato) => candidato.textContent?.trim() === texto,
+    );
+  }
+
+  it('ofrece al administrador editar, eliminar y consultar el historial', async () => {
+    await crear('5', of(PROCESO));
+
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial', 'Eliminar proceso', 'Editar proceso']);
+    const historial = Array.from(elemento.querySelectorAll('a')).find((enlace) => enlace.textContent === 'Ver historial');
+    expect(historial?.getAttribute('href')).toBe('/procesos/5/historial');
+  });
+
+  it('al editor le permite editar pero no eliminar', async () => {
+    await crear('5', of(PROCESO), of(DIAGRAMA), 'EDITOR');
+
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial', 'Editar proceso']);
+  });
+
+  it('a un usuario de solo lectura solo le deja consultar', async () => {
+    await crear('5', of(PROCESO), of(DIAGRAMA), 'SOLO_LECTURA');
+
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial']);
+  });
+
+  it('en un proceso compartido no ofrece el historial, que es exclusivo de la empresa propietaria', async () => {
+    await crear('5', of({ ...PROCESO, soloLectura: true }));
+
+    expect(acciones()).toEqual(['Volver al listado']);
+  });
+
+  it('pide confirmación y no elimina si el usuario cancela', async () => {
+    await crear('5', of(PROCESO));
+
+    boton('Eliminar proceso')!.click();
+    await fixture.whenStable();
+    const dialogo = elemento.querySelector('[role="alertdialog"]');
+    expect(dialogo?.textContent).toContain('¿Eliminar este proceso?');
+    expect(dialogo?.textContent).toContain('Atención de solicitudes');
+    boton('Cancelar')!.click();
+    await fixture.whenStable();
+
+    expect(eliminar).not.toHaveBeenCalled();
+    expect(elemento.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('elimina tras confirmar y vuelve a consultar el proceso para mostrar su estado real', async () => {
+    await crear('5', of(PROCESO));
+    eliminar.mockReturnValue(of(undefined));
+    obtener.mockReturnValue(of({ ...PROCESO, eliminado: true }));
+
+    boton('Eliminar proceso')!.click();
+    await fixture.whenStable();
+    elemento.querySelector<HTMLButtonElement>('[role="alertdialog"] .boton--peligro')!.click();
+    await fixture.whenStable();
+
+    expect(eliminar).toHaveBeenCalledWith(5);
+    expect(obtener).toHaveBeenCalledTimes(2);
+    expect(elemento.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(elemento.textContent).toContain('El proceso se eliminó');
+    expect(elemento.querySelector('.chip--peligro')?.textContent).toBe('Eliminado');
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial']);
+  });
+
+  it('muestra en el diálogo el rechazo del backend sin dar el proceso por eliminado', async () => {
+    await crear('5', of(PROCESO));
+    eliminar.mockReturnValue(
+      throwError(() => ({
+        tipo: 'sin-permiso',
+        estado: 403,
+        codigo: 'USUARIO_SIN_PERMISO',
+        titulo: 'No tienes permiso para esta consulta',
+        detalle: 'Solo un administrador puede eliminar procesos',
+      })),
+    );
+
+    boton('Eliminar proceso')!.click();
+    await fixture.whenStable();
+    elemento.querySelector<HTMLButtonElement>('[role="alertdialog"] .boton--peligro')!.click();
+    await fixture.whenStable();
+
+    expect(elemento.querySelector('[role="alertdialog"] [role="alert"]')?.textContent).toContain(
+      'Solo un administrador puede eliminar procesos',
+    );
+    expect(obtener).toHaveBeenCalledTimes(1);
+    expect(elemento.textContent).not.toContain('El proceso se eliminó');
   });
 });

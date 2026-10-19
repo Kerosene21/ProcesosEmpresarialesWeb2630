@@ -90,4 +90,49 @@ describe('ProcesoService', () => {
       detalle: 'Se requiere autenticacion',
     });
   });
+
+  it('elimina el proceso con DELETE y completa con la respuesta 204', () => {
+    let terminado = false;
+
+    servicio.eliminar(7).subscribe({ complete: () => (terminado = true) });
+
+    const solicitud = http.expectOne('/api/procesos/7');
+    expect(solicitud.request.method).toBe('DELETE');
+    solicitud.flush(null, { status: 204, statusText: 'No Content' });
+    expect(terminado).toBe(true);
+  });
+
+  it('traduce el rechazo de la eliminación por falta de permisos', () => {
+    let fallo: FalloHttp | undefined;
+
+    servicio.eliminar(7).subscribe({ error: (error: FalloHttp) => (fallo = error) });
+    http
+      .expectOne('/api/procesos/7')
+      .flush(
+        { codigo: 'USUARIO_SIN_PERMISO', mensaje: 'Solo un administrador puede eliminar procesos' },
+        { status: 403, statusText: 'Forbidden' },
+      );
+
+    expect(fallo?.tipo).toBe('sin-permiso');
+    expect(fallo?.detalle).toBe('Solo un administrador puede eliminar procesos');
+  });
+
+  it('consulta el historial con el contrato de HistorialProcesoRespuestaDto', () => {
+    const historial = [
+      {
+        fecha: '2026-10-18T10:15:00',
+        usuarioCorreo: 'admin@alpes.com',
+        estadoAnterior: 'BORRADOR',
+        cambiosRealizados: 'estado: BORRADOR -> PUBLICADO',
+      },
+    ];
+    let recibido: unknown;
+
+    servicio.historial(7).subscribe((respuesta) => (recibido = respuesta));
+
+    const solicitud = http.expectOne('/api/procesos/7/historial');
+    expect(solicitud.request.method).toBe('GET');
+    solicitud.flush(historial);
+    expect(recibido).toEqual(historial);
+  });
 });

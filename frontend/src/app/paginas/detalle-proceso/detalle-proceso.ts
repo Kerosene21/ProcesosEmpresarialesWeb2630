@@ -4,13 +4,17 @@ import { RouterLink } from '@angular/router';
 import { Observable, of, switchMap } from 'rxjs';
 
 import { Aviso } from '../../compartido/aviso/aviso';
+import { DialogoConfirmacion } from '../../compartido/dialogo-confirmacion/dialogo-confirmacion';
 import { EtiquetaEstado } from '../../compartido/etiqueta-estado/etiqueta-estado';
 import { TEXTO_ESTADO, TEXTO_TIPO_ACTIVIDAD, TEXTO_TIPO_POOL, explicarFallo } from '../../compartido/textos';
 import { DiagramaProceso } from '../../core/modelos/diagrama';
 import { CARGANDO, EstadoCarga } from '../../core/modelos/estado-carga';
+import { FalloHttp } from '../../core/modelos/fallo-http';
 import { Proceso } from '../../core/modelos/proceso';
+import { ROLES_ESCRITURA } from '../../core/modelos/sesion';
 import { conEstadoCarga } from '../../core/rxjs/con-estado-carga';
 import { ProcesoService } from '../../core/servicios/proceso-service';
+import { SesionService } from '../../core/servicios/sesion-service';
 
 interface Metrica {
   etiqueta: string;
@@ -30,15 +34,21 @@ const IDENTIFICADOR_NO_VALIDO: EstadoCarga<never> = {
 
 @Component({
   selector: 'app-detalle-proceso',
-  imports: [RouterLink, Aviso, EtiquetaEstado],
+  imports: [RouterLink, Aviso, DialogoConfirmacion, EtiquetaEstado],
   templateUrl: './detalle-proceso.html',
   styleUrl: './detalle-proceso.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DetalleProceso {
   private readonly procesos = inject(ProcesoService);
+  private readonly sesion = inject(SesionService);
 
   readonly id = input.required<string>();
+
+  protected readonly confirmandoEliminacion = signal(false);
+  protected readonly eliminando = signal(false);
+  protected readonly falloEliminacion = signal<string | null>(null);
+  protected readonly eliminacionConfirmada = signal(false);
 
   protected readonly textoEstado = TEXTO_ESTADO;
   private readonly intento = signal(0);
@@ -59,10 +69,13 @@ export class DetalleProceso {
   protected readonly falloDiagrama = computed(() => falloDe(this.estadoDiagrama()));
   protected readonly explicar = explicarFallo;
 
-  protected readonly puedeEditar = computed(() => {
+  protected readonly modificable = computed(() => {
     const proceso = this.proceso();
     return proceso !== null && !proceso.soloLectura && !proceso.eliminado;
   });
+  protected readonly puedeEditar = computed(() => this.modificable() && this.sesion.tieneRol(ROLES_ESCRITURA));
+  protected readonly puedeEliminar = computed(() => this.modificable() && this.sesion.tieneRol(['ADMINISTRADOR']));
+  protected readonly puedeVerHistorial = computed(() => this.proceso()?.soloLectura === false);
 
   protected readonly metricas = computed<Metrica[]>(() => {
     const diagrama = this.diagrama();
@@ -120,6 +133,37 @@ export class DetalleProceso {
 
   protected reintentar(): void {
     this.intento.update((intento) => intento + 1);
+  }
+
+  protected solicitarEliminacion(): void {
+    this.falloEliminacion.set(null);
+    this.confirmandoEliminacion.set(true);
+  }
+
+  protected cancelarEliminacion(): void {
+    this.confirmandoEliminacion.set(false);
+    this.falloEliminacion.set(null);
+  }
+
+  protected eliminar(): void {
+    const proceso = this.proceso();
+    if (!proceso) {
+      return;
+    }
+    this.eliminando.set(true);
+    this.falloEliminacion.set(null);
+    this.procesos.eliminar(proceso.id).subscribe({
+      next: () => {
+        this.eliminando.set(false);
+        this.confirmandoEliminacion.set(false);
+        this.eliminacionConfirmada.set(true);
+        this.reintentar();
+      },
+      error: (fallo: FalloHttp) => {
+        this.eliminando.set(false);
+        this.falloEliminacion.set(fallo.detalle ?? fallo.titulo);
+      },
+    });
   }
 
   private cargar<T>(id: number, consulta: (id: number) => Observable<T>): Observable<EstadoCarga<T>> {
