@@ -4,7 +4,10 @@ import { Router, provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 
 import { App } from './app';
+import { routes } from './app.routes';
 import { RolUsuario, SESION_ANONIMA, Sesion } from './core/modelos/sesion';
+import { rolGuard } from './core/seguridad/rol-guard';
+import { sesionGuard } from './core/seguridad/sesion-guard';
 import { SesionService } from './core/servicios/sesion-service';
 
 describe('App', () => {
@@ -66,7 +69,7 @@ describe('App', () => {
   it('a un editor le muestra la navegación completa, su usuario y el cierre de sesión', async () => {
     const elemento = await crear(usuario('EDITOR'));
 
-    expect(enlaces(elemento)).toEqual(['/procesos', '/procesos/nuevo', '/mi-empresa']);
+    expect(enlaces(elemento)).toEqual(['/procesos', '/procesos/nuevo', '/roles-proceso', '/mi-empresa']);
     expect(elemento.querySelector('.usuario')?.textContent).toContain('usuario@alpes.com');
     expect(elemento.querySelector('.usuario')?.textContent).toContain('Editor · Alpes Logistica');
   });
@@ -74,7 +77,24 @@ describe('App', () => {
   it('a un usuario de solo lectura no le ofrece crear procesos', async () => {
     const elemento = await crear(usuario('SOLO_LECTURA'));
 
-    expect(enlaces(elemento)).toEqual(['/procesos', '/mi-empresa']);
+    expect(enlaces(elemento)).toEqual(['/procesos', '/roles-proceso', '/mi-empresa']);
+  });
+
+  it('solo al administrador le ofrece la gestión de usuarios', async () => {
+    const elemento = await crear(usuario('ADMINISTRADOR'));
+
+    expect(enlaces(elemento)).toEqual(['/procesos', '/procesos/nuevo', '/roles-proceso', '/usuarios', '/mi-empresa']);
+  });
+
+  it('protege las rutas de usuarios con la sesión y el rol de administrador', () => {
+    const protegidas = routes.find((ruta) => ruta.canActivateChild?.includes(sesionGuard))?.children ?? [];
+    const usuarios = protegidas.filter((ruta) => ruta.path?.startsWith('usuarios'));
+
+    expect(usuarios.map((ruta) => ruta.path)).toEqual(['usuarios', 'usuarios/nuevo', 'usuarios/:id']);
+    usuarios.forEach((ruta) => {
+      expect(ruta.canActivate).toEqual([rolGuard]);
+      expect(ruta.data?.['roles']).toEqual(['ADMINISTRADOR']);
+    });
   });
 
   it('cierra la sesión en el servidor y lleva al inicio de sesión', async () => {

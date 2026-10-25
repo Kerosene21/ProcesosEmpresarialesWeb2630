@@ -1,0 +1,5 @@
+.lista-usuarios__enlace {
+  margin-right: var(--espacio-2);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}

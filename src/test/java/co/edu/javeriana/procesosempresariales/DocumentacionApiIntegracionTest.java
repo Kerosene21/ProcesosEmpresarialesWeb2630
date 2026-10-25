@@ -83,7 +83,10 @@ class DocumentacionApiIntegracionTest {
                 .andExpect(jsonPath(RUTAS, hasKey(MESSAGE_THROWS)))
                 .andExpect(jsonPath(RUTAS, hasKey(MESSAGE_CATCHES)))
                 .andExpect(jsonPath(RUTAS, hasKey(ENVIOS_EXTERNOS)))
-                .andExpect(jsonPath(RUTAS, hasKey(DIAGRAMA)));
+                .andExpect(jsonPath(RUTAS, hasKey(DIAGRAMA)))
+                .andExpect(jsonPath(RUTAS, hasKey("/api/usuarios")))
+                .andExpect(jsonPath(RUTAS, hasKey("/api/usuarios/{usuarioId}/rol")))
+                .andExpect(jsonPath(RUTAS, hasKey("/api/usuarios/{usuarioId}/desactivacion")));
     }
 
     @Test
@@ -182,11 +185,11 @@ class DocumentacionApiIntegracionTest {
         List<String> etiquetas = JsonPath.read(json, "$.paths.*.*.tags[0]");
         List<Map<String, Object>> respuestas = JsonPath.read(json, "$.paths.*.*.responses");
 
-        assertThat(identificadores).hasSize(67).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
-        assertThat(resumenes).hasSize(67).allMatch(resumen -> !resumen.isBlank());
-        assertThat(etiquetas).hasSize(67);
+        assertThat(identificadores).hasSize(72).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
+        assertThat(resumenes).hasSize(72).allMatch(resumen -> !resumen.isBlank());
+        assertThat(etiquetas).hasSize(72);
         assertThat(respuestas)
-                .hasSize(67)
+                .hasSize(72)
                 .allSatisfy(respuesta -> assertThat(respuesta).containsKey("401"));
     }
 

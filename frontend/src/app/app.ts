@@ -21,6 +21,7 @@ export class App {
   protected readonly sesion = this.sesiones.sesion;
   protected readonly autenticado = this.sesiones.autenticado;
   protected readonly puedeCrear = computed(() => this.sesiones.tieneRol(ROLES_ESCRITURA));
+  protected readonly esAdministrador = computed(() => this.sesiones.tieneRol(['ADMINISTRADOR']));
   protected readonly textoRol = TEXTO_ROL;
   protected readonly cerrando = signal(false);
   protected readonly falloCierre = signal<FalloHttp | null>(null);

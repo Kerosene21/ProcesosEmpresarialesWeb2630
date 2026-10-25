@@ -30,6 +30,22 @@
         }
         <a
           class="navegacion__enlace"
+          routerLink="/roles-proceso"
+          routerLinkActive="navegacion__enlace--activo"
+          ariaCurrentWhenActive="page"
+          >Roles de proceso</a
+        >
+        @if (esAdministrador()) {
+          <a
+            class="navegacion__enlace"
+            routerLink="/usuarios"
+            routerLinkActive="navegacion__enlace--activo"
+            ariaCurrentWhenActive="page"
+            >Usuarios</a
+          >
+        }
+        <a
+          class="navegacion__enlace"
           routerLink="/mi-empresa"
           routerLinkActive="navegacion__enlace--activo"
           ariaCurrentWhenActive="page"

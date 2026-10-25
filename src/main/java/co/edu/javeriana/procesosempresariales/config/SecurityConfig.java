@@ -30,6 +30,7 @@ public class SecurityConfig {
     private static final String RUTA_API = "/api/**";
     private static final String RUTA_REGISTRO_EMPRESA = "/empresas/nueva";
     private static final String RUTA_USUARIOS = "/usuarios/**";
+    private static final String RUTA_API_USUARIOS = "/api/usuarios/**";
     private static final String RUTA_ACCESO_DENEGADO = "/acceso-denegado";
     private static final String RUTA_ELIMINAR_PROCESO = "/procesos/*/eliminar";
     private static final String RUTA_ELIMINAR_ACTIVIDAD = "/procesos/*/actividades/*/eliminar";
@@ -96,6 +97,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/empresas").permitAll()
                         .requestMatchers(HttpMethod.POST, RUTA_API_EMPRESAS).permitAll()
                         .requestMatchers(RUTA_USUARIOS).hasRole(ROL_ADMINISTRADOR)
+                        .requestMatchers(RUTA_API_USUARIOS).hasRole(ROL_ADMINISTRADOR)
                         .requestMatchers(HttpMethod.GET, RUTA_ELIMINAR_PROCESO).hasRole(ROL_ADMINISTRADOR)
                         .requestMatchers(HttpMethod.POST, RUTA_ELIMINAR_PROCESO).hasRole(ROL_ADMINISTRADOR)
                         .requestMatchers(HttpMethod.GET, "/procesos/nuevo", "/procesos/*/editar")

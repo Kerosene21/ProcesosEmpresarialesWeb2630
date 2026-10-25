@@ -1,0 +1,11 @@
+.formulario-usuario {
+  display: grid;
+  gap: var(--espacio-4);
+  max-width: 40rem;
+}
+
+.formulario-usuario__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--espacio-2);
+}

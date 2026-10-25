@@ -1,0 +1,97 @@
+<section class="pagina">
+  <nav class="migas" aria-label="Ruta de navegación">
+    <a routerLink="/usuarios">Usuarios</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">{{ usuario()?.correo ?? 'Detalle del usuario' }}</span>
+  </nav>
+
+  @if (estado().tipo === 'cargando') {
+    <app-aviso tipo="carga" titulo="Cargando el usuario…" />
+  } @else if (fallo(); as falloActual) {
+    <app-aviso
+      tipo="error"
+      [titulo]="falloActual.titulo"
+      [detalle]="explicar(falloActual)"
+      accion="Reintentar"
+      (accionSolicitada)="reintentar()"
+    />
+    <a class="boton boton--secundario detalle-usuario__volver" routerLink="/usuarios">Volver al listado</a>
+  } @else if (usuario(); as datos) {
+    <header class="encabezado-pagina">
+      <div class="encabezado-pagina__texto">
+        <p class="encabezado-pagina__antetitulo">Usuario #{{ datos.id }}</p>
+        <h1 class="detalle-usuario__correo">{{ datos.correo }}</h1>
+        <div class="grupo-chips">
+          <span class="chip chip--informacion">{{ textoRol[datos.rol] }}</span>
+          @if (datos.activo) {
+            <span class="chip chip--exito">Activo</span>
+          } @else {
+            <span class="chip chip--peligro">Inactivo</span>
+          }
+          @if (propio()) {
+            <span class="chip">Tu cuenta</span>
+          }
+        </div>
+      </div>
+      <div class="encabezado-pagina__acciones">
+        <a class="boton boton--secundario" routerLink="/usuarios">Volver al listado</a>
+        @if (gestionable() && datos.activo) {
+          <button type="button" class="boton boton--peligro-suave" (click)="solicitarDesactivacion()">
+            Desactivar usuario
+          </button>
+        }
+      </div>
+    </header>
+
+    @if (mensaje(); as texto) {
+      <p class="detalle-usuario__exito" role="status">{{ texto }}</p>
+    }
+    @if (falloAccion(); as falloActual) {
+      <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle ?? explicar(falloActual)" />
+    }
+
+    @if (propio()) {
+      <app-aviso
+        titulo="Esta es tu propia cuenta"
+        detalle="Un administrador no puede cambiar su propio rol ni desactivar su cuenta. Otro administrador de la empresa puede hacerlo."
+      />
+    } @else if (gestionable()) {
+      <article class="tarjeta" aria-labelledby="titulo-rol-usuario">
+        <h2 id="titulo-rol-usuario" class="tarjeta__titulo">Rol de acceso</h2>
+        <form class="detalle-usuario__rol" [formGroup]="formularioRol" (ngSubmit)="guardarRol()" novalidate>
+          <div class="campo">
+            <label class="campo__etiqueta" for="campo-rol-usuario">Rol</label>
+            <select
+              id="campo-rol-usuario"
+              class="campo__control"
+              formControlName="rol"
+              [attr.aria-invalid]="rol.invalid && rol.touched"
+            >
+              <option [ngValue]="null" disabled>Elige un rol</option>
+              @for (opcion of roles; track opcion) {
+                <option [ngValue]="opcion">{{ textoRol[opcion] }}</option>
+              }
+            </select>
+          </div>
+          <button type="submit" class="boton boton--primario" [disabled]="guardando() || rol.value === datos.rol">
+            {{ guardando() ? 'Guardando…' : 'Guardar rol' }}
+          </button>
+        </form>
+        @if (!datos.activo) {
+          <p class="nota">El usuario está inactivo: no puede iniciar sesión y la API actual no permite reactivarlo.</p>
+        }
+      </article>
+    }
+
+    <app-dialogo-confirmacion
+      [abierto]="confirmando()"
+      titulo="¿Desactivar este usuario?"
+      [mensaje]="datos.correo + ' ya no podrá iniciar sesión. La desactivación es lógica: el usuario y su historial se conservan.'"
+      textoConfirmar="Desactivar usuario"
+      [procesando]="desactivando()"
+      [error]="falloDesactivacion()"
+      (confirmado)="desactivar()"
+      (cancelado)="cancelarDesactivacion()"
+    />
+  }
+</section>

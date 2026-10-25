@@ -1,0 +1,30 @@
+.migas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espacio-2);
+  font-size: var(--texto-s);
+  color: var(--color-texto-secundario);
+}
+
+.detalle-usuario__volver {
+  justify-self: start;
+}
+
+.detalle-usuario__correo {
+  overflow-wrap: anywhere;
+}
+
+.detalle-usuario__rol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--espacio-3);
+}
+
+.detalle-usuario__exito {
+  padding: var(--espacio-2) var(--espacio-3);
+  font-size: var(--texto-s);
+  color: var(--color-exito);
+  background: var(--color-exito-tenue);
+  border-radius: var(--radio-s);
+}

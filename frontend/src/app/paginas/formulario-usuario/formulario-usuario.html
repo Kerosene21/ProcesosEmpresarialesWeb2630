@@ -1,0 +1,75 @@
+<section class="pagina">
+  <header class="encabezado-pagina">
+    <div class="encabezado-pagina__texto">
+      <p class="encabezado-pagina__antetitulo">Administración</p>
+      <h1>Nuevo usuario</h1>
+      <p class="encabezado-pagina__descripcion">
+        El usuario se crea activo en tu empresa. Comunícale su contraseña inicial por un medio seguro.
+      </p>
+    </div>
+  </header>
+
+  <form class="tarjeta formulario-usuario" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate>
+    <div class="campo">
+      <label class="campo__etiqueta" for="campo-usuario-correo">Correo</label>
+      <input
+        id="campo-usuario-correo"
+        class="campo__control"
+        type="email"
+        formControlName="correo"
+        autocomplete="off"
+        [attr.aria-invalid]="error('correo') !== null"
+        aria-describedby="error-usuario-correo"
+      />
+      <span id="error-usuario-correo" class="campo__error">{{ error('correo') }}</span>
+    </div>
+
+    <div class="campo">
+      <label class="campo__etiqueta" for="campo-usuario-password">Contraseña inicial</label>
+      <input
+        id="campo-usuario-password"
+        class="campo__control"
+        type="password"
+        formControlName="password"
+        autocomplete="new-password"
+        [attr.aria-invalid]="error('password') !== null"
+        aria-describedby="ayuda-usuario-password error-usuario-password"
+      />
+      <span id="ayuda-usuario-password" class="campo__ayuda">
+        Entre {{ limites.passwordMinima }} y {{ limites.passwordMaxima }} caracteres. El servidor la guarda cifrada.
+      </span>
+      <span id="error-usuario-password" class="campo__error">{{ error('password') }}</span>
+    </div>
+
+    <div class="campo">
+      <label class="campo__etiqueta" for="campo-usuario-rol">Rol de acceso</label>
+      <select
+        id="campo-usuario-rol"
+        class="campo__control"
+        formControlName="rol"
+        [attr.aria-invalid]="error('rol') !== null"
+        aria-describedby="error-usuario-rol"
+      >
+        <option [ngValue]="null" disabled>Elige un rol</option>
+        @for (rol of roles; track rol) {
+          <option [ngValue]="rol">{{ textoRol[rol] }}</option>
+        }
+      </select>
+      <span id="error-usuario-rol" class="campo__error">{{ error('rol') }}</span>
+    </div>
+
+    @if (conErrores()) {
+      <app-aviso tipo="error" titulo="Revisa los campos marcados antes de continuar" />
+    }
+    @if (falloGuardado(); as falloActual) {
+      <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle ?? explicar(falloActual)" />
+    }
+
+    <div class="formulario-usuario__acciones">
+      <a class="boton boton--texto" routerLink="/usuarios">Cancelar</a>
+      <button type="submit" class="boton boton--primario" [disabled]="guardando()">
+        {{ guardando() ? 'Guardando…' : 'Crear usuario' }}
+      </button>
+    </div>
+  </form>
+</section>
