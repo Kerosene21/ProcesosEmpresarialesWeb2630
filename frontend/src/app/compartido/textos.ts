@@ -1,6 +1,16 @@
-import { TipoActividad, TipoPool } from '../core/modelos/diagrama';
+import {
+  ComportamientoFallo,
+  ComportamientoSinCaso,
+  TipoActividad,
+  TipoDestinoExterno,
+  TipoGateway,
+  TipoPool,
+  VarianteMessageCatch,
+} from '../core/modelos/diagrama';
 import { FalloHttp, TipoFallo } from '../core/modelos/fallo-http';
 import { AlcanceProceso, EstadoProceso, VisibilidadProceso } from '../core/modelos/proceso';
+import { AccionRolProceso, VisibilidadRolProceso } from '../core/modelos/rol-proceso';
+import { TipoElemento } from '../core/modelos/seleccion';
 import { RolUsuario } from '../core/modelos/sesion';
 
 export const TEXTO_ROL: Record<RolUsuario, string> = {
@@ -37,6 +47,55 @@ export const TEXTO_TIPO_ACTIVIDAD: Record<TipoActividad, string> = {
   TAREA_SISTEMA: 'Tarea de sistema',
   TAREA_MANUAL: 'Tarea manual',
   TAREA_SERVICIO: 'Tarea de servicio',
+};
+
+export const TEXTO_TIPO_GATEWAY: Record<TipoGateway, string> = {
+  EXCLUSIVO: 'Exclusivo',
+  PARALELO: 'Paralelo',
+  INCLUSIVO: 'Inclusivo',
+};
+
+export const TEXTO_TIPO_ELEMENTO: Record<TipoElemento, string> = {
+  ACTIVIDAD: 'Actividad',
+  GATEWAY: 'Gateway',
+  ARCO: 'Arco',
+  MESSAGE_THROW: 'Message Throw',
+  MESSAGE_CATCH: 'Message Catch',
+  ENVIO_EXTERNO: 'Envío externo',
+};
+
+export const TEXTO_VARIANTE_CATCH: Record<VarianteMessageCatch, string> = {
+  INICIO: 'De inicio',
+  INTERMEDIO: 'Intermedio',
+};
+
+export const TEXTO_DESTINO_EXTERNO: Record<TipoDestinoExterno, string> = {
+  CORREO: 'Correo',
+  SERVICIO_WEB: 'Servicio web',
+  COLA: 'Cola de mensajes',
+};
+
+export const TEXTO_SIN_CASO: Record<ComportamientoSinCaso, string> = {
+  DESCARTAR: 'Descartar el mensaje',
+  INICIAR_NUEVO_CASO: 'Iniciar un caso nuevo',
+};
+
+export const TEXTO_FALLO_ENVIO: Record<ComportamientoFallo, string> = {
+  CONTINUAR: 'Continuar',
+  RUTA_ERROR: 'Seguir la ruta de error',
+  FINALIZAR: 'Finalizar',
+};
+
+export const TEXTO_VISIBILIDAD_ROL: Record<VisibilidadRolProceso, string> = {
+  ACTIVOS: 'Activos',
+  INACTIVOS: 'Eliminados',
+  TODOS: 'Activos y eliminados',
+};
+
+export const TEXTO_ACCION_ROL: Record<AccionRolProceso, string> = {
+  CREACION: 'Creación',
+  EDICION: 'Edición',
+  ELIMINACION: 'Eliminación',
 };
 
 const EXPLICACION_FALLO: Record<TipoFallo, string> = {

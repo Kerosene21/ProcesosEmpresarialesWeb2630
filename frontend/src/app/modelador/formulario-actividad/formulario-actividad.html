@@ -1,0 +1,121 @@
+<form
+  class="formulario"
+  [formGroup]="formulario"
+  (ngSubmit)="guardar()"
+  novalidate
+  [attr.aria-labelledby]="id + '-titulo'"
+>
+  <h3 class="formulario__titulo" [id]="id + '-titulo'">
+    {{ edicion() ? 'Editar actividad' : 'Nueva actividad' }}
+  </h3>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-nombre'">Nombre</label>
+    <input
+      [id]="id + '-nombre'"
+      class="campo__control"
+      type="text"
+      formControlName="nombre"
+      autocomplete="off"
+      [attr.aria-invalid]="error('nombre') !== null"
+      [attr.aria-describedby]="id + '-error-nombre'"
+    />
+    <span class="campo__error" [id]="id + '-error-nombre'">{{ error('nombre') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-tipo'">Tipo</label>
+    <select
+      [id]="id + '-tipo'"
+      class="campo__control"
+      formControlName="tipo"
+      [attr.aria-invalid]="error('tipo') !== null"
+      [attr.aria-describedby]="id + '-error-tipo'"
+    >
+      <option [ngValue]="null" disabled>Elige un tipo</option>
+      @for (tipo of tipos; track tipo) {
+        <option [ngValue]="tipo">{{ textoTipo[tipo] }}</option>
+      }
+    </select>
+    <span class="campo__error" [id]="id + '-error-tipo'">{{ error('tipo') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-lane'">Lane</label>
+    <select
+      [id]="id + '-lane'"
+      class="campo__control"
+      formControlName="laneId"
+      [attr.aria-invalid]="error('laneId') !== null"
+      [attr.aria-describedby]="id + '-error-lane'"
+    >
+      <option [ngValue]="null" disabled>Elige una lane</option>
+      @for (grupo of grupos(); track grupo.pool.id) {
+        <optgroup [label]="grupo.pool.nombre">
+          @for (lane of grupo.lanes; track lane.id) {
+            <option [ngValue]="lane.id">{{ lane.nombre }}</option>
+          }
+        </optgroup>
+      }
+    </select>
+    <span class="campo__error" [id]="id + '-error-lane'">{{ error('laneId') }}</span>
+  </div>
+
+  @if (edicion()) {
+    <p class="nota">
+      Posición: x {{ formulario.controls.posicionX.value }}, y
+      {{ formulario.controls.posicionY.value }}. La API actual no permite cambiarla al editar; la
+      actividad la conserva aunque cambie de lane.
+    </p>
+  } @else {
+    <fieldset class="formulario__posicion">
+      <legend class="campo__etiqueta">Posición inicial en el lienzo</legend>
+      <div class="formulario__coordenadas">
+        <div class="campo">
+          <label class="campo__etiqueta" [for]="id + '-x'">X</label>
+          <input
+            [id]="id + '-x'"
+            class="campo__control"
+            type="number"
+            step="1"
+            formControlName="posicionX"
+            [attr.aria-invalid]="error('posicionX') !== null"
+            [attr.aria-describedby]="id + '-error-x'"
+          />
+          <span class="campo__error" [id]="id + '-error-x'">{{ error('posicionX') }}</span>
+        </div>
+        <div class="campo">
+          <label class="campo__etiqueta" [for]="id + '-y'">Y</label>
+          <input
+            [id]="id + '-y'"
+            class="campo__control"
+            type="number"
+            step="1"
+            formControlName="posicionY"
+            [attr.aria-invalid]="error('posicionY') !== null"
+            [attr.aria-describedby]="id + '-error-y'"
+          />
+          <span class="campo__error" [id]="id + '-error-y'">{{ error('posicionY') }}</span>
+        </div>
+      </div>
+    </fieldset>
+  }
+
+  @if (fallo(); as falloActual) {
+    <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
+  }
+
+  <div class="formulario__acciones">
+    <button
+      type="button"
+      class="boton boton--texto"
+      [disabled]="guardando()"
+      (click)="cancelado.emit()"
+    >
+      Cancelar
+    </button>
+    <button type="submit" class="boton boton--primario" [disabled]="guardando()">
+      {{ guardando() ? 'Guardando…' : edicion() ? 'Guardar cambios' : 'Crear actividad' }}
+    </button>
+  </div>
+</form>

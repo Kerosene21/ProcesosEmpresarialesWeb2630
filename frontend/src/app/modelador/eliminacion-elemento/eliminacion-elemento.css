@@ -1,0 +1,12 @@
+.eliminacion__consecuencias {
+  display: grid;
+  gap: var(--espacio-1);
+  margin: 0;
+  padding-left: var(--espacio-5);
+  font-size: var(--texto-s);
+}
+
+.eliminacion__fallo {
+  font-size: var(--texto-s);
+  color: var(--color-peligro);
+}

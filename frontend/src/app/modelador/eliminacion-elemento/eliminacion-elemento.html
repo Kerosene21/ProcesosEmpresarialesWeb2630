@@ -1,0 +1,25 @@
+<app-dialogo-confirmacion
+  [abierto]="true"
+  [titulo]="titulo()"
+  [mensaje]="'Se eliminará «' + nombre() + '» del modelo. Solo un administrador puede hacerlo.'"
+  textoConfirmar="Eliminar"
+  [procesando]="eliminando()"
+  [error]="error()"
+  (confirmado)="confirmar()"
+  (cancelado)="cancelado.emit()"
+>
+  @if (consultando()) {
+    <p role="status">Consultando las consecuencias en el servidor…</p>
+  } @else if (falloVistaPrevia(); as fallo) {
+    <p class="eliminacion__fallo" role="alert">
+      No se pudieron consultar las consecuencias: {{ fallo.detalle ?? fallo.titulo }}
+    </p>
+  }
+  @if (consecuencias().length > 0) {
+    <ul class="eliminacion__consecuencias" aria-label="Consecuencias de la eliminación">
+      @for (consecuencia of consecuencias(); track $index) {
+        <li>{{ consecuencia }}</li>
+      }
+    </ul>
+  }
+</app-dialogo-confirmacion>

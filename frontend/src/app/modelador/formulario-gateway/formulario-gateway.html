@@ -1,0 +1,133 @@
+<form
+  class="formulario"
+  [formGroup]="formulario"
+  (ngSubmit)="guardar()"
+  novalidate
+  [attr.aria-labelledby]="id + '-titulo'"
+>
+  <h3 class="formulario__titulo" [id]="id + '-titulo'">
+    {{ edicion() ? 'Editar ' + (gateway()?.etiqueta ?? 'gateway') : 'Nuevo gateway' }}
+  </h3>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-tipo'">Tipo</label>
+    <select
+      [id]="id + '-tipo'"
+      class="campo__control"
+      formControlName="tipo"
+      [attr.aria-invalid]="error('tipo') !== null"
+      [attr.aria-describedby]="id + '-error-tipo'"
+    >
+      <option [ngValue]="null" disabled>Elige un tipo</option>
+      @for (tipo of tipos; track tipo) {
+        <option [ngValue]="tipo">{{ textoTipo[tipo] }}</option>
+      }
+    </select>
+    <span class="campo__error" [id]="id + '-error-tipo'">{{ error('tipo') }}</span>
+  </div>
+
+  @if (edicion()) {
+    <p class="nota">
+      Posición: x {{ formulario.controls.posicionX.value }}, y
+      {{ formulario.controls.posicionY.value }}. La API actual no permite cambiar la posición ni el
+      pool de un gateway existente.
+    </p>
+
+    <fieldset class="formulario__salidas" formGroupName="condiciones">
+      <legend class="campo__etiqueta">Condiciones de las salidas</legend>
+      @if (salidas().length === 0) {
+        <p class="nota">El gateway todavía no tiene arcos de salida.</p>
+      } @else if (!conCondiciones()) {
+        <p class="nota">
+          Un gateway paralelo no lleva condiciones: al guardar, el servidor las quita de sus salidas.
+        </p>
+      }
+      @for (arco of salidas(); track arco.id) {
+        <div class="campo">
+          <label class="campo__etiqueta" [for]="id + '-condicion-' + arco.id">
+            Hacia {{ arco.destinoNombre }}
+          </label>
+          <input
+            [id]="id + '-condicion-' + arco.id"
+            class="campo__control"
+            type="text"
+            autocomplete="off"
+            [formControlName]="arco.id"
+            [attr.aria-invalid]="errorCondicion(arco) !== null"
+            [attr.aria-describedby]="id + '-error-condicion-' + arco.id"
+          />
+          <span class="campo__error" [id]="id + '-error-condicion-' + arco.id">{{
+            errorCondicion(arco)
+          }}</span>
+        </div>
+      }
+    </fieldset>
+  } @else {
+    <div class="campo">
+      <label class="campo__etiqueta" [for]="id + '-pool'">Pool</label>
+      <select
+        [id]="id + '-pool'"
+        class="campo__control"
+        formControlName="poolId"
+        [attr.aria-invalid]="error('poolId') !== null"
+        [attr.aria-describedby]="id + '-error-pool'"
+      >
+        <option [ngValue]="null" disabled>Elige un pool</option>
+        @for (pool of pools(); track pool.id) {
+          <option [ngValue]="pool.id">{{ pool.nombre }}</option>
+        }
+      </select>
+      <span class="campo__error" [id]="id + '-error-pool'">{{ error('poolId') }}</span>
+    </div>
+
+    <fieldset class="formulario__posicion">
+      <legend class="campo__etiqueta">Posición inicial en el lienzo</legend>
+      <div class="formulario__coordenadas">
+        <div class="campo">
+          <label class="campo__etiqueta" [for]="id + '-x'">X</label>
+          <input
+            [id]="id + '-x'"
+            class="campo__control"
+            type="number"
+            step="1"
+            formControlName="posicionX"
+            [attr.aria-invalid]="error('posicionX') !== null"
+            [attr.aria-describedby]="id + '-error-x'"
+          />
+          <span class="campo__error" [id]="id + '-error-x'">{{ error('posicionX') }}</span>
+        </div>
+        <div class="campo">
+          <label class="campo__etiqueta" [for]="id + '-y'">Y</label>
+          <input
+            [id]="id + '-y'"
+            class="campo__control"
+            type="number"
+            step="1"
+            formControlName="posicionY"
+            [attr.aria-invalid]="error('posicionY') !== null"
+            [attr.aria-describedby]="id + '-error-y'"
+          />
+          <span class="campo__error" [id]="id + '-error-y'">{{ error('posicionY') }}</span>
+        </div>
+      </div>
+    </fieldset>
+  }
+
+  @if (fallo(); as falloActual) {
+    <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
+  }
+
+  <div class="formulario__acciones">
+    <button
+      type="button"
+      class="boton boton--texto"
+      [disabled]="guardando()"
+      (click)="cancelado.emit()"
+    >
+      Cancelar
+    </button>
+    <button type="submit" class="boton boton--primario" [disabled]="guardando()">
+      {{ guardando() ? 'Guardando…' : edicion() ? 'Guardar cambios' : 'Crear gateway' }}
+    </button>
+  </div>
+</form>

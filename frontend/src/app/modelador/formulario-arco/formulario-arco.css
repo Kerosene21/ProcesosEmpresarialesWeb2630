@@ -1,0 +1,15 @@
+.formulario {
+  display: grid;
+  gap: var(--espacio-3);
+}
+
+.formulario__titulo {
+  font-size: var(--texto-m);
+}
+
+.formulario__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--espacio-2);
+}

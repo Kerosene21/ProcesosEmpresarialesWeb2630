@@ -1,0 +1,124 @@
+<div class="modelador">
+  @if (escritura()) {
+    <app-barra-herramientas
+      [herramienta]="herramienta()"
+      [indicacion]="indicacion()"
+      (herramientaElegida)="elegirHerramienta($event)"
+      (nuevo)="nuevo($event)"
+    />
+  }
+
+  @if (mensaje(); as texto) {
+    <p class="modelador__exito" role="status">{{ texto }}</p>
+  }
+
+  @if (vacio()) {
+    <app-aviso
+      tipo="vacio"
+      titulo="El diagrama todavía no tiene actividades, gateways ni eventos"
+      detalle="Se muestran los pools y las lanes que el backend devuelve para este proceso."
+    />
+  }
+
+  <div class="modelador__cuerpo">
+    <app-lienzo-diagrama
+      [diagrama]="diagrama()"
+      [geometria]="geometria()"
+      [seleccion]="seleccion()"
+      [marcados]="marcados()"
+      [colocando]="colocando()"
+      (elementoElegido)="elegir($event)"
+      (fondoPulsado)="pulsarFondo($event)"
+    />
+
+    <aside class="modelador__lateral" aria-label="Información del diagrama">
+      @if (solicitudActividad(); as actual) {
+        <app-formulario-actividad
+          [procesoId]="proceso().id"
+          [diagrama]="diagrama()"
+          [geometria]="geometria()"
+          [actividad]="actual.actividad"
+          [propuesta]="actual.propuesta"
+          (guardado)="actividadGuardada($event)"
+          (cancelado)="cancelar()"
+        />
+      } @else if (solicitudGateway(); as actual) {
+        <app-formulario-gateway
+          [procesoId]="proceso().id"
+          [diagrama]="diagrama()"
+          [geometria]="geometria()"
+          [gateway]="actual.gateway"
+          [propuesta]="actual.propuesta"
+          (guardado)="gatewayGuardado($event)"
+          (cancelado)="cancelar()"
+        />
+      } @else if (solicitudArco(); as actual) {
+        <app-formulario-arco
+          [procesoId]="proceso().id"
+          [diagrama]="diagrama()"
+          [geometria]="geometria()"
+          [arco]="actual.arco"
+          [propuesta]="actual.propuesta"
+          (guardado)="arcoGuardado($event)"
+          (cancelado)="cancelar()"
+        />
+      } @else {
+        <app-panel-elemento [diagrama]="diagrama()" [seleccion]="seleccion()" (limpiar)="limpiar()">
+          @if (puedeEditar()) {
+            <button type="button" class="boton boton--secundario" (click)="editar()">Editar</button>
+          }
+          @if (puedeEliminar()) {
+            <button type="button" class="boton boton--peligro-suave" (click)="eliminar()">Eliminar</button>
+          }
+        </app-panel-elemento>
+      }
+
+      @if (grupos().length > 0) {
+        <section class="modelador__seccion" aria-labelledby="titulo-elementos">
+          <h3 id="titulo-elementos" class="modelador__subtitulo">Elementos del diagrama</h3>
+          @for (grupo of grupos(); track grupo.titulo) {
+            <h4 class="modelador__grupo">{{ grupo.titulo }}</h4>
+            <ul class="modelador__elementos">
+              @for (elemento of grupo.elementos; track elemento.seleccion.tipo + elemento.seleccion.id) {
+                <li>
+                  <button
+                    type="button"
+                    class="modelador__elemento"
+                    [attr.aria-pressed]="estaSeleccionado(elemento.seleccion)"
+                    (click)="seleccionar(elemento.seleccion)"
+                  >
+                    {{ elemento.nombre }}
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      }
+
+      @if (geometria().advertencias.length > 0) {
+        <section class="modelador__seccion" aria-labelledby="titulo-advertencias">
+          <h3 id="titulo-advertencias" class="modelador__subtitulo">Advertencias del diagrama</h3>
+          <ul class="modelador__advertencias">
+            @for (advertencia of geometria().advertencias; track $index) {
+              <li>{{ advertencia }}</li>
+            }
+          </ul>
+        </section>
+      }
+
+      <p class="nota">Línea continua: flujo de secuencia. Línea punteada: flujo de mensaje entre pools.</p>
+    </aside>
+  </div>
+
+  @if (porEliminar(); as elemento) {
+    <app-eliminacion-elemento
+      [procesoId]="proceso().id"
+      [diagrama]="diagrama()"
+      [geometria]="geometria()"
+      [elemento]="elemento"
+      (eliminado)="eliminado($event)"
+      (cancelado)="porEliminar.set(null)"
+    />
+  }
+</div>
