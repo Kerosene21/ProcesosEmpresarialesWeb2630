@@ -362,4 +362,25 @@ class ComparticionProcesosIntegracionTest {
         mockMvc.perform(get(ruta(proceso)).session(iniciarSesion(ADMIN_ALPES)))
                 .andExpect(status().isOk());
     }
+
+    @Test
+    void laEmpresaInvitadaNoConsultaLaInformacionPrivadaDeLaPropietaria() throws Exception {
+        registrarEmpresas();
+        ProcesoRespuestaDto proceso = procesoConModelo();
+        compartirConAndes(proceso);
+        MockHttpSession andes = iniciarSesion(ADMIN_ANDES);
+
+        mockMvc.perform(get(ruta(proceso) + "/compartido-con").session(andes))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
+        mockMvc.perform(get(ruta(proceso) + "/permisos-estructura").session(andes))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get(ruta(proceso) + "/pools/" + proceso.getPoolId() + "/roles-disponibles").session(andes))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get(ruta(proceso) + "/historial").session(iniciarSesion(LECTOR_ANDES)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get(ruta(proceso) + "/diagrama").session(andes))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.actividades", hasSize(2)));
+    }
 }

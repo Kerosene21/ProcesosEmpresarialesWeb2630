@@ -241,5 +241,6 @@ entrada guarda fecha, usuario, estado del proceso en ese momento y el texto
   existía la lane inicial del pool; la gestión se implementó posteriormente en HU-22.
 - **Roles de proceso (HU-17)** como responsables de cada lane: en este bloque la lane solo tenía
   nombre; posteriormente, con HU-17, cada lane nueva se asocia a un rol de proceso.
-- **Edición gráfica de la posición**: se escribe en el formulario, no se arrastra.
+- **Edición gráfica de la posición**: resuelta posteriormente. En el modelador Angular los nodos se
+  arrastran y la posición se guarda con `PUT /api/procesos/{procesoId}/actividades/{actividadId}/posicion`.
 - **Arcos, gateways y eventos**: HU-11 en adelante.

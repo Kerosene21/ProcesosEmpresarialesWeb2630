@@ -185,11 +185,11 @@ class DocumentacionApiIntegracionTest {
         List<String> etiquetas = JsonPath.read(json, "$.paths.*.*.tags[0]");
         List<Map<String, Object>> respuestas = JsonPath.read(json, "$.paths.*.*.responses");
 
-        assertThat(identificadores).hasSize(72).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
-        assertThat(resumenes).hasSize(72).allMatch(resumen -> !resumen.isBlank());
-        assertThat(etiquetas).hasSize(72);
+        assertThat(identificadores).hasSize(78).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
+        assertThat(resumenes).hasSize(78).allMatch(resumen -> !resumen.isBlank());
+        assertThat(etiquetas).hasSize(78);
         assertThat(respuestas)
-                .hasSize(72)
+                .hasSize(78)
                 .allSatisfy(respuesta -> assertThat(respuesta).containsKey("401"));
     }
 
@@ -212,7 +212,15 @@ class DocumentacionApiIntegracionTest {
                 .andExpect(jsonPath("$.paths['" + MESSAGE_CATCHES + "'].post.responses", hasKey("403")))
                 .andExpect(jsonPath("$.paths['" + DIAGRAMA + "'].get.responses", hasKey("200")))
                 .andExpect(jsonPath("$.paths['" + DIAGRAMA + "'].get.responses.200.content['application/json']"
-                        + ".schema.$ref").value("#/components/schemas/DiagramaProcesoDto"));
+                        + ".schema.$ref").value("#/components/schemas/DiagramaProcesoDto"))
+                .andExpect(jsonPath("$.paths['/api/procesos/{procesoId}/actividades/{actividadId}/posicion'].put"
+                        + ".responses", hasKey("400")))
+                .andExpect(jsonPath("$.paths['/api/procesos/{procesoId}/gateways/{gatewayId}/posicion'].put"
+                        + ".requestBody.content['application/json'].schema.$ref")
+                        .value("#/components/schemas/MoverNodoDto"))
+                .andExpect(jsonPath("$.components.schemas.EditarActividadDto.properties", hasKey("posicionX")))
+                .andExpect(jsonPath("$.components.schemas.EditarActividadDto.properties",
+                        not(hasKey("posicionCompleta"))));
     }
 
     @Test

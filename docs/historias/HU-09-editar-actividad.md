@@ -74,6 +74,13 @@ y el detalle del proceso lo refleja solo, porque agrupa las actividades por `lan
 La lane nueva se valida contra el **pool del proceso**, de modo que no se puede mover una actividad
 a una banda de otro proceso ni de otra empresa.
 
+> En el modelador Angular la banda de cada lane se calcula a partir de su contenido y las coordenadas
+> son absolutas, así que cambiar solo `laneId` dejaba la actividad dibujada en la banda anterior. Por
+> eso `EditarActividadDto` admite `posicionX` y `posicionY` opcionales: el modelador calcula la
+> posición dentro de la nueva lane y el servicio guarda lane y posición en la misma operación. Una
+> actividad con arcos tampoco puede pasar a una lane de otro pool (`SECUENCIA_ENTRE_POOLS`), porque
+> un flujo de secuencia no cruza pools.
+
 > En el bloque original, mientras HU-22 no existía, cada proceso arrancaba con **una sola lane**
 > (`General`), así que el desplegable del formulario mostraba una única opción. El servicio, el
 > formulario, el diagrama y las pruebas ya funcionaban con varias lanes: `ActividadesIntegracionTest`
@@ -204,4 +211,5 @@ de empresa llega del cliente.
 
 - **Cambio de lane demostrable en la interfaz con más de una banda**: dependía de la gestión de
   lanes de HU-22, implementada posteriormente. El modelo, la vista y las pruebas ya lo soportaban.
-- **Edición de la posición**: fuera de los criterios de esta historia.
+- **Edición de la posición**: fuera de los criterios de esta historia; se resolvió posteriormente con
+  el arrastre del modelador Angular y `PUT /api/procesos/{procesoId}/actividades/{actividadId}/posicion`.
