@@ -40,6 +40,7 @@ export class PanelLanes {
   readonly diagrama = input.required<DiagramaProceso>();
   readonly permisos = input.required<PermisosLanes>();
   readonly cambio = output<void>();
+  readonly rechazo = output<void>();
 
   protected readonly esAdministrador = computed(() => this.sesion.tieneRol(['ADMINISTRADOR']));
   protected readonly pools = computed(() =>
@@ -202,6 +203,7 @@ export class PanelLanes {
       error: (fallo: FalloHttp) => {
         this.procesando.set(false);
         this.falloEliminacion.set(fallo.detalle ?? fallo.titulo);
+        this.avisarRechazo(fallo);
       },
     });
   }
@@ -240,8 +242,15 @@ export class PanelLanes {
         if (!formulario || !aplicarErroresDelServidor(formulario, fallo, CAMPOS_POR_CODIGO)) {
           this.fallo.set(fallo);
         }
+        this.avisarRechazo(fallo);
       },
     });
+  }
+
+  private avisarRechazo(fallo: FalloHttp): void {
+    if (fallo.tipo === 'sin-permiso') {
+      this.rechazo.emit();
+    }
   }
 
   private limpiarMensajes(): void {

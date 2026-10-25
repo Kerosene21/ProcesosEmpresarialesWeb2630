@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
+import { TEXTO_TIPO_POOL } from '../../compartido/textos';
 import { DiagramaProceso } from '../../core/modelos/diagrama';
 import { Seleccion, TipoElemento } from '../../core/modelos/seleccion';
 import { ArcoSecuencia } from '../arco-secuencia/arco-secuencia';
@@ -49,6 +50,7 @@ export class LienzoDiagrama {
   protected readonly marcadorMensaje = `${this.marcador}-mensaje`;
   protected readonly cabeceraPool = ANCHO_CABECERA_POOL;
   protected readonly cabeceraLane = ANCHO_CABECERA_LANE;
+  protected readonly textoTipoPool = TEXTO_TIPO_POOL;
 
   protected readonly vista = computed(() => this.geometria().vista);
   protected readonly cajaVista = computed(() => {
@@ -88,6 +90,12 @@ export class LienzoDiagrama {
 
   protected rotuloPool(banda: BandaPool): Rotulo {
     return rotulo(banda.x + ANCHO_CABECERA_POOL / 2, banda.y, banda.alto, banda.pool.nombre);
+  }
+
+  protected descripcionPool(banda: BandaPool): string {
+    const { nombre, tipo, empresaNombre, cajaNegra } = banda.pool;
+    const empresa = empresaNombre ? ` · ${empresaNombre}` : '';
+    return `Pool ${TEXTO_TIPO_POOL[tipo].toLowerCase()} «${nombre}»${empresa}${cajaNegra ? ' · caja negra' : ''}`;
   }
 
   protected rotuloLane(banda: BandaLane): Rotulo {

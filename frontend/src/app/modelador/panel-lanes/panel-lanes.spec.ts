@@ -217,10 +217,14 @@ describe('PanelLanes', () => {
       })),
     );
 
+    let rechazos = 0;
+    fixture.componentInstance.rechazo.subscribe(() => rechazos++);
+
     boton('Bajar la lane General')!.click();
     await fixture.whenStable();
 
     expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('no tiene permiso para editar lanes');
     expect(cambios).toBe(0);
+    expect(rechazos).toBe(1);
   });
 });

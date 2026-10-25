@@ -56,6 +56,24 @@ describe('LienzoDiagrama', () => {
     expect(elemento.querySelectorAll('g[appFlujoMensaje] .flujo__linea').length).toBe(2);
   });
 
+  it('distingue el tipo de cada pool y describe al participante representado', async () => {
+    const diagrama = diagramaCompleto();
+    diagrama.pools[1] = { ...diagrama.pools[1], tipo: 'PARTICIPANTE', empresaId: 9, empresaNombre: 'Andes SAS' };
+    await crear(diagrama);
+    const tipos = Array.from(elemento.querySelectorAll('g.pool')).map((grupo) => grupo.getAttribute('data-tipo'));
+
+    expect(tipos).toEqual(['PROPIETARIO', 'PARTICIPANTE', 'EXTERNO']);
+    expect(elemento.querySelector('[data-pool="81"]')?.classList).toContain('pool--participante');
+    expect(elemento.querySelector('[data-pool="82"]')?.classList).toContain('pool--externo');
+    expect(textos('g.pool > title')).toEqual([
+      'Pool propietario «Empresa de prueba» · Empresa de prueba',
+      'Pool participante «Cliente» · Andes SAS',
+      'Pool externo «Servicio de correo» · caja negra',
+    ]);
+    expect(elemento.querySelector('[data-pool="82"] .pool__nota')?.textContent?.trim()).toBe('Caja negra · Externo');
+    expect(elemento.querySelectorAll('[data-pool="82"] .lane').length).toBe(0);
+  });
+
   it('coloca pools y lanes con la geometría calculada y gira sus nombres', async () => {
     await crear(diagramaCompleto());
     const lane = elemento.querySelector('[data-lane="12"] .lane__marco')!;

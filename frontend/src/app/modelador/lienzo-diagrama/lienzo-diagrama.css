@@ -41,6 +41,14 @@
   fill: var(--color-fondo);
 }
 
+.pool--participante .pool__cabecera {
+  fill: var(--color-exito-tenue);
+}
+
+.pool--externo .pool__cabecera {
+  fill: var(--color-advertencia-tenue);
+}
+
 .pool__nombre,
 .lane__nombre {
   font-size: 12px;

@@ -1,0 +1,153 @@
+<section class="panel-pools" aria-labelledby="titulo-pools">
+  <div>
+    <h2 id="titulo-pools">Pools y participantes</h2>
+    <p class="nota">
+      El pool propietario representa a tu empresa y se crea con el proceso. Un pool participante representa otra
+      empresa registrada y uno externo, a un participante no registrado. Un pool de caja negra no tiene lanes ni
+      elementos internos.
+    </p>
+  </div>
+
+  @if (mensaje(); as texto) {
+    <p class="panel-pools__exito" role="status">{{ texto }}</p>
+  }
+  @if (fallo(); as falloActual) {
+    <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
+  }
+
+  @if (pools().length === 0) {
+    <app-aviso tipo="vacio" titulo="El diagrama no tiene pools activos" />
+  } @else {
+    <ol class="panel-pools__lista" aria-label="Pools del proceso en su orden">
+      @for (pool of pools(); track pool.id) {
+        <li class="panel-pools__pool" [attr.data-pool]="pool.id">
+          <div class="panel-pools__datos">
+            <strong>{{ pool.orden }}. {{ pool.nombre }}</strong>
+            <span class="grupo-chips">
+              <span class="chip" [class.chip--informacion]="pool.tipo === 'PROPIETARIO'">{{ textoTipo[pool.tipo] }}</span>
+              @if (pool.cajaNegra) {
+                <span class="chip chip--advertencia">Caja negra</span>
+              }
+            </span>
+            <span class="nota">
+              @if (pool.empresaNombre) {
+                Empresa: {{ pool.empresaNombre }} ·
+              } @else if (pool.tipo === 'EXTERNO') {
+                Participante no registrado ·
+              }
+              {{ resumen(pool) }}
+              @if (contenido(pool).flujosEntrantes > 0) {
+                · recibe {{ contenido(pool).flujosEntrantes }}
+                {{ contenido(pool).flujosEntrantes === 1 ? 'flujo de mensaje' : 'flujos de mensaje' }}
+              }
+            </span>
+          </div>
+
+          @if (editando()?.id === pool.id && permisos().editarPool) {
+            <form class="panel-pools__formulario" [formGroup]="edicion" (ngSubmit)="guardarEdicion()" novalidate>
+              <div class="campo">
+                <label class="campo__etiqueta" [for]="'pool-nombre-' + pool.id">Nombre</label>
+                <input [id]="'pool-nombre-' + pool.id" class="campo__control" type="text" autocomplete="off" formControlName="nombre" [attr.aria-invalid]="error(edicion, 'nombre') !== null" />
+                <span class="campo__error">{{ error(edicion, 'nombre') }}</span>
+              </div>
+              @if (pool.tipo === 'PARTICIPANTE') {
+                <div class="campo">
+                  <label class="campo__etiqueta" [for]="'pool-empresa-' + pool.id">Identificador de la empresa</label>
+                  <input [id]="'pool-empresa-' + pool.id" class="campo__control" type="number" min="1" step="1" formControlName="empresaParticipanteId" [attr.aria-invalid]="error(edicion, 'empresaParticipanteId') !== null" />
+                  <span class="campo__error">{{ error(edicion, 'empresaParticipanteId') }}</span>
+                </div>
+              }
+              <div class="campo">
+                <label class="casilla">
+                  <input type="checkbox" formControlName="cajaNegra" />
+                  Caja negra
+                </label>
+                @if (pool.tipo === 'PROPIETARIO') {
+                  <span class="campo__ayuda">El pool propietario no puede ser una caja negra.</span>
+                } @else {
+                  <span class="campo__ayuda">Solo un pool sin lanes, actividades, gateways ni eventos puede convertirse en caja negra.</span>
+                }
+                <span class="campo__error">{{ error(edicion, 'cajaNegra') }}</span>
+              </div>
+              <div class="panel-pools__acciones">
+                <button type="button" class="boton boton--texto" [disabled]="procesando()" (click)="cancelarEdicion()">Cancelar</button>
+                <button type="submit" class="boton boton--primario" [disabled]="procesando()">{{ procesando() ? 'Guardando…' : 'Guardar pool' }}</button>
+              </div>
+            </form>
+          } @else if (permisos().editarPool || permisos().eliminarPool) {
+            <div class="panel-pools__acciones">
+              @if (permisos().editarPool) {
+                <button type="button" class="boton boton--secundario" [attr.aria-label]="'Editar el pool ' + pool.nombre" [disabled]="procesando()" (click)="iniciarEdicion(pool)">Editar</button>
+              }
+              @if (permisos().eliminarPool) {
+                <button
+                  type="button"
+                  class="boton boton--peligro-suave"
+                  [attr.aria-label]="'Eliminar el pool ' + pool.nombre"
+                  [attr.title]="motivoNoEliminable(pool)"
+                  [disabled]="motivoNoEliminable(pool) !== null || procesando()"
+                  (click)="solicitarEliminacion(pool)"
+                >
+                  Eliminar
+                </button>
+              }
+            </div>
+          }
+        </li>
+      }
+    </ol>
+  }
+
+  @if (permisos().crearPool) {
+    <form class="panel-pools__formulario panel-pools__creacion" [formGroup]="creacion" (ngSubmit)="crear()" novalidate aria-labelledby="titulo-nuevo-pool">
+      <h3 id="titulo-nuevo-pool" class="panel-pools__subtitulo">Nuevo pool</h3>
+      <div class="campo">
+        <label class="campo__etiqueta" for="nuevo-pool-nombre">Nombre</label>
+        <input id="nuevo-pool-nombre" class="campo__control" type="text" autocomplete="off" formControlName="nombre" [attr.aria-invalid]="error(creacion, 'nombre') !== null" />
+        <span class="campo__error">{{ error(creacion, 'nombre') }}</span>
+      </div>
+      <div class="campo">
+        <label class="campo__etiqueta" for="nuevo-pool-tipo">Tipo de participante</label>
+        <select id="nuevo-pool-tipo" class="campo__control" formControlName="tipo" aria-describedby="ayuda-nuevo-pool-tipo">
+          @for (tipo of tipos; track tipo) {
+            <option [ngValue]="tipo">{{ textoTipo[tipo] }}</option>
+          }
+        </select>
+        <span id="ayuda-nuevo-pool-tipo" class="campo__ayuda">{{ ayudaTipo[tipoNuevo()] }}</span>
+      </div>
+      @if (tipoNuevo() === 'PARTICIPANTE') {
+        <div class="campo">
+          <label class="campo__etiqueta" for="nuevo-pool-empresa">Identificador de la empresa</label>
+          <input id="nuevo-pool-empresa" class="campo__control" type="number" min="1" step="1" formControlName="empresaParticipanteId" aria-describedby="ayuda-nuevo-pool-empresa" [attr.aria-invalid]="error(creacion, 'empresaParticipanteId') !== null" />
+          <span id="ayuda-nuevo-pool-empresa" class="campo__ayuda">El administrador de esa empresa lo encuentra en «Mi empresa».</span>
+          <span class="campo__error">{{ error(creacion, 'empresaParticipanteId') }}</span>
+        </div>
+      }
+      <div class="campo">
+        <label class="casilla">
+          <input type="checkbox" formControlName="cajaNegra" />
+          Caja negra
+        </label>
+        <span class="campo__ayuda">Los envíos externos solo se dirigen a pools externos de caja negra.</span>
+      </div>
+      <div class="panel-pools__acciones">
+        <button type="submit" class="boton boton--primario" [disabled]="procesando()">{{ procesando() ? 'Guardando…' : 'Crear pool' }}</button>
+      </div>
+    </form>
+  }
+
+  @if (!puedeModificar()) {
+    <p class="nota">Tu rol no tiene permisos de estructura para modificar los pools de este proceso.</p>
+  }
+
+  <app-dialogo-confirmacion
+    [abierto]="porEliminar() !== null"
+    titulo="¿Eliminar este pool?"
+    [mensaje]="'El pool «' + (porEliminar()?.nombre ?? '') + '» dejará de aparecer en el diagrama y los demás se reordenarán. El backend lo rechaza si todavía tiene contenido o recibe flujos de mensaje.'"
+    textoConfirmar="Eliminar pool"
+    [procesando]="procesando()"
+    [error]="falloEliminacion()"
+    (confirmado)="eliminar()"
+    (cancelado)="cancelarEliminacion()"
+  />
+</section>

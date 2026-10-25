@@ -21,14 +21,24 @@
     </defs>
 
     @for (banda of geometria().pools; track banda.pool.id) {
-      <g class="pool" [class.pool--caja-negra]="banda.pool.cajaNegra" [attr.data-pool]="banda.pool.id">
+      <g
+        class="pool"
+        [class.pool--caja-negra]="banda.pool.cajaNegra"
+        [class.pool--participante]="banda.pool.tipo === 'PARTICIPANTE'"
+        [class.pool--externo]="banda.pool.tipo === 'EXTERNO'"
+        [attr.data-pool]="banda.pool.id"
+        [attr.data-tipo]="banda.pool.tipo"
+      >
+        <title>{{ descripcionPool(banda) }}</title>
         <rect class="pool__marco" [attr.x]="banda.x" [attr.y]="banda.y" [attr.width]="banda.ancho" [attr.height]="banda.alto" />
         <rect class="pool__cabecera" [attr.x]="banda.x" [attr.y]="banda.y" [attr.width]="cabeceraPool" [attr.height]="banda.alto" />
         @if (banda.pool.cajaNegra) {
           <text class="pool__nombre pool__nombre--horizontal" [attr.x]="banda.x + cabeceraPool + 16" [attr.y]="banda.y + banda.alto / 2 - 4">
             {{ banda.pool.nombre }}
           </text>
-          <text class="pool__nota" [attr.x]="banda.x + cabeceraPool + 16" [attr.y]="banda.y + banda.alto / 2 + 14">Caja negra</text>
+          <text class="pool__nota" [attr.x]="banda.x + cabeceraPool + 16" [attr.y]="banda.y + banda.alto / 2 + 14">
+            Caja negra · {{ textoTipoPool[banda.pool.tipo] }}
+          </text>
         } @else {
           @let nombrePool = rotuloPool(banda);
           <text class="pool__nombre" [attr.x]="nombrePool.x" [attr.y]="nombrePool.y" [attr.transform]="nombrePool.giro">
