@@ -6,6 +6,7 @@ import { parametrosDe } from '../http/parametros';
 import { lanzarFallo } from '../http/traducir-fallo';
 import { DiagramaProceso } from '../modelos/diagrama';
 import { Historial } from '../modelos/historial';
+import { RecolocarNodos } from '../modelos/movimiento';
 import { Pagina } from '../modelos/pagina';
 import { ConfigurarPermisoEstructura, PermisoEstructura } from '../modelos/permiso-estructura';
 import { CrearProceso, EditarProceso, FiltroProcesos, Proceso, ProcesoResumen } from '../modelos/proceso';
@@ -30,6 +31,10 @@ export class ProcesoService {
 
   obtenerDiagrama(id: number): Observable<DiagramaProceso> {
     return this.http.get<DiagramaProceso>(`${this.ruta}/${id}/diagrama`).pipe(catchError(lanzarFallo));
+  }
+
+  recolocarNodos(id: number, datos: RecolocarNodos): Observable<void> {
+    return this.http.put<void>(`${this.ruta}/${id}/diagrama/posiciones`, datos).pipe(catchError(lanzarFallo));
   }
 
   historial(id: number): Observable<Historial[]> {

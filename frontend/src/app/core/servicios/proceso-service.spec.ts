@@ -158,4 +158,16 @@ describe('ProcesoService', () => {
     solicitud.flush(historial);
     expect(recibido).toEqual(historial);
   });
+
+  it('recoloca varios nodos del diagrama en una sola petición', () => {
+    const nodos = [
+      { tipo: 'ACTIVIDAD' as const, id: 2, posicionX: 340, posicionY: 200 },
+      { tipo: 'EVENTO' as const, id: 6, posicionX: 60, posicionY: 520 },
+    ];
+    servicio.recolocarNodos(5, { nodos }).subscribe();
+
+    const peticion = http.expectOne('/api/procesos/5/diagrama/posiciones');
+    expect(peticion.request.method).toBe('PUT');
+    expect(peticion.request.body).toEqual({ nodos });
+  });
 });

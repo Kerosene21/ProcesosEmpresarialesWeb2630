@@ -10,11 +10,21 @@ import { aplicarErroresDelServidor, errorDelServidor } from '../../core/formular
 import { DiagramaProceso, LaneRespuesta, PoolRespuesta } from '../../core/modelos/diagrama';
 import { CARGANDO, EstadoCarga } from '../../core/modelos/estado-carga';
 import { FalloHttp } from '../../core/modelos/fallo-http';
+import { PosicionNodo } from '../../core/modelos/movimiento';
 import { PermisoEstructura } from '../../core/modelos/permiso-estructura';
 import { RolProceso } from '../../core/modelos/rol-proceso';
 import { conEstadoCarga } from '../../core/rxjs/con-estado-carga';
 import { LaneService } from '../../core/servicios/lane-service';
+import { ProcesoService } from '../../core/servicios/proceso-service';
 import { SesionService } from '../../core/servicios/sesion-service';
+import {
+  conLaneNueva,
+  conLanesOrdenadas,
+  recolocarContenido,
+  resumenRecolocacion,
+  seguidoDeRecolocacion,
+  sinLane,
+} from '../recolocacion';
 
 export type PermisosLanes = Pick<PermisoEstructura, 'crearLane' | 'editarLane' | 'eliminarLane'>;
 
@@ -34,6 +44,7 @@ const SIN_ROLES: EstadoCarga<RolProceso[]> = { tipo: 'listo', datos: [] };
 })
 export class PanelLanes {
   private readonly lanesApi = inject(LaneService);
+  private readonly procesos = inject(ProcesoService);
   private readonly sesion = inject(SesionService);
 
   readonly procesoId = input.required<number>();
@@ -100,6 +111,8 @@ export class PanelLanes {
   protected readonly mensaje = signal<string | null>(null);
   protected readonly porEliminar = signal<LaneRespuesta | null>(null);
   protected readonly falloEliminacion = signal<string | null>(null);
+  protected readonly falloRecolocacion = signal<string | null>(null);
+  private readonly recolocados = signal(0);
 
   protected actividades(lane: LaneRespuesta): number {
     return this.actividadesPorLane().get(lane.id) ?? 0;
@@ -123,8 +136,9 @@ export class PanelLanes {
       this.creacion.markAllAsTouched();
       return;
     }
+    const nodos = recolocarContenido(this.diagrama(), conLaneNueva(this.diagrama(), poolId, orden));
     this.ejecutar(
-      this.lanesApi.crear(this.procesoId(), poolId, { rolProcesoId, orden }),
+      this.conRecolocacion(this.lanesApi.crear(this.procesoId(), poolId, { rolProcesoId, orden }), nodos),
       'La lane se creó y el diagrama se actualizó con los datos del servidor.',
       this.creacion,
       () => this.creacion.reset(),
@@ -168,8 +182,9 @@ export class PanelLanes {
     }
     [ids[posicion], ids[destino]] = [ids[destino], ids[posicion]];
     this.limpiarMensajes();
+    const nodos = recolocarContenido(this.diagrama(), conLanesOrdenadas(this.diagrama(), poolId, ids));
     this.ejecutar(
-      this.lanesApi.reordenar(this.procesoId(), poolId, { lanes: ids }),
+      this.conRecolocacion(this.lanesApi.reordenar(this.procesoId(), poolId, { lanes: ids }), nodos),
       `La lane «${lane.nombre}» cambió de posición.`,
     );
   }
@@ -193,11 +208,12 @@ export class PanelLanes {
     }
     this.procesando.set(true);
     this.falloEliminacion.set(null);
-    this.lanesApi.eliminar(this.procesoId(), poolId, lane.id).subscribe({
+    const nodos = recolocarContenido(this.diagrama(), sinLane(this.diagrama(), lane.id));
+    this.conRecolocacion(this.lanesApi.eliminar(this.procesoId(), poolId, lane.id), nodos).subscribe({
       next: () => {
         this.procesando.set(false);
         this.porEliminar.set(null);
-        this.mensaje.set(`La lane «${lane.nombre}» se eliminó.`);
+        this.mensaje.set(`La lane «${lane.nombre}» se eliminó.${this.resumenRecolocacion()}`);
         this.cambio.emit();
       },
       error: (fallo: FalloHttp) => {
@@ -233,7 +249,7 @@ export class PanelLanes {
     solicitud.subscribe({
       next: () => {
         this.procesando.set(false);
-        this.mensaje.set(exito);
+        this.mensaje.set(`${exito}${this.resumenRecolocacion()}`);
         alTerminar?.();
         this.cambio.emit();
       },
@@ -256,6 +272,21 @@ export class PanelLanes {
   private limpiarMensajes(): void {
     this.fallo.set(null);
     this.mensaje.set(null);
+    this.falloRecolocacion.set(null);
+    this.recolocados.set(0);
+  }
+
+  private conRecolocacion<T>(operacion: Observable<T>, nodos: PosicionNodo[]): Observable<T> {
+    return seguidoDeRecolocacion(
+      operacion,
+      nodos,
+      (pendientes) => this.procesos.recolocarNodos(this.procesoId(), { nodos: pendientes }),
+      (fallo) => (fallo ? this.falloRecolocacion.set(fallo.detalle ?? fallo.titulo) : this.recolocados.set(nodos.length)),
+    );
+  }
+
+  private resumenRecolocacion(): string {
+    return resumenRecolocacion(this.recolocados(), 'para conservar su lane');
   }
 
   private necesitaRoles(): boolean {

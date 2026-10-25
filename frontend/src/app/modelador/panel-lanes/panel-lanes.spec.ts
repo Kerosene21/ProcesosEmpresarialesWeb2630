@@ -6,8 +6,10 @@ import { diagramaCompleto } from '../../../testing/diagramas';
 import { DiagramaProceso, LaneRespuesta } from '../../core/modelos/diagrama';
 import { FalloHttp } from '../../core/modelos/fallo-http';
 import { CrearLane, ReordenarLanes } from '../../core/modelos/lane';
+import { RecolocarNodos } from '../../core/modelos/movimiento';
 import { RolProceso } from '../../core/modelos/rol-proceso';
 import { LaneService } from '../../core/servicios/lane-service';
+import { ProcesoService } from '../../core/servicios/proceso-service';
 import { SesionService } from '../../core/servicios/sesion-service';
 import { PanelLanes, PermisosLanes } from './panel-lanes';
 
@@ -32,15 +34,18 @@ describe('PanelLanes', () => {
   const editar = vi.fn<(procesoId: number, poolId: number, laneId: number, datos: CrearLane) => Observable<LaneRespuesta>>();
   const reordenar = vi.fn<(procesoId: number, poolId: number, datos: ReordenarLanes) => Observable<LaneRespuesta[]>>();
   const eliminar = vi.fn<(procesoId: number, poolId: number, laneId: number) => Observable<void>>();
+  const recolocarNodos = vi.fn<(procesoId: number, datos: RecolocarNodos) => Observable<void>>();
 
   async function crear(permisos: PermisosLanes = TODOS, diagrama: DiagramaProceso = diagramaCompleto()): Promise<void> {
-    [rolesDisponibles, crearLane, editar, reordenar, eliminar].forEach((simulado) => simulado.mockReset());
+    [rolesDisponibles, crearLane, editar, reordenar, eliminar, recolocarNodos].forEach((simulado) => simulado.mockReset());
     rolesDisponibles.mockReturnValue(of(ROLES));
+    recolocarNodos.mockReturnValue(of(undefined));
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         { provide: LaneService, useValue: { rolesDisponibles, crear: crearLane, editar, reordenar, eliminar } },
         { provide: SesionService, useValue: { tieneRol: () => true } },
+        { provide: ProcesoService, useValue: { recolocarNodos } },
       ],
     });
     fixture = TestBed.createComponent(PanelLanes);
@@ -226,5 +231,99 @@ describe('PanelLanes', () => {
     expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('no tiene permiso para editar lanes');
     expect(cambios).toBe(0);
     expect(rechazos).toBe(1);
+  });
+
+  it('al reordenar recoloca en la misma secuencia los elementos para que acompañen a su lane', async () => {
+    await crear();
+    reordenar.mockReturnValue(of([]));
+
+    boton('Bajar la lane General')!.click();
+    await fixture.whenStable();
+
+    expect(reordenar).toHaveBeenCalledWith(5, 80, { lanes: [12, 11] });
+    expect(recolocarNodos).toHaveBeenCalledTimes(1);
+    expect(recolocarNodos.mock.calls[0][1].nodos).toContainEqual({ tipo: 'ACTIVIDAD', id: 3, posicionX: 620, posicionY: 60 });
+    expect(recolocarNodos.mock.calls[0][1].nodos).toContainEqual({ tipo: 'ACTIVIDAD', id: 1, posicionX: 160, posicionY: 200 });
+    expect(elemento.querySelector('[role="status"]')?.textContent).toContain(
+      'Se recolocaron 6 elementos del diagrama para conservar su lane.',
+    );
+    expect(cambios).toBe(1);
+  });
+
+  it('al crear una lane intermedia recoloca las lanes inferiores y los pools de debajo', async () => {
+    await crear();
+    crearLane.mockReturnValue(of({ id: 13, nombre: 'Analista', rolProcesoId: 22, poolId: 80, orden: 1 }));
+
+    await elegir('#nueva-lane-rol', 1);
+    const orden = elemento.querySelector<HTMLInputElement>('#nueva-lane-orden')!;
+    orden.value = '1';
+    orden.dispatchEvent(new Event('input'));
+    await enviar('.panel-lanes__creacion');
+
+    expect(crearLane).toHaveBeenCalledWith(5, 80, { rolProcesoId: 22, orden: 1 });
+    expect(recolocarNodos.mock.calls[0][1].nodos).toContainEqual({ tipo: 'EVENTO', id: 6, posicionX: 60, posicionY: 520 });
+    expect(recolocarNodos.mock.calls[0][1].nodos).toContainEqual({ tipo: 'ACTIVIDAD', id: 3, posicionX: 620, posicionY: 340 });
+  });
+
+  it('no envía recolocación si la estructura no desplaza ningún elemento', async () => {
+    const diagrama = diagramaCompleto();
+    diagrama.pools = diagrama.pools.slice(0, 1);
+    diagrama.messageThrows = [];
+    diagrama.enviosExternos = [];
+    diagrama.flujosMensaje = [];
+    diagrama.arcos = diagrama.arcos.filter((arco) => arco.destinoTipo !== 'EVENTO');
+    await crear(TODOS, diagrama);
+    crearLane.mockReturnValue(of({ id: 13, nombre: 'Analista', rolProcesoId: 22, poolId: 80, orden: 3 }));
+
+    await elegir('#nueva-lane-rol', 1);
+    await enviar('.panel-lanes__creacion');
+
+    expect(crearLane).toHaveBeenCalled();
+    expect(recolocarNodos).not.toHaveBeenCalled();
+    expect(elemento.querySelector('[role="status"]')?.textContent?.trim()).toBe(
+      'La lane se creó y el diagrama se actualizó con los datos del servidor.',
+    );
+  });
+
+  it('si la recolocación falla conserva el cambio de lanes, lo explica y no anuncia una recolocación', async () => {
+    await crear();
+    reordenar.mockReturnValue(of([]));
+    recolocarNodos.mockReturnValue(
+      throwError((): FalloHttp => ({
+        tipo: 'no-encontrado',
+        estado: 404,
+        codigo: 'RECURSO_NO_ENCONTRADO',
+        titulo: 'No encontramos el recurso solicitado',
+        detalle: 'El gateway #4 no existe en este proceso o ya fue eliminado',
+      })),
+    );
+
+    boton('Bajar la lane General')!.click();
+    await fixture.whenStable();
+
+    expect(elemento.querySelector('[role="status"]')?.textContent?.trim()).toBe('La lane «General» cambió de posición.');
+    expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('El gateway #4 no existe en este proceso');
+    expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('arrastra los elementos a su lane');
+    expect(cambios).toBe(1);
+  });
+
+  it('cierra la edición y la confirmación de eliminación si se revocan los permisos', async () => {
+    const diagrama = diagramaCompleto();
+    diagrama.actividades = diagrama.actividades.filter((actividad) => actividad.laneId !== 12);
+    await crear(TODOS, diagrama);
+
+    boton('Cambiar el rol de la lane General')!.click();
+    await fixture.whenStable();
+    expect(elemento.querySelector('.panel-lanes__edicion')).not.toBeNull();
+    fixture.componentRef.setInput('permisos', { crearLane: true, editarLane: false, eliminarLane: true });
+    await fixture.whenStable();
+    expect(elemento.querySelector('.panel-lanes__edicion')).toBeNull();
+
+    boton('Eliminar la lane Supervisor')!.click();
+    await fixture.whenStable();
+    expect(elemento.querySelector('[role="alertdialog"]')).not.toBeNull();
+    fixture.componentRef.setInput('permisos', { crearLane: true, editarLane: false, eliminarLane: false });
+    await fixture.whenStable();
+    expect(elemento.querySelector('[role="alertdialog"]')).toBeNull();
   });
 });

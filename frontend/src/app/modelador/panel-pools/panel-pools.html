@@ -14,6 +14,13 @@
   @if (fallo(); as falloActual) {
     <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
   }
+  @if (falloRecolocacion(); as detalle) {
+    <app-aviso
+      tipo="error"
+      titulo="El cambio del pool se guardó, pero no se pudieron recolocar los elementos del diagrama"
+      [detalle]="detalle + '. Revisa las advertencias del modelador y arrastra los elementos a su sitio.'"
+    />
+  }
 
   @if (pools().length === 0) {
     <app-aviso tipo="vacio" titulo="El diagrama no tiene pools activos" />
@@ -141,7 +148,7 @@
   }
 
   <app-dialogo-confirmacion
-    [abierto]="porEliminar() !== null"
+    [abierto]="porEliminar() !== null && permisos().eliminarPool"
     titulo="¿Eliminar este pool?"
     [mensaje]="'El pool «' + (porEliminar()?.nombre ?? '') + '» dejará de aparecer en el diagrama y los demás se reordenarán. El backend lo rechaza si todavía tiene contenido o recibe flujos de mensaje.'"
     textoConfirmar="Eliminar pool"

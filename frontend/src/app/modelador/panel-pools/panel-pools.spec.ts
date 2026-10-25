@@ -4,8 +4,10 @@ import { Observable, of, throwError } from 'rxjs';
 import { diagramaCompleto, pool } from '../../../testing/diagramas';
 import { DiagramaProceso, PoolRespuesta } from '../../core/modelos/diagrama';
 import { FalloHttp } from '../../core/modelos/fallo-http';
+import { RecolocarNodos } from '../../core/modelos/movimiento';
 import { CrearPool, EditarPool } from '../../core/modelos/pool';
 import { PoolService } from '../../core/servicios/pool-service';
+import { ProcesoService } from '../../core/servicios/proceso-service';
 import { PanelPools, PermisosPools, contenidoDePool } from './panel-pools';
 
 const TODOS: PermisosPools = { crearPool: true, editarPool: true, eliminarPool: true };
@@ -22,11 +24,16 @@ describe('PanelPools', () => {
   const crearPool = vi.fn<(procesoId: number, datos: CrearPool) => Observable<PoolRespuesta>>();
   const editar = vi.fn<(procesoId: number, poolId: number, datos: EditarPool) => Observable<PoolRespuesta>>();
   const eliminar = vi.fn<(procesoId: number, poolId: number) => Observable<void>>();
+  const recolocarNodos = vi.fn<(procesoId: number, datos: RecolocarNodos) => Observable<void>>();
 
   async function crear(permisos: PermisosPools = TODOS, diagrama: DiagramaProceso = diagramaCompleto()): Promise<void> {
-    [crearPool, editar, eliminar].forEach((simulado) => simulado.mockReset());
+    [crearPool, editar, eliminar, recolocarNodos].forEach((simulado) => simulado.mockReset());
+    recolocarNodos.mockReturnValue(of(undefined));
     TestBed.configureTestingModule({
-      providers: [{ provide: PoolService, useValue: { crear: crearPool, editar, eliminar } }],
+      providers: [
+        { provide: PoolService, useValue: { crear: crearPool, editar, eliminar } },
+        { provide: ProcesoService, useValue: { recolocarNodos } },
+      ],
     });
     fixture = TestBed.createComponent(PanelPools);
     elemento = fixture.nativeElement;
@@ -268,5 +275,83 @@ describe('PanelPools', () => {
     expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('no tiene permiso para crear pools');
     expect(rechazos).toBe(1);
     expect(cambios).toBe(0);
+  });
+
+  describe('recolocación de los pools inferiores', () => {
+    function diagramaConPoolsIntermedios(): DiagramaProceso {
+      const diagrama = diagramaCompleto();
+      diagrama.pools = [
+        pool(80, 'Empresa de prueba', 1),
+        pool(83, 'Banco', 2, { cajaNegra: true }),
+        pool(81, 'Cliente', 3),
+        pool(82, 'Servicio de correo', 4, { cajaNegra: true }),
+      ];
+      diagrama.messageThrows = [{ ...diagrama.messageThrows[0], posicionY: 460 }];
+      return diagrama;
+    }
+
+    it('al quitar la caja negra a un pool intermedio baja el contenido de los pools siguientes', async () => {
+      await crear(TODOS, diagramaConPoolsIntermedios());
+      editar.mockReturnValue(of(pool(83, 'Banco', 2)));
+
+      boton('Editar el pool Banco')!.click();
+      await fixture.whenStable();
+      await marcar('[data-pool="83"] form input[type="checkbox"]');
+      await enviar('[data-pool="83"] form');
+
+      expect(editar).toHaveBeenCalledWith(5, 83, { nombre: 'Banco', cajaNegra: false, empresaParticipanteId: null });
+      expect(recolocarNodos).toHaveBeenCalledWith(5, { nodos: [{ tipo: 'EVENTO', id: 6, posicionX: 60, posicionY: 520 }] });
+      expect(elemento.querySelector('[role="status"]')?.textContent).toContain(
+        'Se recolocó un elemento del diagrama para conservar su lugar en su pool.',
+      );
+      expect(cambios).toBe(1);
+    });
+
+    it('al eliminar un pool intermedio sube el contenido de los pools siguientes', async () => {
+      await crear(TODOS, diagramaConPoolsIntermedios());
+      eliminar.mockReturnValue(of(undefined));
+
+      boton('Eliminar el pool Banco')!.click();
+      await fixture.whenStable();
+      elemento.querySelector<HTMLButtonElement>('[role="alertdialog"] .boton--peligro')!.click();
+      await fixture.whenStable();
+
+      expect(eliminar).toHaveBeenCalledWith(5, 83);
+      expect(recolocarNodos).toHaveBeenCalledWith(5, { nodos: [{ tipo: 'EVENTO', id: 6, posicionX: 60, posicionY: 340 }] });
+      expect(cambios).toBe(1);
+    });
+
+    it('si la recolocación falla conserva el cambio del pool y lo explica', async () => {
+      await crear(TODOS, diagramaConPoolsIntermedios());
+      eliminar.mockReturnValue(of(undefined));
+      recolocarNodos.mockReturnValue(throwError(() => fallo('sin-permiso', 403, 'USUARIO_SIN_PERMISO', 'Solo un administrador o editor puede modificar el diagrama')));
+
+      boton('Eliminar el pool Banco')!.click();
+      await fixture.whenStable();
+      elemento.querySelector<HTMLButtonElement>('[role="alertdialog"] .boton--peligro')!.click();
+      await fixture.whenStable();
+
+      expect(elemento.querySelector('[role="status"]')?.textContent?.trim()).toBe(
+        'El pool «Banco» se eliminó. Los demás pools se reordenaron.',
+      );
+      expect(elemento.textContent).toContain('no se pudieron recolocar los elementos del diagrama');
+      expect(elemento.textContent).toContain('Solo un administrador o editor puede modificar el diagrama');
+      expect(cambios).toBe(1);
+    });
+  });
+
+  it('cierra la confirmación de eliminación si se revoca el permiso', async () => {
+    const diagrama = diagramaCompleto();
+    diagrama.pools.push(pool(83, 'Banco', 4, { cajaNegra: true }));
+    await crear(TODOS, diagrama);
+
+    boton('Eliminar el pool Banco')!.click();
+    await fixture.whenStable();
+    expect(elemento.querySelector('[role="alertdialog"]')).not.toBeNull();
+    fixture.componentRef.setInput('permisos', { crearPool: true, editarPool: true, eliminarPool: false });
+    await fixture.whenStable();
+
+    expect(elemento.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(eliminar).not.toHaveBeenCalled();
   });
 });

@@ -6,6 +6,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { PROCESO_PRUEBA, actividad, diagramaCompleto } from '../../../testing/diagramas';
 import { DiagramaProceso } from '../../core/modelos/diagrama';
 import { FalloHttp } from '../../core/modelos/fallo-http';
+import { RecolocarNodos } from '../../core/modelos/movimiento';
 import { PermisoEstructura } from '../../core/modelos/permiso-estructura';
 import { Proceso } from '../../core/modelos/proceso';
 import { RolProceso } from '../../core/modelos/rol-proceso';
@@ -38,6 +39,7 @@ describe('ModeladorProceso', () => {
   const obtener = vi.fn<(id: number) => Observable<Proceso>>();
   const obtenerDiagrama = vi.fn<(id: number) => Observable<DiagramaProceso>>();
   const permisosEstructura = vi.fn<(id: number) => Observable<PermisoEstructura[]>>();
+  const recolocarNodos = vi.fn<(id: number, datos: RecolocarNodos) => Observable<void>>();
   const reordenar = vi.fn<() => Observable<unknown>>();
   const crearActividad = vi.fn();
   const editarPool = vi.fn<() => Observable<unknown>>();
@@ -48,13 +50,14 @@ describe('ModeladorProceso', () => {
     obtenerDiagrama.mockReset().mockReturnValue(of(diagramaCompleto()));
     permisosEstructura.mockReset().mockReturnValue(permisos);
     reordenar.mockReset().mockReturnValue(of([]));
+    recolocarNodos.mockReset().mockReturnValue(of(undefined));
     crearActividad.mockReset();
     editarPool.mockReset();
     crearThrow.mockReset();
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: ProcesoService, useValue: { obtener, obtenerDiagrama, permisosEstructura } },
+        { provide: ProcesoService, useValue: { obtener, obtenerDiagrama, permisosEstructura, recolocarNodos } },
         { provide: LaneService, useValue: { rolesDisponibles: () => of<RolProceso[]>([]), reordenar } },
         { provide: PoolService, useValue: { editar: editarPool } },
         { provide: MessageThrowService, useValue: { crear: crearThrow } },
@@ -111,6 +114,8 @@ describe('ModeladorProceso', () => {
     await fixture.whenStable();
 
     expect(reordenar).toHaveBeenCalled();
+    expect(recolocarNodos).toHaveBeenCalledTimes(1);
+    expect(recolocarNodos.mock.invocationCallOrder[0]).toBeLessThan(obtenerDiagrama.mock.invocationCallOrder[1]);
     expect(obtenerDiagrama).toHaveBeenCalledTimes(2);
     expect(obtener).toHaveBeenCalledTimes(1);
     expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(4);

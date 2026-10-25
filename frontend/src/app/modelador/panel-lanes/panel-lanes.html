@@ -24,6 +24,13 @@
     @if (fallo(); as falloActual) {
       <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
     }
+    @if (falloRecolocacion(); as detalle) {
+      <app-aviso
+        tipo="error"
+        titulo="El cambio de las lanes se guardó, pero no se pudieron recolocar los elementos del diagrama"
+        [detalle]="detalle + '. Revisa las advertencias del modelador y arrastra los elementos a su lane.'"
+      />
+    }
     @if (falloRoles(); as falloActual) {
       <app-aviso tipo="error" titulo="No se pudieron consultar los roles disponibles" [detalle]="falloActual.detalle ?? falloActual.titulo" />
     }
@@ -42,7 +49,7 @@
               </span>
             </div>
 
-            @if (editando() === lane.id) {
+            @if (editando() === lane.id && permisos().editarLane) {
               <form class="panel-lanes__edicion" [formGroup]="edicion" (ngSubmit)="guardarEdicion(lane)" novalidate>
                 <div class="campo">
                   <label class="campo__etiqueta" [for]="'lane-rol-' + lane.id">Rol de proceso</label>
@@ -127,7 +134,7 @@
   }
 
   <app-dialogo-confirmacion
-    [abierto]="porEliminar() !== null"
+    [abierto]="porEliminar() !== null && permisos().eliminarLane"
     titulo="¿Eliminar esta lane?"
     [mensaje]="'La lane «' + (porEliminar()?.nombre ?? '') + '» dejará de aparecer en el pool. El backend la rechaza si todavía tiene actividades activas.'"
     textoConfirmar="Eliminar lane"

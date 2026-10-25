@@ -10,9 +10,12 @@ import { aplicarErroresDelServidor, errorDelServidor } from '../../core/formular
 import { entero, noEnBlanco } from '../../core/formularios/validadores';
 import { DiagramaProceso, PoolRespuesta } from '../../core/modelos/diagrama';
 import { FalloHttp } from '../../core/modelos/fallo-http';
+import { PosicionNodo } from '../../core/modelos/movimiento';
 import { PermisoEstructura } from '../../core/modelos/permiso-estructura';
 import { LONGITUD_MAXIMA_POOL, TIPOS_POOL_ADICIONAL, TipoPoolAdicional } from '../../core/modelos/pool';
 import { PoolService } from '../../core/servicios/pool-service';
+import { ProcesoService } from '../../core/servicios/proceso-service';
+import { conPool, recolocarContenido, resumenRecolocacion, seguidoDeRecolocacion, sinPool } from '../recolocacion';
 
 export type PermisosPools = Pick<PermisoEstructura, 'crearPool' | 'editarPool' | 'eliminarPool'>;
 
@@ -75,6 +78,7 @@ type FormularioPool = ReturnType<typeof formularioPool>;
 })
 export class PanelPools {
   private readonly poolsApi = inject(PoolService);
+  private readonly procesos = inject(ProcesoService);
 
   readonly procesoId = input.required<number>();
   readonly diagrama = input.required<DiagramaProceso>();
@@ -107,6 +111,8 @@ export class PanelPools {
   protected readonly mensaje = signal<string | null>(null);
   protected readonly porEliminar = signal<PoolRespuesta | null>(null);
   protected readonly falloEliminacion = signal<string | null>(null);
+  protected readonly falloRecolocacion = signal<string | null>(null);
+  private readonly recolocados = signal(0);
 
   constructor() {
     this.creacion.controls.tipo.valueChanges.pipe(takeUntilDestroyed()).subscribe((tipo) => {
@@ -197,12 +203,20 @@ export class PanelPools {
       this.edicion.markAllAsTouched();
       return;
     }
+    const cajaFinal = pool.tipo === 'PROPIETARIO' ? false : cajaNegra;
+    const nodos =
+      cajaFinal === pool.cajaNegra
+        ? []
+        : recolocarContenido(this.diagrama(), conPool(this.diagrama(), pool.id, { cajaNegra: cajaFinal }));
     this.ejecutar(
-      this.poolsApi.editar(this.procesoId(), pool.id, {
-        nombre: nombre.trim(),
-        cajaNegra: pool.tipo === 'PROPIETARIO' ? false : cajaNegra,
-        empresaParticipanteId: pool.tipo === 'PARTICIPANTE' ? empresaParticipanteId : null,
-      }),
+      this.conRecolocacion(
+        this.poolsApi.editar(this.procesoId(), pool.id, {
+          nombre: nombre.trim(),
+          cajaNegra: cajaFinal,
+          empresaParticipanteId: pool.tipo === 'PARTICIPANTE' ? empresaParticipanteId : null,
+        }),
+        nodos,
+      ),
       (actualizado) => `El pool «${actualizado.nombre}» se actualizó.`,
       this.edicion,
       () => this.cancelarEdicion(),
@@ -227,11 +241,12 @@ export class PanelPools {
     }
     this.procesando.set(true);
     this.falloEliminacion.set(null);
-    this.poolsApi.eliminar(this.procesoId(), pool.id).subscribe({
+    const nodos = recolocarContenido(this.diagrama(), sinPool(this.diagrama(), pool.id));
+    this.conRecolocacion(this.poolsApi.eliminar(this.procesoId(), pool.id), nodos).subscribe({
       next: () => {
         this.procesando.set(false);
         this.porEliminar.set(null);
-        this.mensaje.set(`El pool «${pool.nombre}» se eliminó. Los demás pools se reordenaron.`);
+        this.mensaje.set(`El pool «${pool.nombre}» se eliminó. Los demás pools se reordenaron.${this.resumenRecolocacion()}`);
         this.cambio.emit();
       },
       error: (fallo: FalloHttp) => {
@@ -274,7 +289,7 @@ export class PanelPools {
     solicitud.subscribe({
       next: (pool) => {
         this.procesando.set(false);
-        this.mensaje.set(exito(pool));
+        this.mensaje.set(`${exito(pool)}${this.resumenRecolocacion()}`);
         alTerminar();
         this.cambio.emit();
       },
@@ -306,5 +321,20 @@ export class PanelPools {
   private limpiarMensajes(): void {
     this.fallo.set(null);
     this.mensaje.set(null);
+    this.falloRecolocacion.set(null);
+    this.recolocados.set(0);
+  }
+
+  private conRecolocacion<T>(operacion: Observable<T>, nodos: PosicionNodo[]): Observable<T> {
+    return seguidoDeRecolocacion(
+      operacion,
+      nodos,
+      (pendientes) => this.procesos.recolocarNodos(this.procesoId(), { nodos: pendientes }),
+      (fallo) => (fallo ? this.falloRecolocacion.set(fallo.detalle ?? fallo.titulo) : this.recolocados.set(nodos.length)),
+    );
+  }
+
+  private resumenRecolocacion(): string {
+    return resumenRecolocacion(this.recolocados(), 'para conservar su lugar en su pool');
   }
 }
