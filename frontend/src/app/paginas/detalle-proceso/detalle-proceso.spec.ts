@@ -2,9 +2,12 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Observable, of, throwError } from 'rxjs';
 
+import { EmpresaInvitada } from '../../core/modelos/comparticion';
 import { DiagramaProceso } from '../../core/modelos/diagrama';
+import { PermisoEstructura } from '../../core/modelos/permiso-estructura';
 import { Proceso } from '../../core/modelos/proceso';
 import { RolUsuario } from '../../core/modelos/sesion';
+import { ComparticionService } from '../../core/servicios/comparticion-service';
 import { ProcesoService } from '../../core/servicios/proceso-service';
 import { SesionService } from '../../core/servicios/sesion-service';
 import { DetalleProceso } from './detalle-proceso';
@@ -78,6 +81,8 @@ describe('DetalleProceso', () => {
   let obtener: ReturnType<typeof vi.fn<(id: number) => Observable<Proceso>>>;
   let obtenerDiagrama: ReturnType<typeof vi.fn<(id: number) => Observable<DiagramaProceso>>>;
   const eliminar = vi.fn<(id: number) => Observable<void>>();
+  const listarComparticiones = vi.fn<(id: number) => Observable<EmpresaInvitada[]>>();
+  const permisosEstructura = vi.fn<(id: number) => Observable<PermisoEstructura[]>>();
 
   async function crear(
     id: string,
@@ -88,10 +93,13 @@ describe('DetalleProceso', () => {
     obtener = vi.fn<(id: number) => Observable<Proceso>>().mockReturnValue(proceso);
     obtenerDiagrama = vi.fn<(id: number) => Observable<DiagramaProceso>>().mockReturnValue(diagrama);
     eliminar.mockReset();
+    listarComparticiones.mockReset().mockReturnValue(of([{ id: 9, nombre: 'Andes SAS' }]));
+    permisosEstructura.mockReset().mockReturnValue(of([]));
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
-        { provide: ProcesoService, useValue: { obtener, obtenerDiagrama, eliminar } },
+        { provide: ProcesoService, useValue: { obtener, obtenerDiagrama, eliminar, permisosEstructura } },
+        { provide: ComparticionService, useValue: { listar: listarComparticiones } },
         { provide: SesionService, useValue: { tieneRol: (roles: readonly RolUsuario[]) => roles.includes(rol) } },
       ],
     });
@@ -237,6 +245,34 @@ describe('DetalleProceso', () => {
     await crear('5', of({ ...PROCESO, soloLectura: true }));
 
     expect(acciones()).toEqual(['Volver al listado']);
+  });
+
+  it('en un proceso propio muestra con quién se comparte', async () => {
+    await crear('5', of(PROCESO));
+
+    expect(listarComparticiones).toHaveBeenCalledWith(5);
+    expect(elemento.querySelector('app-panel-comparticion')?.textContent).toContain('Andes SAS');
+    expect(elemento.querySelector('#comparticion-empresa')).not.toBeNull();
+  });
+
+  it('en un proceso propio muestra la matriz de permisos de estructura', async () => {
+    await crear('5', of(PROCESO));
+
+    expect(permisosEstructura).toHaveBeenCalledWith(5);
+    expect(elemento.querySelector('app-panel-permisos')).not.toBeNull();
+  });
+
+  it('a la empresa invitada le indica la propietaria y no le muestra la compartición', async () => {
+    await crear('5', of({ ...PROCESO, soloLectura: true, empresaPropietariaNombre: 'Alpes Logistica' }));
+
+    expect(listarComparticiones).not.toHaveBeenCalled();
+    expect(elemento.querySelector('app-panel-comparticion')).toBeNull();
+    expect(permisosEstructura).not.toHaveBeenCalled();
+    expect(elemento.querySelector('app-panel-permisos')).toBeNull();
+    expect(elemento.textContent).toContain('Proceso compartido en solo lectura');
+    expect(elemento.textContent).toContain('Pertenece a «Alpes Logistica»');
+    expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(2);
+    expect(elemento.querySelector('[role="toolbar"]')).toBeNull();
   });
 
   it('pide confirmación y no elimina si el usuario cancela', async () => {

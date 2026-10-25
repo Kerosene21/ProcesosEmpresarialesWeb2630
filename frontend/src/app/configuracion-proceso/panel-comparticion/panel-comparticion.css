@@ -1,0 +1,49 @@
+.comparticion {
+  display: grid;
+  gap: var(--espacio-4);
+}
+
+.comparticion__lista {
+  display: grid;
+  gap: var(--espacio-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comparticion__empresa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--espacio-3);
+  padding: var(--espacio-3);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-m);
+}
+
+.comparticion__formulario {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--espacio-3);
+  padding-top: var(--espacio-4);
+  border-top: 1px solid var(--color-borde);
+}
+
+.comparticion__formulario .campo {
+  min-width: 14rem;
+}
+
+.comparticion__subtitulo {
+  flex-basis: 100%;
+  font-size: var(--texto-m);
+}
+
+.comparticion__exito {
+  padding: var(--espacio-2) var(--espacio-3);
+  font-size: var(--texto-s);
+  color: var(--color-exito);
+  background: var(--color-exito-tenue);
+  border-radius: var(--radio-s);
+}

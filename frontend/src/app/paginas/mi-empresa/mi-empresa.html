@@ -18,6 +18,10 @@
       <h2 id="titulo-empresa" class="tarjeta__titulo">{{ datos.nombre }}</h2>
       <dl class="lista-datos">
         <div>
+          <dt>Identificador</dt>
+          <dd>{{ datos.id }}</dd>
+        </div>
+        <div>
           <dt>NIT</dt>
           <dd>{{ datos.nit }}</dd>
         </div>
@@ -30,6 +34,10 @@
           <dd>{{ datos.administradorUsername ?? 'Sin administrador activo' }}</dd>
         </div>
       </dl>
+      <p class="nota">
+        Comparte el identificador con otra empresa para que pueda compartirte procesos en solo lectura o
+        representarte como participante en sus diagramas.
+      </p>
     </article>
   }
 

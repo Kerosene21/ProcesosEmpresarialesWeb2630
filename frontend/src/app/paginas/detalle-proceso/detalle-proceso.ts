@@ -15,6 +15,8 @@ import { ROLES_ESCRITURA } from '../../core/modelos/sesion';
 import { conEstadoCarga } from '../../core/rxjs/con-estado-carga';
 import { ProcesoService } from '../../core/servicios/proceso-service';
 import { SesionService } from '../../core/servicios/sesion-service';
+import { PanelComparticion } from '../../configuracion-proceso/panel-comparticion/panel-comparticion';
+import { PanelPermisos } from '../../configuracion-proceso/panel-permisos/panel-permisos';
 import { Modelador } from '../../modelador/modelador/modelador';
 
 interface Metrica {
@@ -35,7 +37,7 @@ const IDENTIFICADOR_NO_VALIDO: EstadoCarga<never> = {
 
 @Component({
   selector: 'app-detalle-proceso',
-  imports: [RouterLink, Aviso, DialogoConfirmacion, EtiquetaEstado, Modelador],
+  imports: [RouterLink, Aviso, DialogoConfirmacion, EtiquetaEstado, Modelador, PanelComparticion, PanelPermisos],
   templateUrl: './detalle-proceso.html',
   styleUrl: './detalle-proceso.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

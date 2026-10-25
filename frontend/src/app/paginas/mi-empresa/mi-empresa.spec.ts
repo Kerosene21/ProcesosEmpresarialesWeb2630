@@ -53,6 +53,17 @@ describe('MiEmpresa', () => {
     expect(elemento.textContent).toContain('Editor');
   });
 
+  it('muestra el identificador que otra empresa necesita para compartirle procesos', async () => {
+    await crear(of(EMPRESA));
+    const datos = Array.from(elemento.querySelectorAll('.lista-datos div')).map((fila) => [
+      fila.querySelector('dt')?.textContent,
+      fila.querySelector('dd')?.textContent,
+    ]);
+
+    expect(datos[0]).toEqual(['Identificador', '10']);
+    expect(elemento.textContent).toContain('Comparte el identificador con otra empresa');
+  });
+
   it('informa el error y permite reintentar la consulta', async () => {
     await crear(
       throwError(() => ({ tipo: 'servidor', estado: 500, codigo: null, titulo: 'El servidor no pudo atender la solicitud', detalle: null })),

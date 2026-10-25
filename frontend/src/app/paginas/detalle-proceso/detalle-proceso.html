@@ -39,6 +39,13 @@
       </div>
     </header>
 
+    @if (datos.soloLectura) {
+      <app-aviso
+        titulo="Proceso compartido en solo lectura"
+        [detalle]="'Pertenece a «' + datos.empresaPropietariaNombre + '». Puedes consultar su información y su diagrama, pero no modificarlo, compartirlo ni consultar su historial.'"
+      />
+    }
+
     @if (eliminacionConfirmada() && datos.eliminado) {
       <app-aviso
         titulo="El proceso se eliminó"
@@ -83,6 +90,15 @@
         </div>
       </dl>
     </article>
+
+    @if (!datos.soloLectura) {
+      <article class="tarjeta">
+        <app-panel-comparticion [proceso]="datos" />
+      </article>
+      <article class="tarjeta">
+        <app-panel-permisos [proceso]="datos" />
+      </article>
+    }
 
     <article class="tarjeta diagrama" aria-labelledby="titulo-diagrama">
       <div class="diagrama__encabezado">
