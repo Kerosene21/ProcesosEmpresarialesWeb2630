@@ -58,4 +58,12 @@ describe('GatewayService', () => {
       { tipo: 'conflicto', codigo: 'POOL_CAJA_NEGRA' },
     ]);
   });
+
+  it('mueve el gateway sin cambiar su pool', () => {
+    servicio.mover(5, 4, { posicionX: 560, posicionY: 90 }).subscribe();
+
+    const peticion = http.expectOne(`${ruta}/4/posicion`);
+    expect(peticion.request.method).toBe('PUT');
+    expect(peticion.request.body).toEqual({ posicionX: 560, posicionY: 90 });
+  });
 });

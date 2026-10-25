@@ -33,6 +33,7 @@ import co.edu.javeriana.procesosempresariales.domain.TipoGateway;
 import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
@@ -283,5 +284,39 @@ class GatewayRestControllerTest {
                 .content(JSON_CREACION))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.codigo").value("POOL_CAJA_NEGRA"));
+    }
+
+    @Test
+    void moverDevuelveElGatewayEnSuNuevaPosicion() throws Exception {
+        GatewayRespuestaDto movido = gateway(TipoGateway.EXCLUSIVO);
+        movido.setPosicionX(420);
+        when(gatewayService.mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString())).thenReturn(movido);
+
+        mockMvc.perform(put(RUTA_GATEWAY + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":420,\"posicionY\":120}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.posicionX").value(420));
+
+        verify(gatewayService).mover(eq(5L), eq(12L), any(MoverNodoDto.class), eq(USERNAME));
+    }
+
+    @Test
+    void moverRechazaUnaPosicionFueraDelLienzo() throws Exception {
+        mockMvc.perform(put(RUTA_GATEWAY + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":50001,\"posicionY\":120}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos.posicionX").value("La posición X no puede superar 50000"));
+
+        verify(gatewayService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
+    }
+
+    @Test
+    void moverUnGatewayDeUnProcesoEliminadoDevuelveCuatrocientosCuatro() throws Exception {
+        when(gatewayService.mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString()))
+                .thenThrow(new RecursoNoEncontradoException("El proceso ya fue eliminado"));
+
+        mockMvc.perform(put(RUTA_GATEWAY + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":420,\"posicionY\":120}"))
+                .andExpect(status().isNotFound());
     }
 }

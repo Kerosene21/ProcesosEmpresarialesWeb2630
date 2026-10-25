@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarActividadDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverActividadDto;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
 
 @RestController
@@ -70,14 +71,28 @@ public class ActividadRestController {
     }
 
     @PutMapping("/{actividadId}")
-    @Operation(summary = "Editar actividad", description = "Cambia nombre, tipo y lane. Requiere rol ADMINISTRADOR "
-            + "o EDITOR de la empresa propietaria.")
+    @Operation(summary = "Editar actividad", description = "Cambia nombre, tipo y lane. Con `posicionX` y "
+            + "`posicionY` recoloca además la actividad en la misma operación, para que quede dentro de su nueva lane. "
+            + "Requiere rol ADMINISTRADOR o EDITOR de la empresa propietaria.")
     @ApiResponse(responseCode = "200", description = "Actividad actualizada.")
     @ApiResponse(responseCode = "409", description = NOMBRE_DUPLICADO)
     public ResponseEntity<ActividadRespuestaDto> editar(@PathVariable("procesoId") Long procesoId,
             @PathVariable("actividadId") Long actividadId, @Valid @RequestBody EditarActividadDto dto,
             Principal principal) {
         return ResponseEntity.ok(actividadService.editar(procesoId, actividadId, dto, principal.getName()));
+    }
+
+    @PutMapping("/{actividadId}/posicion")
+    @Operation(summary = "Mover actividad", description = "Guarda juntas la nueva posición y la lane de la actividad. "
+            + "No pasa a una lane de otro pool mientras tenga arcos conectados (`SECUENCIA_ENTRE_POOLS`). Requiere rol "
+            + "ADMINISTRADOR o EDITOR de la empresa propietaria.")
+    @ApiResponse(responseCode = "200", description = "Actividad movida.")
+    @ApiResponse(responseCode = "400", description = "Posición fuera de rango (`DATOS_NO_VALIDOS`) o lane ajena al "
+            + "proceso (`LANE_NO_VALIDA`).")
+    public ResponseEntity<ActividadRespuestaDto> mover(@PathVariable("procesoId") Long procesoId,
+            @PathVariable("actividadId") Long actividadId, @Valid @RequestBody MoverActividadDto dto,
+            Principal principal) {
+        return ResponseEntity.ok(actividadService.mover(procesoId, actividadId, dto, principal.getName()));
     }
 
     @DeleteMapping("/{actividadId}")

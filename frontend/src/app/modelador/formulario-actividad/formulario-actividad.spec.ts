@@ -133,19 +133,59 @@ describe('FormularioActividad', () => {
     expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('Solo un administrador o editor');
   });
 
-  it('edita nombre, tipo y lane sin enviar coordenadas y explica que la posición se conserva', async () => {
+  it('al cambiar de lane envía en la misma petición la posición dentro de la nueva lane', async () => {
     const original = diagramaCompleto().actividades[0];
     await crear(original, null);
-    editarApi.mockReturnValue(of({ ...original, laneId: 12, laneNombre: 'Supervisor' }));
+    editarApi.mockReturnValue(of({ ...original, laneId: 12, laneNombre: 'Supervisor', posicionY: 200 }));
 
     expect(control<HTMLInputElement>('nombre').value).toBe('Registrar solicitud');
     expect(control('posicionX')).toBeNull();
     expect(elemento.textContent).toContain('Posición: x 160, y 60');
+    expect(elemento.textContent).toContain('arrastra la actividad en el lienzo');
+    await elegir('laneId', 'Supervisor');
+
+    expect(elemento.textContent).toContain('Posición: x 160, y 200');
+    expect(elemento.textContent).toContain('se recolocará dentro de la nueva lane');
+    await enviar();
+
+    expect(editarApi).toHaveBeenCalledWith(5, 1, {
+      nombre: 'Registrar solicitud',
+      tipo: 'TAREA_USUARIO',
+      laneId: 12,
+      posicionX: 160,
+      posicionY: 200,
+    });
+    expect(guardadas[0].laneId).toBe(12);
+  });
+
+  it('al volver a la lane original o editar solo el nombre conserva la posición sin enviarla', async () => {
+    const original = diagramaCompleto().actividades[2];
+    await crear(original, null);
+    editarApi.mockReturnValue(of(original));
+
+    await elegir('laneId', 'General');
+    expect(elemento.textContent).toContain('Posición: x 620, y 60');
+    await elegir('laneId', 'Supervisor');
+    expect(elemento.textContent).toContain('Posición: x 620, y 200');
+    await escribir('nombre', 'Aprobar solicitud urgente');
+    await enviar();
+
+    expect(editarApi).toHaveBeenCalledWith(5, 3, { nombre: 'Aprobar solicitud urgente', tipo: 'TAREA_USUARIO', laneId: 12 });
+  });
+
+  it('muestra junto a la lane el rechazo de pasar a otro pool con arcos conectados', async () => {
+    const original = diagramaCompleto().actividades[0];
+    await crear(original, null);
+    editarApi.mockReturnValue(
+      throwError(() =>
+        fallo('datos-no-validos', 400, 'SECUENCIA_ENTRE_POOLS', "'Registrar solicitud' tiene 2 arcos conectados"),
+      ),
+    );
+
     await elegir('laneId', 'Supervisor');
     await enviar();
 
-    expect(editarApi).toHaveBeenCalledWith(5, 1, { nombre: 'Registrar solicitud', tipo: 'TAREA_USUARIO', laneId: 12 });
-    expect(guardadas[0].laneId).toBe(12);
+    expect(elemento.querySelector('[id$="-error-lane"]')?.textContent).toContain('tiene 2 arcos conectados');
   });
 
   it('cancela sin llamar a la API', async () => {

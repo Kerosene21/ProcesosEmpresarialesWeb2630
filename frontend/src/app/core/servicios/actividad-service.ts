@@ -5,6 +5,7 @@ import { Observable, catchError } from 'rxjs';
 import { lanzarFallo } from '../http/traducir-fallo';
 import { CrearActividad, EditarActividad } from '../modelos/actividad';
 import { ActividadRespuesta } from '../modelos/diagrama';
+import { MoverActividad } from '../modelos/movimiento';
 
 @Injectable({
   providedIn: 'root',
@@ -19,6 +20,12 @@ export class ActividadService {
   editar(procesoId: number, actividadId: number, datos: EditarActividad): Observable<ActividadRespuesta> {
     return this.http
       .put<ActividadRespuesta>(`${this.ruta(procesoId)}/${actividadId}`, datos)
+      .pipe(catchError(lanzarFallo));
+  }
+
+  mover(procesoId: number, actividadId: number, datos: MoverActividad): Observable<ActividadRespuesta> {
+    return this.http
+      .put<ActividadRespuesta>(`${this.ruta(procesoId)}/${actividadId}/posicion`, datos)
       .pipe(catchError(lanzarFallo));
   }
 

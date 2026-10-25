@@ -17,6 +17,7 @@ import co.edu.javeriana.procesosempresariales.domain.VarianteMessageCatch;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageCatchRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CorrelacionNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -136,6 +137,16 @@ public class MessageCatchService {
         messageCatch.setComportamientoSinCaso(comportamiento);
         messageCatchRepository.save(messageCatch);
         eventoService.registrarEdicion(proceso, usuario, messageCatch, nombreAnterior, cambios);
+        return conCorrelacion(messageCatch);
+    }
+
+    @Transactional
+    public MessageCatchRespuestaDto mover(Long procesoId, Long catchId, MoverNodoDto dto, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        MessageCatch messageCatch = catchActivoDelProceso(catchId, proceso);
+        eventoService.mover(proceso, usuario, messageCatch, dto);
         return conCorrelacion(messageCatch);
     }
 

@@ -33,6 +33,7 @@ import co.edu.javeriana.procesosempresariales.domain.ComportamientoSinCaso;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageThrowDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageThrowDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageThrowRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.MensajeEntreMismoPoolException;
 import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
@@ -211,5 +212,29 @@ class MessageThrowRestControllerTest {
         mockMvc.perform(delete(RUTA_THROW).principal(PRINCIPAL))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.codigo").value("RECURSO_NO_ENCONTRADO"));
+    }
+
+    @Test
+    void moverCambiaSoloLaPosicionDelEvento() throws Exception {
+        when(messageThrowService.mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString()))
+                .thenReturn(messageThrow());
+
+        mockMvc.perform(put(RUTA_THROW + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":520,\"posicionY\":90}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<MoverNodoDto> capturado = ArgumentCaptor.forClass(MoverNodoDto.class);
+        verify(messageThrowService).mover(eq(5L), eq(40L), capturado.capture(), eq(USERNAME));
+        assertThat(capturado.getValue().getPosicionX()).isEqualTo(520);
+    }
+
+    @Test
+    void moverRechazaCoordenadasAusentes() throws Exception {
+        mockMvc.perform(put(RUTA_THROW + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("DATOS_NO_VALIDOS"));
+
+        verify(messageThrowService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
     }
 }

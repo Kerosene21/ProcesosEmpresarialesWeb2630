@@ -34,6 +34,7 @@ import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.LaneRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverActividadDto;
 import co.edu.javeriana.procesosempresariales.service.ActividadService;
 
 @WebMvcTest(controllers = { ActividadController.class, ActividadRestController.class,
@@ -351,5 +352,40 @@ class SeguridadActividadesTest {
                 .andExpect(status().isCreated());
 
         verify(actividadService).crear(eq(5L), any(CrearActividadDto.class), eq(USERNAME));
+    }
+
+    @Test
+    void laApiDeMovimientoDeActividadesResponde401EnJsonSinAutenticacion() throws Exception {
+        mockMvc.perform(put(RUTA_API_ACTIVIDAD + "/posicion").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"laneId\":12,\"posicionX\":120,\"posicionY\":180}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.codigo").value("USUARIO_NO_AUTORIZADO"));
+
+        verify(actividadService, never()).mover(anyLong(), anyLong(), any(MoverActividadDto.class), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "EDITOR")
+    void laApiDeMovimientoSinTokenCsrfSeRechaza() throws Exception {
+        mockMvc.perform(put(RUTA_API_ACTIVIDAD + "/posicion")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"laneId\":12,\"posicionX\":120,\"posicionY\":180}"))
+                .andExpect(status().isForbidden());
+
+        verify(actividadService, never()).mover(anyLong(), anyLong(), any(MoverActividadDto.class), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "EDITOR")
+    void unEditorMueveUnaActividadPorLaApi() throws Exception {
+        when(actividadService.mover(eq(5L), eq(30L), any(MoverActividadDto.class), eq(USERNAME)))
+                .thenReturn(actividad());
+
+        mockMvc.perform(put(RUTA_API_ACTIVIDAD + "/posicion").with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"laneId\":11,\"posicionX\":120,\"posicionY\":40}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(30));
     }
 }

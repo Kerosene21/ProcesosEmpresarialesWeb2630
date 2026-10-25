@@ -44,6 +44,8 @@ public class SecurityConfig {
             "/api/procesos/*/message-catches", "/api/procesos/*/envios-externos" };
     private static final String[] RUTAS_API_EVENTO = { "/api/procesos/*/message-throws/*",
             "/api/procesos/*/message-catches/*", "/api/procesos/*/envios-externos/*" };
+    private static final String[] RUTAS_API_POSICION_EVENTO = { "/api/procesos/*/message-throws/*/posicion",
+            "/api/procesos/*/message-catches/*/posicion", "/api/procesos/*/envios-externos/*/posicion" };
     private static final String[] RUTAS_API_ELIMINACION_EVENTO = { "/api/procesos/*/message-throws/*/eliminacion",
             "/api/procesos/*/message-catches/*/eliminacion", "/api/procesos/*/envios-externos/*/eliminacion" };
     private static final String RUTA_API_SESION = "/api/sesion";
@@ -127,6 +129,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.DELETE, RUTAS_API_EVENTO).hasRole(ROL_ADMINISTRADOR)
                         .requestMatchers(HttpMethod.POST, RUTAS_API_EVENTOS).hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
                         .requestMatchers(HttpMethod.PUT, RUTAS_API_EVENTO).hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .requestMatchers(HttpMethod.PUT, RUTAS_API_POSICION_EVENTO)
+                        .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
                         .anyRequest().authenticated())
                 .formLogin(login -> login
                         .loginPage(RUTA_LOGIN)

@@ -11,6 +11,14 @@
   border-radius: var(--radio-s);
 }
 
+.modelador__error {
+  padding: var(--espacio-2) var(--espacio-3);
+  font-size: var(--texto-s);
+  color: var(--color-peligro);
+  background: var(--color-peligro-tenue);
+  border-radius: var(--radio-s);
+}
+
 .modelador__cuerpo {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 19rem;

@@ -64,8 +64,12 @@
   @if (edicion()) {
     <p class="nota">
       Posición: x {{ formulario.controls.posicionX.value }}, y
-      {{ formulario.controls.posicionY.value }}. La API actual no permite cambiarla al editar; la
-      actividad la conserva aunque cambie de lane.
+      {{ formulario.controls.posicionY.value }}.
+      {{
+        cambiaDeLane()
+          ? 'Al guardar, la actividad se recolocará dentro de la nueva lane en la misma operación.'
+          : 'Para cambiarla, arrastra la actividad en el lienzo.'
+      }}
     </p>
   } @else {
     <fieldset class="formulario__posicion">

@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 
 import { PROCESO_PRUEBA, actividad, diagramaCompleto, diagramaInicial } from '../../../testing/diagramas';
 import { DiagramaProceso } from '../../core/modelos/diagrama';
@@ -9,6 +9,7 @@ import { EnvioExternoService } from '../../core/servicios/envio-externo-service'
 import { GatewayService } from '../../core/servicios/gateway-service';
 import { MessageCatchService } from '../../core/servicios/message-catch-service';
 import { MessageThrowService } from '../../core/servicios/message-throw-service';
+import { Punto } from '../geometria';
 import { Modelador, PermisosEdicion } from './modelador';
 
 describe('Modelador', () => {
@@ -19,11 +20,17 @@ describe('Modelador', () => {
   const previsualizarGateway = vi.fn();
   const crearThrow = vi.fn();
   const previsualizarCatch = vi.fn();
+  const moverActividad = vi.fn();
+  const moverGateway = vi.fn();
+  const moverCatch = vi.fn();
 
   async function crear(diagrama: DiagramaProceso, edicion: PermisosEdicion | null = null): Promise<void> {
     crearActividad.mockReset();
     previsualizarGateway.mockReset().mockReturnValue(of({ ...diagramaCompleto().gateways[0], advertencias: [] }));
     crearThrow.mockReset();
+    moverActividad.mockReset();
+    moverGateway.mockReset();
+    moverCatch.mockReset();
     previsualizarCatch.mockReset().mockReturnValue(
       of({
         ...diagramaCompleto().messageCatches[0],
@@ -32,11 +39,11 @@ describe('Modelador', () => {
     );
     TestBed.configureTestingModule({
       providers: [
-        { provide: ActividadService, useValue: { crear: crearActividad } },
-        { provide: GatewayService, useValue: { previsualizarEliminacion: previsualizarGateway } },
+        { provide: ActividadService, useValue: { crear: crearActividad, mover: moverActividad } },
+        { provide: GatewayService, useValue: { previsualizarEliminacion: previsualizarGateway, mover: moverGateway } },
         { provide: ArcoService, useValue: {} },
         { provide: MessageThrowService, useValue: { crear: crearThrow } },
-        { provide: MessageCatchService, useValue: { previsualizarEliminacion: previsualizarCatch } },
+        { provide: MessageCatchService, useValue: { previsualizarEliminacion: previsualizarCatch, mover: moverCatch } },
         { provide: EnvioExternoService, useValue: {} },
       ],
     });
@@ -371,5 +378,110 @@ describe('Modelador', () => {
     await fixture.whenStable();
     expect(elemento.querySelector('[role="alertdialog"]')).toBeNull();
     expect(cambios).toBe(0);
+  });
+
+  describe('movimiento de nodos en el lienzo', () => {
+    const ESCRITURA: PermisosEdicion = { escribir: true, eliminar: true };
+
+    async function arrastrar(clave: string, desde: Punto, ...recorrido: Punto[]): Promise<void> {
+      const svg = elemento.querySelector('svg')!;
+      const nodo = elemento.querySelector(`[data-nodo="${clave}"]`)!;
+      const puntero = (tipo: string, destino: Element, punto: Punto) =>
+        destino.dispatchEvent(
+          new PointerEvent(tipo, { bubbles: true, button: 0, pointerId: 1, clientX: punto.x + 76, clientY: punto.y + 16 }),
+        );
+      puntero('pointerdown', nodo, desde);
+      recorrido.forEach((punto) => puntero('pointermove', svg, punto));
+      puntero('pointerup', svg, recorrido.at(-1) ?? desde);
+      await fixture.whenStable();
+    }
+
+    function aviso(): string {
+      return elemento.querySelector('.modelador__error')?.textContent?.trim() ?? '';
+    }
+
+    it('lleva una actividad a otra lane guardando lane y posición en una sola petición', async () => {
+      await crear(diagramaCompleto(), ESCRITURA);
+      moverActividad.mockReturnValue(of(actividad(2, 'Evaluar solicitud', 12, 360, 180)));
+
+      await arrastrar('ACTIVIDAD:2', { x: 405, y: 83 }, { x: 425, y: 203 });
+
+      expect(moverActividad).toHaveBeenCalledTimes(1);
+      expect(moverActividad).toHaveBeenCalledWith(5, 2, { laneId: 12, posicionX: 360, posicionY: 180 });
+      expect(cambios).toBe(1);
+      expect(elemento.querySelector('.modelador__exito')?.textContent).toContain(
+        'Se guardó la nueva posición de «Evaluar solicitud» en la lane «Supervisor».',
+      );
+      expect(elemento.querySelector('[data-nodo="ACTIVIDAD:2"]')?.getAttribute('transform')).toBe('translate(20 120)');
+      expect(elemento.querySelector('[data-nodo="ACTIVIDAD:2"]')?.classList).toContain('nodo--seleccionado');
+
+      const recargado = diagramaCompleto();
+      recargado.actividades[1] = actividad(2, 'Evaluar solicitud', 12, 360, 180);
+      fixture.componentRef.setInput('diagrama', recargado);
+      await fixture.whenStable();
+
+      expect(elemento.querySelector('[data-nodo="ACTIVIDAD:2"]')?.getAttribute('transform')).toBeNull();
+      expect(elemento.querySelector('[data-nodo="ACTIVIDAD:2"] rect')?.getAttribute('y')).toBe('180');
+      expect(elemento.textContent).not.toContain('está por encima de la lane');
+    });
+
+    it('devuelve el nodo a su posición y explica el rechazo del servidor', async () => {
+      await crear(diagramaCompleto(), ESCRITURA);
+      moverGateway.mockReturnValue(
+        throwError(() => ({ tipo: 'sin-permiso', estado: 403, codigo: 'USUARIO_SIN_PERMISO', titulo: 'Sin permiso', detalle: 'Solo un administrador o editor puede crear o modificar gateways' })),
+      );
+
+      await arrastrar('GATEWAY:4', { x: 543, y: 93 }, { x: 583, y: 203 });
+
+      expect(moverGateway).toHaveBeenCalledWith(5, 4, { posicionX: 560, posicionY: 180 });
+      expect(elemento.querySelector('[data-nodo="GATEWAY:4"]')?.getAttribute('transform')).toBeNull();
+      expect(aviso()).toBe(
+        'No se pudo mover «Gateway EXCLUSIVO #4»: Solo un administrador o editor puede crear o modificar gateways. Se mantiene su posición anterior.',
+      );
+      expect(cambios).toBe(0);
+    });
+
+    it('rechaza sin llamar al servidor soltar en una caja negra o fuera del pool propio', async () => {
+      await crear(diagramaCompleto(), ESCRITURA);
+
+      await arrastrar('GATEWAY:4', { x: 543, y: 93 }, { x: 543, y: 540 });
+      expect(aviso()).toBe('El pool «Servicio de correo» es una caja negra y no admite elementos.');
+
+      await arrastrar('GATEWAY:4', { x: 543, y: 93 }, { x: 543, y: 390 });
+      expect(aviso()).toBe('«Gateway EXCLUSIVO #4» conserva su pool al moverlo: suéltalo dentro de «Empresa de prueba».');
+
+      await arrastrar('ACTIVIDAD:1', { x: 225, y: 83 }, { x: 225, y: 900 });
+      expect(aviso()).toBe('Suelta «Registrar solicitud» dentro de un pool del diagrama.');
+      expect(moverGateway).not.toHaveBeenCalled();
+      expect(moverActividad).not.toHaveBeenCalled();
+      expect(elemento.querySelector('[data-nodo="GATEWAY:4"]')?.getAttribute('transform')).toBeNull();
+    });
+
+    it('mueve un Message Catch dentro de su pool con su propio endpoint', async () => {
+      await crear(diagramaCompleto(), ESCRITURA);
+      moverCatch.mockReturnValue(of({ ...diagramaCompleto().messageCatches[0], posicionY: 180 }));
+
+      await arrastrar('MESSAGE_CATCH:5', { x: 78, y: 88 }, { x: 78, y: 198 });
+
+      expect(moverCatch).toHaveBeenCalledWith(5, 5, { posicionX: 60, posicionY: 180 });
+      expect(cambios).toBe(1);
+    });
+
+    it('no mueve nodos sin permiso de escritura, con otra herramienta ni si se suelta en el mismo sitio', async () => {
+      await crear(diagramaCompleto());
+      await arrastrar('ACTIVIDAD:2', { x: 405, y: 83 }, { x: 425, y: 203 });
+      expect(elemento.querySelector('.lienzo--movible')).toBeNull();
+
+      TestBed.resetTestingModule();
+      await crear(diagramaCompleto(), ESCRITURA);
+      await pulsar(boton('Arco')!);
+      await arrastrar('ACTIVIDAD:2', { x: 405, y: 83 }, { x: 425, y: 203 });
+      await pulsar(boton('Seleccionar')!);
+      await arrastrar('ACTIVIDAD:2', { x: 405, y: 83 }, { x: 407, y: 84 });
+      await arrastrar('ACTIVIDAD:2', { x: 405, y: 83 }, { x: 425, y: 103 }, { x: 405, y: 83 });
+
+      expect(moverActividad).not.toHaveBeenCalled();
+      expect(cambios).toBe(0);
+    });
   });
 });

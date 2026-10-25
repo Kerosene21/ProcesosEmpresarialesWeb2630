@@ -3,6 +3,7 @@ package co.edu.javeriana.procesosempresariales.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import co.edu.javeriana.procesosempresariales.domain.Pool;
 import co.edu.javeriana.procesosempresariales.domain.Proceso;
 import co.edu.javeriana.procesosempresariales.domain.TipoNodoFlujo;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.MensajeEntreMismoPoolException;
 import co.edu.javeriana.procesosempresariales.repository.EventoRepository;
 
@@ -57,6 +59,19 @@ public class EventoService {
             List<String> cambios) {
         historialProcesoService.registrar(proceso, usuario, prefijo(evento) + " '" + nombreAnterior + "': "
                 + String.join("; ", cambios));
+    }
+
+    @Transactional
+    public void mover(Proceso proceso, Usuario usuario, Evento evento, MoverNodoDto dto) {
+        Optional<String> cambio = HistorialProcesoService.cambioDePosicion(evento.getPosicionX(),
+                evento.getPosicionY(), dto.getPosicionX(), dto.getPosicionY());
+        if (cambio.isEmpty()) {
+            return;
+        }
+        evento.setPosicionX(dto.getPosicionX());
+        evento.setPosicionY(dto.getPosicionY());
+        eventoRepository.save(evento);
+        registrarEdicion(proceso, usuario, evento, evento.getNombreMensaje(), List.of(cambio.get()));
     }
 
     @Transactional(readOnly = true)

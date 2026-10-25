@@ -33,7 +33,9 @@ import co.edu.javeriana.procesosempresariales.domain.TipoActividad;
 import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarActividadDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverActividadDto;
 import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -300,5 +302,87 @@ class ActividadRestControllerTest {
 
         mockMvc.perform(get(RUTA_ACTIVIDADES).principal(PRINCIPAL))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void moverEntregaAlServicioLaLaneYLaPosicionEnUnaSolaPeticion() throws Exception {
+        ActividadRespuestaDto movida = actividadCreada();
+        movida.setLaneId(12L);
+        movida.setPosicionY(180);
+        when(actividadService.mover(anyLong(), anyLong(), any(MoverActividadDto.class), anyString()))
+                .thenReturn(movida);
+
+        mockMvc.perform(put(RUTA_ACTIVIDAD + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"laneId\":12,\"posicionX\":120,\"posicionY\":180}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.laneId").value(12))
+                .andExpect(jsonPath("$.posicionY").value(180));
+
+        ArgumentCaptor<MoverActividadDto> capturado = ArgumentCaptor.forClass(MoverActividadDto.class);
+        verify(actividadService).mover(eq(5L), eq(30L), capturado.capture(), eq(USERNAME));
+        assertThat(capturado.getValue().getLaneId()).isEqualTo(12L);
+        assertThat(capturado.getValue().getPosicionX()).isEqualTo(120);
+    }
+
+    @Test
+    void moverRechazaCoordenadasInvalidasSinLlamarAlServicio() throws Exception {
+        mockMvc.perform(put(RUTA_ACTIVIDAD + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"laneId\":12,\"posicionX\":-10}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("DATOS_NO_VALIDOS"))
+                .andExpect(jsonPath("$.campos.posicionX").value("La posición X no puede ser negativa"))
+                .andExpect(jsonPath("$.campos.posicionY").value("La posición Y es obligatoria"));
+
+        verify(actividadService, never()).mover(anyLong(), anyLong(), any(MoverActividadDto.class), anyString());
+    }
+
+    @Test
+    void moverAOtroPoolConArcosDevuelveCuatrocientosConSuCodigo() throws Exception {
+        when(actividadService.mover(anyLong(), anyLong(), any(MoverActividadDto.class), anyString()))
+                .thenThrow(new FlujoEntrePoolsException("'Revisar solicitud' tiene 1 arco conectado"));
+
+        mockMvc.perform(put(RUTA_ACTIVIDAD + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"laneId\":20,\"posicionX\":120,\"posicionY\":400}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("SECUENCIA_ENTRE_POOLS"));
+    }
+
+    @Test
+    void moverSinPermisoDevuelveCuatrocientosTres() throws Exception {
+        when(actividadService.mover(anyLong(), anyLong(), any(MoverActividadDto.class), anyString()))
+                .thenThrow(new UsuarioSinPermisoException("Solo un administrador o editor puede crear o modificar "
+                        + "actividades"));
+
+        mockMvc.perform(put(RUTA_ACTIVIDAD + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"laneId\":11,\"posicionX\":200,\"posicionY\":60}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.codigo").value("USUARIO_SIN_PERMISO"));
+    }
+
+    @Test
+    void editarAceptaLaPosicionJuntoConElCambioDeLane() throws Exception {
+        when(actividadService.editar(anyLong(), anyLong(), any(EditarActividadDto.class), anyString()))
+                .thenReturn(actividadCreada());
+
+        mockMvc.perform(put(RUTA_ACTIVIDAD).principal(PRINCIPAL).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nombre\":\"Revisar solicitud\",\"tipo\":\"TAREA_USUARIO\",\"laneId\":12,"
+                        + "\"posicionX\":120,\"posicionY\":180}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<EditarActividadDto> capturado = ArgumentCaptor.forClass(EditarActividadDto.class);
+        verify(actividadService).editar(eq(5L), eq(30L), capturado.capture(), eq(USERNAME));
+        assertThat(capturado.getValue().cambiaPosicion()).isTrue();
+        assertThat(capturado.getValue().getPosicionY()).isEqualTo(180);
+    }
+
+    @Test
+    void editarRechazaUnaPosicionIncompleta() throws Exception {
+        mockMvc.perform(put(RUTA_ACTIVIDAD).principal(PRINCIPAL).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nombre\":\"Revisar solicitud\",\"tipo\":\"TAREA_USUARIO\",\"laneId\":12,"
+                        + "\"posicionX\":120}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.campos.posicionCompleta").exists());
+
+        verify(actividadService, never()).editar(anyLong(), anyLong(), any(EditarActividadDto.class), anyString());
     }
 }

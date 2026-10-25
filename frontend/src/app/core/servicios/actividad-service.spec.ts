@@ -60,4 +60,23 @@ describe('ActividadService', () => {
       { tipo: 'sin-permiso', detalle: 'Solo un administrador puede eliminar actividades' },
     ]);
   });
+
+  it('mueve la actividad enviando juntas la lane y la posición', () => {
+    servicio.mover(5, 2, { laneId: 12, posicionX: 340, posicionY: 200 }).subscribe();
+
+    const peticion = http.expectOne(`${ruta}/2/posicion`);
+    expect(peticion.request.method).toBe('PUT');
+    expect(peticion.request.body).toEqual({ laneId: 12, posicionX: 340, posicionY: 200 });
+  });
+
+  it('traduce el rechazo de pasar a una lane de otro pool con arcos', () => {
+    let fallo: FalloHttp | undefined;
+
+    servicio.mover(5, 2, { laneId: 40, posicionX: 340, posicionY: 600 }).subscribe({ error: (actual) => (fallo = actual) });
+    http
+      .expectOne(`${ruta}/2/posicion`)
+      .flush({ codigo: 'SECUENCIA_ENTRE_POOLS', mensaje: "'Evaluar solicitud' tiene 2 arcos conectados" }, { status: 400, statusText: 'Bad Request' });
+
+    expect(fallo).toMatchObject({ tipo: 'datos-no-validos', codigo: 'SECUENCIA_ENTRE_POOLS' });
+  });
 });

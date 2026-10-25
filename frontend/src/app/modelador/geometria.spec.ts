@@ -9,12 +9,16 @@ import {
   calcularGeometria,
   centro,
   colocarEnBanda,
+  desplazarNodo,
   existeElemento,
   llegada,
   posicionLibre,
   puntosRombo,
   recortar,
+  reubicarEnLane,
+  sinElemento,
   ubicacionEn,
+  ubicarMovimiento,
 } from './geometria';
 
 describe('geometría del diagrama', () => {
@@ -160,5 +164,141 @@ describe('geometría del diagrama', () => {
     expect(posicionLibre(calcularGeometria(diagramaInicial()), 'ACTIVIDAD', calcularGeometria(diagramaInicial()).pools[0].lanes[0])).toEqual({ x: 20, y: 47 });
     expect(bandaDeLane(geometria, 99)).toBeNull();
     expect(bandaDePool(geometria, 99)).toBeNull();
+  });
+
+  describe('cambio de lane y movimiento de nodos', () => {
+    function conActividad(id: number, laneId: number, posicionX: number, posicionY: number) {
+      const diagrama = diagramaCompleto();
+      diagrama.actividades = diagrama.actividades.map((actual) =>
+        actual.id === id ? { ...actual, laneId, posicionX, posicionY } : actual,
+      );
+      return diagrama;
+    }
+
+    it('al bajar de General a Supervisor recoloca la actividad dentro de la nueva lane', () => {
+      const diagrama = diagramaCompleto();
+      const geometria = calcularGeometria(diagrama);
+
+      const posicion = reubicarEnLane(diagrama, geometria, { tipo: 'ACTIVIDAD', id: 2 }, 12);
+
+      expect(posicion).toEqual({ x: 340, y: 200 });
+      expect(calcularGeometria(conActividad(2, 12, 340, 60)).advertencias).toContain(
+        '«Evaluar solicitud» está por encima de la lane «Supervisor» a la que pertenece',
+      );
+      expect(calcularGeometria(conActividad(2, 12, posicion!.x, posicion!.y)).advertencias).toEqual([]);
+    });
+
+    it('al subir de Supervisor a General no agranda General ni desplaza la lane inferior', () => {
+      const diagrama = diagramaCompleto();
+      const geometria = calcularGeometria(diagrama);
+
+      const posicion = reubicarEnLane(diagrama, geometria, { tipo: 'ACTIVIDAD', id: 3 }, 11);
+      const resultado = calcularGeometria(conActividad(3, 11, posicion!.x, posicion!.y));
+
+      expect(posicion).toEqual({ x: 620, y: 60 });
+      expect(resultado.pools[0].lanes.map(({ y, alto }) => ({ y, alto }))).toEqual([
+        { y: 0, alto: 140 },
+        { y: 140, alto: 140 },
+      ]);
+      expect(resultado.advertencias).toEqual([]);
+    });
+
+    it('evita solapar otra actividad de la lane destino buscando un hueco libre', () => {
+      const diagrama = conActividad(3, 12, 160, 200);
+      const geometria = calcularGeometria(diagrama);
+
+      expect(reubicarEnLane(diagrama, geometria, { tipo: 'ACTIVIDAD', id: 1 }, 12)).toEqual({ x: 330, y: 187 });
+      expect(reubicarEnLane(diagrama, geometria, { tipo: 'ACTIVIDAD', id: 1 }, 99)).toBeNull();
+    });
+
+    it('quita del diagrama solo el elemento indicado', () => {
+      const diagrama = diagramaCompleto();
+
+      expect(sinElemento(diagrama, { tipo: 'ACTIVIDAD', id: 2 }).actividades.map((actual) => actual.id)).toEqual([1, 3]);
+      expect(sinElemento(diagrama, { tipo: 'MESSAGE_CATCH', id: 5 }).messageCatches).toEqual([]);
+      expect(sinElemento(diagrama, { tipo: 'MESSAGE_CATCH', id: 5 }).actividades).toHaveLength(3);
+    });
+
+    it('al soltar dentro de la misma lane conserva el punto elegido', () => {
+      const diagrama = diagramaCompleto();
+
+      expect(ubicarMovimiento(diagrama, calcularGeometria(diagrama), { tipo: 'ACTIVIDAD', id: 2 }, { x: 360, y: 50 })).toMatchObject({
+        pool: { id: 80 },
+        lane: { id: 11 },
+        posicion: { x: 360, y: 50 },
+      });
+    });
+
+    it('al cruzar el límite de una lane asigna la lane de destino y no sale de su banda', () => {
+      const diagrama = diagramaCompleto();
+      const geometria = calcularGeometria(diagrama);
+
+      expect(ubicarMovimiento(diagrama, geometria, { tipo: 'ACTIVIDAD', id: 2 }, { x: 340, y: 190 })).toMatchObject({
+        lane: { id: 12 },
+        posicion: { x: 340, y: 190 },
+      });
+      expect(ubicarMovimiento(diagrama, geometria, { tipo: 'ACTIVIDAD', id: 2 }, { x: 340, y: 240 })?.posicion).toEqual({ x: 340, y: 214 });
+      expect(ubicarMovimiento(diagrama, geometria, { tipo: 'ACTIVIDAD', id: 2 }, { x: -200, y: 60 })).toBeNull();
+      expect(ubicarMovimiento(diagrama, geometria, { tipo: 'ACTIVIDAD', id: 2 }, { x: 340, y: 2000 })).toBeNull();
+    });
+
+    it('calcula la posición con las bandas que quedan cuando la lane de origen se encoge', () => {
+      const diagrama = diagramaCompleto();
+      diagrama.actividades = [
+        actividad(1, 'Registrar solicitud', 11, 340, 180),
+        actividad(3, 'Aprobar solicitud', 12, 620, 300),
+      ];
+      diagrama.gateways = [];
+      diagrama.arcos = [];
+      diagrama.messageThrows = [{ ...diagrama.messageThrows[0], posicionY: 460 }];
+      const geometria = calcularGeometria(diagrama);
+      expect(bandaDeLane(geometria, 12)?.y).toBe(246);
+      expect(geometria.advertencias).toEqual([]);
+
+      const destino = ubicarMovimiento(diagrama, geometria, { tipo: 'ACTIVIDAD', id: 1 }, { x: 340, y: 300 });
+      diagrama.actividades[0] = { ...diagrama.actividades[0], laneId: 12, posicionX: destino!.posicion.x, posicionY: destino!.posicion.y };
+
+      expect(destino).toMatchObject({ lane: { id: 12 }, posicion: { x: 340, y: 194 } });
+      expect(calcularGeometria(diagrama).advertencias).toEqual([]);
+    });
+
+    it('identifica el pool de destino de gateways y eventos, incluida una caja negra', () => {
+      const diagrama = diagramaCompleto();
+      const geometria = calcularGeometria(diagrama);
+
+      expect(ubicarMovimiento(diagrama, geometria, { tipo: 'GATEWAY', id: 4 }, { x: 560, y: 180 })).toMatchObject({
+        pool: { id: 80 },
+        lane: { id: 12 },
+        posicion: { x: 560, y: 180 },
+      });
+      expect(ubicarMovimiento(diagrama, geometria, { tipo: 'GATEWAY', id: 4 }, { x: 300, y: 520 })).toMatchObject({
+        pool: { id: 82, cajaNegra: true },
+        lane: null,
+      });
+      expect(ubicarMovimiento(diagrama, geometria, { tipo: 'MESSAGE_THROW', id: 6 }, { x: 200, y: 390 })).toMatchObject({
+        pool: { id: 81 },
+        lane: null,
+        posicion: { x: 200, y: 390 },
+      });
+    });
+
+    it('al desplazar un nodo recalcula solo los arcos y flujos conectados a él', () => {
+      const geometria = calcularGeometria(diagramaCompleto());
+
+      const movida = desplazarNodo(geometria, { tipo: 'ACTIVIDAD', id: 1 }, { x: 160, y: 100 });
+
+      expect(buscarNodo(movida, { tipo: 'ACTIVIDAD', id: 1 })?.caja).toMatchObject({ x: 160, y: 100 });
+      expect(movida.arcos.find(({ arco }) => arco.id === 32)?.segmento).toEqual({
+        desde: { x: 225, y: 123 },
+        hasta: { x: 340, y: 97 },
+      });
+      expect(movida.arcos.find(({ arco }) => arco.id === 33)).toBe(geometria.arcos.find(({ arco }) => arco.id === 33));
+      expect(movida.pools).toBe(geometria.pools);
+
+      const catchMovido = desplazarNodo(geometria, { tipo: 'MESSAGE_CATCH', id: 5 }, { x: 200, y: 70 });
+      expect(catchMovido.flujos[0].segmento?.hasta).not.toEqual(geometria.flujos[0].segmento?.hasta);
+      expect(catchMovido.flujos[1]).toBe(geometria.flujos[1]);
+      expect(desplazarNodo(geometria, { tipo: 'ACTIVIDAD', id: 99 }, { x: 0, y: 0 })).toBe(geometria);
+    });
   });
 });

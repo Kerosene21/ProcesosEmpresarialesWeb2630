@@ -2,6 +2,7 @@ package co.edu.javeriana.procesosempresariales.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +18,7 @@ import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
@@ -135,6 +137,27 @@ public class GatewayService {
         conexionesService.guardarCambios(modificados);
         historialProcesoService.registrar(proceso, usuario,
                 "gateway #" + gateway.getId() + ": " + String.join("; ", cambios));
+
+        return conAdvertencias(toDto(gateway), proceso, gateway);
+    }
+
+    @Transactional
+    public GatewayRespuestaDto mover(Long procesoId, Long gatewayId, MoverNodoDto dto, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        Gateway gateway = gatewayActivoDelProceso(gatewayId, proceso);
+
+        Optional<String> cambio = HistorialProcesoService.cambioDePosicion(gateway.getPosicionX(),
+                gateway.getPosicionY(), dto.getPosicionX(), dto.getPosicionY());
+        if (cambio.isEmpty()) {
+            return conAdvertencias(toDto(gateway), proceso, gateway);
+        }
+
+        gateway.setPosicionX(dto.getPosicionX());
+        gateway.setPosicionY(dto.getPosicionY());
+        gatewayRepository.save(gateway);
+        historialProcesoService.registrar(proceso, usuario, "gateway #" + gateway.getId() + ": " + cambio.get());
 
         return conAdvertencias(toDto(gateway), proceso, gateway);
     }

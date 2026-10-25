@@ -34,6 +34,7 @@ import co.edu.javeriana.procesosempresariales.domain.TipoDestinoExterno;
 import co.edu.javeriana.procesosempresariales.dto.CrearEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EnvioExternoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.EnvioExternoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
@@ -162,5 +163,29 @@ class EnvioExternoRestControllerTest {
         mockMvc.perform(delete(RUTA_ENVIO).principal(PRINCIPAL)).andExpect(status().isNoContent());
 
         verify(envioExternoService).eliminar(5L, 42L, USERNAME);
+    }
+
+    @Test
+    void moverCambiaSoloLaPosicionDelEvento() throws Exception {
+        when(envioExternoService.mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString()))
+                .thenReturn(envio());
+
+        mockMvc.perform(put(RUTA_ENVIO + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":520,\"posicionY\":90}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<MoverNodoDto> capturado = ArgumentCaptor.forClass(MoverNodoDto.class);
+        verify(envioExternoService).mover(eq(5L), eq(42L), capturado.capture(), eq(USERNAME));
+        assertThat(capturado.getValue().getPosicionX()).isEqualTo(520);
+    }
+
+    @Test
+    void moverRechazaCoordenadasAusentes() throws Exception {
+        mockMvc.perform(put(RUTA_ENVIO + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("DATOS_NO_VALIDOS"));
+
+        verify(envioExternoService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
     }
 }

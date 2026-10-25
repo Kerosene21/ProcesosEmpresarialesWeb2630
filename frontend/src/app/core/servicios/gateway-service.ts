@@ -5,6 +5,7 @@ import { Observable, catchError } from 'rxjs';
 import { lanzarFallo } from '../http/traducir-fallo';
 import { GatewayRespuesta } from '../modelos/diagrama';
 import { CrearGateway, EditarGateway } from '../modelos/gateway';
+import { MoverNodo } from '../modelos/movimiento';
 
 @Injectable({
   providedIn: 'root',
@@ -19,6 +20,12 @@ export class GatewayService {
   editar(procesoId: number, gatewayId: number, datos: EditarGateway): Observable<GatewayRespuesta> {
     return this.http
       .put<GatewayRespuesta>(`${this.ruta(procesoId)}/${gatewayId}`, datos)
+      .pipe(catchError(lanzarFallo));
+  }
+
+  mover(procesoId: number, gatewayId: number, datos: MoverNodo): Observable<GatewayRespuesta> {
+    return this.http
+      .put<GatewayRespuesta>(`${this.ruta(procesoId)}/${gatewayId}/posicion`, datos)
       .pipe(catchError(lanzarFallo));
   }
 

@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.service.GatewayService;
 
 @RestController
@@ -75,6 +76,15 @@ public class GatewayRestController {
             @PathVariable("gatewayId") Long gatewayId, @Valid @RequestBody EditarGatewayDto dto,
             Principal principal) {
         return ResponseEntity.ok(gatewayService.editar(procesoId, gatewayId, dto, principal.getName()));
+    }
+
+    @PutMapping("/{gatewayId}/posicion")
+    @Operation(summary = "Mover gateway", description = "Cambia solo la posición; el gateway sigue en su pool. "
+            + "Requiere rol ADMINISTRADOR o EDITOR de la empresa propietaria.")
+    @ApiResponse(responseCode = "400", description = "Posición fuera de rango (`DATOS_NO_VALIDOS`).")
+    public ResponseEntity<GatewayRespuestaDto> mover(@PathVariable("procesoId") Long procesoId,
+            @PathVariable("gatewayId") Long gatewayId, @Valid @RequestBody MoverNodoDto dto, Principal principal) {
+        return ResponseEntity.ok(gatewayService.mover(procesoId, gatewayId, dto, principal.getName()));
     }
 
     @GetMapping("/{gatewayId}/eliminacion")

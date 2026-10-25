@@ -33,6 +33,7 @@ import co.edu.javeriana.procesosempresariales.domain.VarianteMessageCatch;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageCatchRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CorrelacionNoValidaException;
@@ -164,5 +165,29 @@ class MessageCatchRestControllerTest {
         mockMvc.perform(delete(RUTA_CATCH).principal(PRINCIPAL)).andExpect(status().isNoContent());
 
         verify(messageCatchService).eliminar(5L, 41L, USERNAME);
+    }
+
+    @Test
+    void moverCambiaSoloLaPosicionDelEvento() throws Exception {
+        when(messageCatchService.mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString()))
+                .thenReturn(messageCatch());
+
+        mockMvc.perform(put(RUTA_CATCH + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":520,\"posicionY\":90}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<MoverNodoDto> capturado = ArgumentCaptor.forClass(MoverNodoDto.class);
+        verify(messageCatchService).mover(eq(5L), eq(41L), capturado.capture(), eq(USERNAME));
+        assertThat(capturado.getValue().getPosicionX()).isEqualTo(520);
+    }
+
+    @Test
+    void moverRechazaCoordenadasAusentes() throws Exception {
+        mockMvc.perform(put(RUTA_CATCH + "/posicion").principal(PRINCIPAL)
+                .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.codigo").value("DATOS_NO_VALIDOS"));
+
+        verify(messageCatchService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
     }
 }

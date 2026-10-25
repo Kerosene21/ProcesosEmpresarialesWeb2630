@@ -11,7 +11,16 @@ import { EditarActividad, LONGITUD_MAXIMA_ACTIVIDAD, TIPOS_ACTIVIDAD } from '../
 import { ActividadRespuesta, DiagramaProceso, LaneRespuesta, PoolRespuesta, TipoActividad } from '../../core/modelos/diagrama';
 import { FalloHttp } from '../../core/modelos/fallo-http';
 import { ActividadService } from '../../core/servicios/actividad-service';
-import { GeometriaDiagrama, Punto, bandaDeLane, cajaDeNodo, centro, colocarEnBanda, posicionLibre } from '../geometria';
+import {
+  GeometriaDiagrama,
+  Punto,
+  bandaDeLane,
+  cajaDeNodo,
+  centro,
+  colocarEnBanda,
+  posicionLibre,
+  reubicarEnLane,
+} from '../geometria';
 
 export interface PropuestaActividad {
   laneId: number | null;
@@ -36,6 +45,7 @@ const OBLIGATORIO: Record<Campo, string> = {
 const CAMPOS_POR_CODIGO: Readonly<Record<string, Campo>> = {
   ACTIVIDAD_NOMBRE_DUPLICADO: 'nombre',
   LANE_NO_VALIDA: 'laneId',
+  SECUENCIA_ENTRE_POOLS: 'laneId',
 };
 
 let siguienteFormulario = 0;
@@ -118,6 +128,11 @@ export class FormularioActividad {
     return OBLIGATORIO[campo];
   }
 
+  protected cambiaDeLane(): boolean {
+    const actual = this.actividad();
+    return actual !== null && this.formulario.controls.laneId.value !== actual.laneId;
+  }
+
   protected guardar(): void {
     if (this.guardando()) {
       return;
@@ -150,7 +165,8 @@ export class FormularioActividad {
   private enviar(datos: EditarActividad, posicionX: number | null, posicionY: number | null): Observable<ActividadRespuesta> | null {
     const actual = this.actividad();
     if (actual) {
-      return this.actividades.editar(this.procesoId(), actual.id, datos);
+      const recolocar = datos.laneId !== actual.laneId && posicionX !== null && posicionY !== null;
+      return this.actividades.editar(this.procesoId(), actual.id, recolocar ? { ...datos, posicionX, posicionY } : datos);
     }
     return posicionX === null || posicionY === null
       ? null
@@ -188,16 +204,29 @@ export class FormularioActividad {
   }
 
   private ajustarPosicion(laneId: number | null): void {
+    const actual = this.actividad();
+    const posicion = actual ? this.posicionAlEditar(actual, laneId) : this.posicionAlCrear(laneId);
+    if (posicion) {
+      this.formulario.patchValue({ posicionX: posicion.x, posicionY: posicion.y }, { emitEvent: false });
+    }
+  }
+
+  private posicionAlEditar(actividad: ActividadRespuesta, laneId: number | null): Punto | null {
+    if (laneId === null || laneId === actividad.laneId) {
+      return { x: actividad.posicionX, y: actividad.posicionY };
+    }
+    return reubicarEnLane(this.diagrama(), this.geometria(), { tipo: 'ACTIVIDAD', id: actividad.id }, laneId);
+  }
+
+  private posicionAlCrear(laneId: number | null): Punto | null {
     const geometria = this.geometria();
-    const banda = laneId === null || this.edicion() ? null : bandaDeLane(geometria, laneId);
+    const banda = laneId === null ? null : bandaDeLane(geometria, laneId);
     if (!banda) {
-      return;
+      return null;
     }
     const { posicionX, posicionY } = this.formulario.getRawValue();
-    const posicion =
-      posicionX === null || posicionY === null
-        ? posicionLibre(geometria, 'ACTIVIDAD', banda)
-        : colocarEnBanda('ACTIVIDAD', centro(cajaDeNodo('ACTIVIDAD', posicionX, posicionY)), banda, geometria.inicioContenido);
-    this.formulario.patchValue({ posicionX: posicion.x, posicionY: posicion.y }, { emitEvent: false });
+    return posicionX === null || posicionY === null
+      ? posicionLibre(geometria, 'ACTIVIDAD', banda)
+      : colocarEnBanda('ACTIVIDAD', centro(cajaDeNodo('ACTIVIDAD', posicionX, posicionY)), banda, geometria.inicioContenido);
   }
 }

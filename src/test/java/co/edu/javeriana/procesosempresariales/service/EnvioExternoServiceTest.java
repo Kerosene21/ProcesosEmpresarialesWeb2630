@@ -41,6 +41,7 @@ import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EnvioExternoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.EnvioExternoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.MensajeEntreMismoPoolException;
 import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
@@ -505,5 +506,33 @@ class EnvioExternoServiceTest {
         assertThatThrownBy(() -> envioExternoService.obtener(PROCESO_ID, ENVIO_ID, USERNAME))
                 .isInstanceOf(RecursoNoEncontradoException.class)
                 .hasMessage(EnvioExternoService.ENVIO_NO_EXISTE);
+    }
+
+    @Test
+    void elEditorMueveUnEnvioExternoSinCambiarSuDestino() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        EnvioExterno envio = existeElEnvio(true);
+
+        EnvioExternoRespuestaDto movido = envioExternoService.mover(PROCESO_ID, ENVIO_ID, new MoverNodoDto(760, 90),
+                USERNAME);
+
+        verify(eventoRepository).save(envio);
+        assertThat(movido.getPosicionX()).isEqualTo(760);
+        assertThat(movido.getPoolDestinoId()).isEqualTo(POOL_PASARELA);
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("envío externo '" + NOMBRE + "': posicion: (700, 80) -> (760, 90)");
+    }
+
+    @Test
+    void moverUnEnvioExternoRechazaUnEnvioEliminado() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElEnvio(false);
+
+        assertThatThrownBy(() -> envioExternoService.mover(PROCESO_ID, ENVIO_ID, new MoverNodoDto(760, 90),
+                USERNAME)).isInstanceOf(RecursoNoEncontradoException.class);
+
+        verify(eventoRepository, never()).save(any(Evento.class));
     }
 }

@@ -10,6 +10,8 @@ export interface EditarActividad {
   nombre: string;
   tipo: TipoActividad;
   laneId: number;
+  posicionX?: number;
+  posicionY?: number;
 }
 
 export interface CrearActividad extends EditarActividad {

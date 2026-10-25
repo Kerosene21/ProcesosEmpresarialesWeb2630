@@ -37,6 +37,7 @@ import co.edu.javeriana.procesosempresariales.dto.ArcoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.service.ArcoService;
 import co.edu.javeriana.procesosempresariales.service.GatewayService;
 
@@ -280,5 +281,24 @@ class SeguridadGatewaysTest {
                 .andExpect(content().string(containsString("Condición hacia Aprobar solicitud")))
                 .andExpect(content().string(containsString("monto alto")))
                 .andExpect(content().string(containsString("Gateway EXCLUSIVO #12 tiene 1 arco de salida")));
+    }
+
+    @Test
+    void laApiDeMovimientoDeGatewaysResponde401SinSesion() throws Exception {
+        mockMvc.perform(put(RUTA_API_GATEWAY + "/posicion").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"posicionX\":420,\"posicionY\":120}"))
+                .andExpect(status().isUnauthorized());
+
+        verify(gatewayService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
+    void laApiDeMovimientoDeGatewaysSinTokenCsrfSeRechaza() throws Exception {
+        mockMvc.perform(put(RUTA_API_GATEWAY + "/posicion").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"posicionX\":420,\"posicionY\":120}"))
+                .andExpect(status().isForbidden());
+
+        verify(gatewayService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
     }
 }

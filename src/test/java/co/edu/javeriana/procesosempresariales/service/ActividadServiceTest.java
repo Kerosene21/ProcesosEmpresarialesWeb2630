@@ -42,6 +42,8 @@ import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.LaneRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverActividadDto;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.LaneNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -1006,5 +1008,242 @@ class ActividadServiceTest {
 
         assertThatThrownBy(() -> actividadService.lanesDelProceso(PROCESO_ID, USERNAME))
                 .isInstanceOf(RecursoNoEncontradoException.class);
+    }
+
+    private Lane laneDeOtroPool(Long id, String nombre) {
+        Pool cliente = new Pool(81L, null, "Cliente", TipoPool.PARTICIPANTE, 2, false, true, null,
+                new ArrayList<>());
+        return new Lane(id, nombre, cliente, null, 1, true);
+    }
+
+    private MoverActividadDto movimiento(Long laneId, int posicionX, int posicionY) {
+        return new MoverActividadDto(laneId, posicionX, posicionY);
+    }
+
+    @Test
+    void editarConPosicionRecolocaLaActividadAlBajarAUnaLaneInferior() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        existeLaLane(LANE_DESTINO_ID, "Analista");
+        EditarActividadDto dto = new EditarActividadDto("Revisar solicitud", TipoActividad.TAREA_USUARIO,
+                LANE_DESTINO_ID, 120, 180);
+
+        ActividadRespuestaDto editada = actividadService.editar(PROCESO_ID, ACTIVIDAD_ID, dto, USERNAME);
+
+        Actividad guardada = actividadGuardada();
+        assertThat(guardada.getLane().getId()).isEqualTo(LANE_DESTINO_ID);
+        assertThat(guardada.getPosicionX()).isEqualTo(120);
+        assertThat(guardada.getPosicionY()).isEqualTo(180);
+        assertThat(editada.getPosicionY()).isEqualTo(180);
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("actividad 'Revisar solicitud': lane: 'General' -> 'Analista'; posicion: (120, 40) -> "
+                        + "(120, 180)");
+    }
+
+    @Test
+    void editarConPosicionRecolocaLaActividadAlSubirAUnaLaneSuperior() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        Actividad actividad = existeLaActividad(proceso, lane(LANE_DESTINO_ID, "Analista"), true);
+        actividad.setPosicionY(200);
+        existeLaLane(LANE_ID, "General");
+        EditarActividadDto dto = new EditarActividadDto("Revisar solicitud", TipoActividad.TAREA_USUARIO, LANE_ID,
+                120, 40);
+
+        actividadService.editar(PROCESO_ID, ACTIVIDAD_ID, dto, USERNAME);
+
+        Actividad guardada = actividadGuardada();
+        assertThat(guardada.getLane().getId()).isEqualTo(LANE_ID);
+        assertThat(guardada.getPosicionY()).isEqualTo(40);
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("actividad 'Revisar solicitud': lane: 'Analista' -> 'General'; posicion: (120, 200) -> "
+                        + "(120, 40)");
+    }
+
+    @Test
+    void editarSoloConLaMismaPosicionNoGuardaNiRegistraHistorial() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        existeLaLane(LANE_ID, "General");
+        EditarActividadDto dto = new EditarActividadDto("Revisar solicitud", TipoActividad.TAREA_USUARIO, LANE_ID,
+                120, 40);
+
+        actividadService.editar(PROCESO_ID, ACTIVIDAD_ID, dto, USERNAME);
+
+        verify(actividadRepository, never()).save(any(Actividad.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void editarRechazaPasarAUnaLaneDeOtroPoolSiTieneArcos() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        when(laneRepository.findByIdAndPoolProcesoIdAndActivoTrueAndPoolActivoTrue(LANE_DESTINO_ID, PROCESO_ID))
+                .thenReturn(Optional.of(laneDeOtroPool(LANE_DESTINO_ID, "Ventas")));
+        when(conexionesService.conectadosActivos(proceso, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .thenReturn(List.of(new Arco(), new Arco()));
+        EditarActividadDto dto = formularioEdicion();
+        dto.setLaneId(LANE_DESTINO_ID);
+
+        assertThatThrownBy(() -> actividadService.editar(PROCESO_ID, ACTIVIDAD_ID, dto, USERNAME))
+                .isInstanceOf(FlujoEntrePoolsException.class)
+                .hasMessageStartingWith("'Revisar solicitud' tiene 2 arcos conectados");
+
+        verify(actividadRepository, never()).save(any(Actividad.class));
+    }
+
+    @Test
+    void elAdministradorMueveUnaActividadDentroDeSuLane() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        existeLaLane(LANE_ID, "General");
+
+        ActividadRespuestaDto movida = actividadService.mover(PROCESO_ID, ACTIVIDAD_ID, movimiento(LANE_ID, 300, 60),
+                USERNAME);
+
+        Actividad guardada = actividadGuardada();
+        assertThat(guardada.getPosicionX()).isEqualTo(300);
+        assertThat(guardada.getPosicionY()).isEqualTo(60);
+        assertThat(movida.getLaneId()).isEqualTo(LANE_ID);
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("actividad 'Revisar solicitud': posicion: (120, 40) -> (300, 60)");
+        verifyNoInteractions(conexionesService);
+    }
+
+    @Test
+    void elEditorMueveUnaActividadAOtraLaneEnUnaSolaOperacion() {
+        autenticar(RolUsuario.EDITOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        existeLaLane(LANE_DESTINO_ID, "Analista");
+
+        ActividadRespuestaDto movida = actividadService.mover(PROCESO_ID, ACTIVIDAD_ID,
+                movimiento(LANE_DESTINO_ID, 120, 180), USERNAME);
+
+        Actividad guardada = actividadGuardada();
+        assertThat(guardada.getLane().getId()).isEqualTo(LANE_DESTINO_ID);
+        assertThat(guardada.getPosicionY()).isEqualTo(180);
+        assertThat(movida.getLaneNombre()).isEqualTo("Analista");
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("actividad 'Revisar solicitud': lane: 'General' -> 'Analista'; posicion: (120, 40) -> "
+                        + "(120, 180)");
+    }
+
+    @Test
+    void moverALaMismaPosicionNoGuardaNiRegistraHistorial() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        existeLaLane(LANE_ID, "General");
+
+        actividadService.mover(PROCESO_ID, ACTIVIDAD_ID, movimiento(LANE_ID, 120, 40), USERNAME);
+
+        verify(actividadRepository, never()).save(any(Actividad.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void moverAUnaLaneDeOtroPoolSeRechazaSiLaActividadTieneArcos() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        when(laneRepository.findByIdAndPoolProcesoIdAndActivoTrueAndPoolActivoTrue(LANE_DESTINO_ID, PROCESO_ID))
+                .thenReturn(Optional.of(laneDeOtroPool(LANE_DESTINO_ID, "Ventas")));
+        when(conexionesService.conectadosActivos(proceso, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .thenReturn(List.of(new Arco()));
+
+        assertThatThrownBy(() -> actividadService.mover(PROCESO_ID, ACTIVIDAD_ID,
+                movimiento(LANE_DESTINO_ID, 120, 400), USERNAME))
+                .isInstanceOf(FlujoEntrePoolsException.class)
+                .hasMessageStartingWith("'Revisar solicitud' tiene 1 arco conectado: no puede pasar a una lane de otro "
+                        + "pool");
+
+        verify(actividadRepository, never()).save(any(Actividad.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void moverAUnaLaneDeOtroPoolSePermiteSiLaActividadNoTieneArcos() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        when(laneRepository.findByIdAndPoolProcesoIdAndActivoTrueAndPoolActivoTrue(LANE_DESTINO_ID, PROCESO_ID))
+                .thenReturn(Optional.of(laneDeOtroPool(LANE_DESTINO_ID, "Ventas")));
+        when(conexionesService.conectadosActivos(proceso, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ID))
+                .thenReturn(List.of());
+
+        ActividadRespuestaDto movida = actividadService.mover(PROCESO_ID, ACTIVIDAD_ID,
+                movimiento(LANE_DESTINO_ID, 120, 400), USERNAME);
+
+        assertThat(movida.getPoolId()).isEqualTo(81L);
+        assertThat(actividadGuardada().getPosicionY()).isEqualTo(400);
+    }
+
+    @Test
+    void elUsuarioDeSoloLecturaNoMueveActividades() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+
+        assertThatThrownBy(() -> actividadService.mover(PROCESO_ID, ACTIVIDAD_ID, movimiento(LANE_ID, 300, 60),
+                USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage("Solo un administrador o editor puede crear o modificar actividades");
+
+        verifyNoInteractions(actividadRepository);
+    }
+
+    @Test
+    void moverRechazaUnProcesoEliminado() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_PROPIA, true);
+
+        assertThatThrownBy(() -> actividadService.mover(PROCESO_ID, ACTIVIDAD_ID, movimiento(LANE_ID, 300, 60),
+                USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El proceso ya fue eliminado");
+
+        verify(actividadRepository, never()).save(any(Actividad.class));
+    }
+
+    @Test
+    void moverRechazaUnProcesoDeOtraEmpresa() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_AJENA, false);
+
+        assertThatThrownBy(() -> actividadService.mover(PROCESO_ID, ACTIVIDAD_ID, movimiento(LANE_ID, 300, 60),
+                USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage("El proceso no pertenece a la empresa del usuario");
+    }
+
+    @Test
+    void moverRechazaUnaLaneAjenaAlProceso() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), true);
+        when(laneRepository.findByIdAndPoolProcesoIdAndActivoTrueAndPoolActivoTrue(LANE_DESTINO_ID, PROCESO_ID))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> actividadService.mover(PROCESO_ID, ACTIVIDAD_ID,
+                movimiento(LANE_DESTINO_ID, 300, 60), USERNAME))
+                .isInstanceOf(LaneNoValidaException.class)
+                .hasMessage(LANE_INVALIDA);
+
+        verify(actividadRepository, never()).save(any(Actividad.class));
+    }
+
+    @Test
+    void moverRechazaUnaActividadEliminada() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        Proceso proceso = existeElProcesoActivo();
+        existeLaActividad(proceso, lane(LANE_ID, "General"), false);
+
+        assertThatThrownBy(() -> actividadService.mover(PROCESO_ID, ACTIVIDAD_ID, movimiento(LANE_ID, 300, 60),
+                USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("La actividad ya fue eliminada");
     }
 }

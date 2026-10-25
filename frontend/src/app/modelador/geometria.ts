@@ -93,6 +93,12 @@ export interface Ubicacion {
   lane: BandaLane | null;
 }
 
+export interface DestinoMovimiento {
+  pool: PoolRespuesta;
+  lane: LaneRespuesta | null;
+  posicion: Punto;
+}
+
 const MEDIDAS: Record<TipoNodoFlujo, { ancho: number; alto: number }> = {
   ACTIVIDAD: { ancho: ANCHO_ACTIVIDAD, alto: ALTO_ACTIVIDAD },
   GATEWAY: { ancho: LADO_GATEWAY, alto: LADO_GATEWAY },
@@ -258,6 +264,94 @@ export function posicionLibre(geometria: GeometriaDiagrama, tipo: TipoNodoFlujo,
   return colocarEnBanda(tipo, { x: x + MEDIDAS[tipo].ancho / 2, y: banda.y + banda.alto / 2 }, banda, geometria.inicioContenido);
 }
 
+export function sinElemento(diagrama: DiagramaProceso, elemento: Seleccion): DiagramaProceso {
+  const otro = <T extends { id: number }>(tipo: TipoElemento, lista: T[]): T[] =>
+    elemento.tipo === tipo ? lista.filter((actual) => actual.id !== elemento.id) : lista;
+  return {
+    ...diagrama,
+    actividades: otro('ACTIVIDAD', diagrama.actividades),
+    gateways: otro('GATEWAY', diagrama.gateways),
+    messageThrows: otro('MESSAGE_THROW', diagrama.messageThrows),
+    messageCatches: otro('MESSAGE_CATCH', diagrama.messageCatches),
+    enviosExternos: otro('ENVIO_EXTERNO', diagrama.enviosExternos),
+  };
+}
+
+export function ubicarMovimiento(
+  diagrama: DiagramaProceso,
+  geometria: GeometriaDiagrama,
+  elemento: Seleccion,
+  esquina: Punto,
+): DestinoMovimiento | null {
+  const nodo = buscarNodo(geometria, elemento);
+  if (!nodo) {
+    return null;
+  }
+  const medio = { x: esquina.x + nodo.caja.ancho / 2, y: esquina.y + nodo.caja.alto / 2 };
+  const ubicacion = ubicacionEn(geometria, medio);
+  if (!ubicacion) {
+    return null;
+  }
+  const resto = calcularGeometria(sinElemento(diagrama, elemento));
+  const banda = ubicacion.lane ?? ubicacion.pool;
+  const final = ubicacion.lane ? bandaDeLane(resto, ubicacion.lane.lane.id) : bandaDePool(resto, ubicacion.pool.pool.id);
+  if (!final) {
+    return null;
+  }
+  return {
+    pool: ubicacion.pool.pool,
+    lane: ubicacion.lane?.lane ?? null,
+    posicion: colocarEnBanda(nodo.tipoFlujo, { x: medio.x, y: final.y + medio.y - banda.y }, final, resto.inicioContenido),
+  };
+}
+
+export function reubicarEnLane(
+  diagrama: DiagramaProceso,
+  geometria: GeometriaDiagrama,
+  elemento: Seleccion,
+  laneId: number,
+): Punto | null {
+  const nodo = buscarNodo(geometria, elemento);
+  const resto = calcularGeometria(sinElemento(diagrama, elemento));
+  const destino = bandaDeLane(resto, laneId);
+  if (!nodo || !destino) {
+    return null;
+  }
+  const origen = nodo.laneId === null ? null : bandaDeLane(geometria, nodo.laneId);
+  const medio = centro(nodo.caja);
+  const altura = origen ? medio.y - origen.y : destino.alto / 2;
+  const posicion = colocarEnBanda(nodo.tipoFlujo, { x: medio.x, y: destino.y + altura }, destino, resto.inicioContenido);
+  const caja = { ...nodo.caja, ...posicion };
+  return resto.nodos.some((otro) => seSolapan(otro.caja, caja)) ? posicionLibre(resto, nodo.tipoFlujo, destino) : posicion;
+}
+
+export function desplazarNodo(geometria: GeometriaDiagrama, elemento: Seleccion, esquina: Punto): GeometriaDiagrama {
+  const movido = buscarNodo(geometria, elemento);
+  if (!movido) {
+    return geometria;
+  }
+  const clave = claveNodo(movido.tipoFlujo, movido.elemento.id);
+  const nodos = geometria.nodos.map((actual) =>
+    actual === movido ? { ...actual, caja: { ...actual.caja, x: esquina.x, y: esquina.y } } : actual,
+  );
+  const indice = new Map(nodos.map((actual) => [claveNodo(actual.tipoFlujo, actual.elemento.id), actual]));
+  return {
+    ...geometria,
+    nodos,
+    arcos: geometria.arcos.map((ubicado) =>
+      claveNodo(ubicado.arco.origenTipo, ubicado.arco.origenId) === clave ||
+      claveNodo(ubicado.arco.destinoTipo, ubicado.arco.destinoId) === clave
+        ? { arco: ubicado.arco, segmento: segmentoEntre(ubicado.arco, indice) ?? ubicado.segmento }
+        : ubicado,
+    ),
+    flujos: geometria.flujos.map((ubicado) =>
+      movido.tipoFlujo === 'EVENTO' && [ubicado.flujo.eventoId, ubicado.flujo.catchDestinoId].includes(movido.elemento.id)
+        ? ubicarFlujo(ubicado.flujo, indice, geometria.pools, [])
+        : ubicado,
+    ),
+  };
+}
+
 export function buscarNodo(geometria: GeometriaDiagrama, seleccion: Seleccion | null): NodoDiagrama | null {
   if (!seleccion || seleccion.tipo === 'ARCO') {
     return null;
@@ -322,6 +416,20 @@ function fondoDe(caja: Rectangulo): number {
 
 function contiene(caja: Rectangulo, punto: Punto): boolean {
   return punto.x >= caja.x && punto.x <= caja.x + caja.ancho && punto.y >= caja.y && punto.y <= caja.y + caja.alto;
+}
+
+function seSolapan(una: Rectangulo, otra: Rectangulo): boolean {
+  return una.x < otra.x + otra.ancho && otra.x < una.x + una.ancho && una.y < otra.y + otra.alto && otra.y < una.y + una.alto;
+}
+
+function segmentoEntre(arco: ArcoRespuesta, indice: Map<string, NodoDiagrama>): Segmento | null {
+  const origen = indice.get(claveNodo(arco.origenTipo, arco.origenId));
+  const destino = indice.get(claveNodo(arco.destinoTipo, arco.destinoId));
+  if (!origen || !destino) {
+    return null;
+  }
+  const desde = centro(origen.caja);
+  return { desde, hasta: llegada(desde, centro(destino.caja), destino.caja) };
 }
 
 function ubicarPools(

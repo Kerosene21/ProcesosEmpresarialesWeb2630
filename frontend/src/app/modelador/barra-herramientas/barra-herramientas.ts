@@ -18,7 +18,7 @@ interface OpcionHerramienta {
 }
 
 const HERRAMIENTAS: readonly OpcionHerramienta[] = [
-  { valor: 'SELECCION', nombre: 'Seleccionar', ayuda: 'Pulsa un elemento del diagrama para consultarlo o editarlo.' },
+  { valor: 'SELECCION', nombre: 'Seleccionar', ayuda: 'Pulsa un elemento del diagrama para consultarlo o editarlo, o arrástralo para moverlo.' },
   { valor: 'ACTIVIDAD', nombre: 'Actividad', ayuda: 'Pulsa dentro de una lane para ubicar la nueva actividad.' },
   { valor: 'GATEWAY', nombre: 'Gateway', ayuda: 'Pulsa dentro de un pool para ubicar el nuevo gateway.' },
   { valor: 'ARCO', nombre: 'Arco', ayuda: 'Pulsa el nodo de origen y después el nodo de destino.' },

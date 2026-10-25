@@ -83,4 +83,12 @@ describe('EnvioExternoService', () => {
 
     expect(fallo).toMatchObject({ tipo: 'datos-no-validos', codigo: 'ENVIO_EXTERNO_NO_VALIDO' });
   });
+
+  it('mueve el evento con su propio endpoint de posición', () => {
+    servicio.mover(5, 7, { posicionX: 120, posicionY: 90 }).subscribe();
+
+    const peticion = http.expectOne(`${ruta}/7/posicion`);
+    expect(peticion.request.method).toBe('PUT');
+    expect(peticion.request.body).toEqual({ posicionX: 120, posicionY: 90 });
+  });
 });

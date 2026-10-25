@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageCatchRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.service.MessageCatchService;
 
 @RestController
@@ -83,6 +84,16 @@ public class MessageCatchRestController {
             @PathVariable("catchId") Long catchId, @Valid @RequestBody EditarMessageCatchDto dto,
             Principal principal) {
         return ResponseEntity.ok(messageCatchService.editar(procesoId, catchId, dto, principal.getName()));
+    }
+
+    @PutMapping("/{catchId}/posicion")
+    @Operation(summary = "Mover Message Catch", description = "Cambia solo la posición; el evento sigue en su "
+            + "pool y conserva su correlación. Requiere rol ADMINISTRADOR o EDITOR de la empresa propietaria.")
+    @ApiResponse(responseCode = "400", description = "Posición fuera de rango (`DATOS_NO_VALIDOS`).")
+    public ResponseEntity<MessageCatchRespuestaDto> mover(@PathVariable("procesoId") Long procesoId,
+            @PathVariable("catchId") Long catchId, @Valid @RequestBody MoverNodoDto dto,
+            Principal principal) {
+        return ResponseEntity.ok(messageCatchService.mover(procesoId, catchId, dto, principal.getName()));
     }
 
     @GetMapping("/{catchId}/eliminacion")

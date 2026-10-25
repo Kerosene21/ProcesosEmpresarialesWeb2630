@@ -16,7 +16,7 @@
   @if (edicion()) {
     <p class="nota">
       Sale del pool «{{ envio()?.poolOrigenNombre }}» en x {{ formulario.controls.posicionX.value }}, y
-      {{ formulario.controls.posicionY.value }}. La API actual no permite cambiar el pool emisor ni la posición.
+      {{ formulario.controls.posicionY.value }}. Para cambiar la posición, arrastra el evento en el lienzo; el pool emisor no se puede cambiar.
     </p>
   } @else {
     <div class="campo">

@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
+import { EMPTY, Observable } from 'rxjs';
 
 import { Aviso } from '../../compartido/aviso/aviso';
 import { TEXTO_TIPO_ELEMENTO, TEXTO_TIPO_GATEWAY } from '../../compartido/textos';
@@ -11,8 +12,14 @@ import {
   MessageCatchRespuesta,
   MessageThrowRespuesta,
 } from '../../core/modelos/diagrama';
+import { FalloHttp } from '../../core/modelos/fallo-http';
 import { Proceso } from '../../core/modelos/proceso';
 import { Seleccion } from '../../core/modelos/seleccion';
+import { ActividadService } from '../../core/servicios/actividad-service';
+import { EnvioExternoService } from '../../core/servicios/envio-externo-service';
+import { GatewayService } from '../../core/servicios/gateway-service';
+import { MessageCatchService } from '../../core/servicios/message-catch-service';
+import { MessageThrowService } from '../../core/servicios/message-throw-service';
 import { BarraHerramientas, ElementoNuevo, Herramienta } from '../barra-herramientas/barra-herramientas';
 import { motivoRechazo } from '../conexiones';
 import { EliminacionElemento, ElementoEliminable } from '../eliminacion-elemento/eliminacion-elemento';
@@ -24,6 +31,7 @@ import { FormularioGateway, PropuestaGateway } from '../formulario-gateway/formu
 import { FormularioMessageCatch } from '../formulario-message-catch/formulario-message-catch';
 import { FormularioMessageThrow } from '../formulario-message-throw/formulario-message-throw';
 import {
+  DestinoMovimiento,
   Punto,
   buscarNodo,
   calcularGeometria,
@@ -31,8 +39,10 @@ import {
   existeElemento,
   posicionLibre,
   ubicacionEn,
+  ubicarMovimiento,
 } from '../geometria';
-import { LienzoDiagrama } from '../lienzo-diagrama/lienzo-diagrama';
+import { LienzoDiagrama, MovimientoNodo } from '../lienzo-diagrama/lienzo-diagrama';
+import { motivoMovimientoNoValido, movimientoSinCambios } from '../movimientos';
 import { PanelElemento } from '../panel-elemento/panel-elemento';
 
 export interface PermisosEdicion {
@@ -82,6 +92,12 @@ type SolicitudDe<T extends Solicitud['tipo']> = Extract<Solicitud, { tipo: T }>;
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class Modelador {
+  private readonly actividades = inject(ActividadService);
+  private readonly gateways = inject(GatewayService);
+  private readonly messageThrows = inject(MessageThrowService);
+  private readonly messageCatches = inject(MessageCatchService);
+  private readonly envios = inject(EnvioExternoService);
+
   readonly proceso = input.required<Proceso>();
   readonly diagrama = input.required<DiagramaProceso>();
   readonly edicion = input<PermisosEdicion | null>(null);
@@ -162,6 +178,19 @@ export class Modelador {
   protected readonly modificable = computed<ElementoEliminable | null>(() => this.seleccion());
   protected readonly puedeEditar = computed(() => this.escritura() && this.modificable() !== null);
   protected readonly puedeEliminar = computed(() => this.edicion()?.eliminar === true && this.modificable() !== null);
+  protected readonly provisional = linkedSignal<DiagramaProceso, MovimientoNodo | null>({
+    source: this.diagrama,
+    computation: () => null,
+  });
+  protected readonly errorMovimiento = signal<string | null>(null);
+  protected readonly movible = computed(
+    () =>
+      this.escritura() &&
+      this.herramienta() === 'SELECCION' &&
+      this.solicitud() === null &&
+      this.porEliminar() === null &&
+      this.provisional() === null,
+  );
 
   protected seleccionar(seleccion: Seleccion): void {
     this.elegida.set(seleccion);
@@ -202,6 +231,41 @@ export class Modelador {
       default:
         this.proponerEvento(this.herramienta() as TipoEventoNuevo, punto);
     }
+  }
+
+  protected mover({ elemento, esquina }: MovimientoNodo): void {
+    const diagrama = this.diagrama();
+    const geometria = this.geometria();
+    const nodo = buscarNodo(geometria, elemento);
+    if (!nodo || !this.movible()) {
+      return;
+    }
+    this.mensaje.set(null);
+    this.errorMovimiento.set(null);
+    const destino = ubicarMovimiento(diagrama, geometria, elemento, esquina);
+    const motivo = motivoMovimientoNoValido(geometria, nodo, destino, diagrama.arcos);
+    if (motivo !== null || destino === null) {
+      this.errorMovimiento.set(motivo);
+      return;
+    }
+    if (movimientoSinCambios(nodo, destino)) {
+      return;
+    }
+    const otraLane = elemento.tipo === 'ACTIVIDAD' && destino.lane !== null && destino.lane.id !== nodo.laneId;
+    this.provisional.set({ elemento, esquina: destino.posicion });
+    this.guardarMovimiento(elemento, destino).subscribe({
+      next: () =>
+        this.confirmar(
+          elemento,
+          `Se guardó la nueva posición de «${nodo.nombre}»${otraLane ? ` en la lane «${destino.lane?.nombre}»` : ''}.`,
+        ),
+      error: (fallo: FalloHttp) => {
+        this.provisional.set(null);
+        this.errorMovimiento.set(
+          `No se pudo mover «${nodo.nombre}»: ${fallo.detalle ?? fallo.titulo}. Se mantiene su posición anterior.`,
+        );
+      },
+    });
   }
 
   protected elegirHerramienta(herramienta: Herramienta): void {
@@ -358,7 +422,29 @@ export class Modelador {
 
   private abrir(solicitud: Solicitud): void {
     this.mensaje.set(null);
+    this.errorMovimiento.set(null);
     this.solicitud.set(solicitud);
+  }
+
+  private guardarMovimiento(elemento: Seleccion, destino: DestinoMovimiento): Observable<unknown> {
+    const procesoId = this.proceso().id;
+    const posicion = { posicionX: destino.posicion.x, posicionY: destino.posicion.y };
+    switch (elemento.tipo) {
+      case 'ACTIVIDAD':
+        return destino.lane === null
+          ? EMPTY
+          : this.actividades.mover(procesoId, elemento.id, { laneId: destino.lane.id, ...posicion });
+      case 'GATEWAY':
+        return this.gateways.mover(procesoId, elemento.id, posicion);
+      case 'MESSAGE_THROW':
+        return this.messageThrows.mover(procesoId, elemento.id, posicion);
+      case 'MESSAGE_CATCH':
+        return this.messageCatches.mover(procesoId, elemento.id, posicion);
+      case 'ENVIO_EXTERNO':
+        return this.envios.mover(procesoId, elemento.id, posicion);
+      case 'ARCO':
+        return EMPTY;
+    }
   }
 
   private solicitudDe<T extends Solicitud['tipo']>(tipo: T): SolicitudDe<T> | null {

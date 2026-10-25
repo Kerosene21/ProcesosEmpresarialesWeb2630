@@ -12,6 +12,10 @@
     <p class="modelador__exito" role="status">{{ texto }}</p>
   }
 
+  @if (errorMovimiento(); as texto) {
+    <p class="modelador__error" role="alert">{{ texto }}</p>
+  }
+
   @if (vacio()) {
     <app-aviso
       tipo="vacio"
@@ -27,8 +31,11 @@
       [seleccion]="seleccion()"
       [marcados]="marcados()"
       [colocando]="colocando()"
+      [movible]="movible()"
+      [provisional]="provisional()"
       (elementoElegido)="elegir($event)"
       (fondoPulsado)="pulsarFondo($event)"
+      (nodoMovido)="mover($event)"
     />
 
     <aside class="modelador__lateral" aria-label="Información del diagrama">

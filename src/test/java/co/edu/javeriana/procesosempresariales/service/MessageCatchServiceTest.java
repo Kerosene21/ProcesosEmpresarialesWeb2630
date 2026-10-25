@@ -39,6 +39,7 @@ import co.edu.javeriana.procesosempresariales.domain.VarianteMessageCatch;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageCatchDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageCatchRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.CatchInicioConEntradaException;
 import co.edu.javeriana.procesosempresariales.exception.CorrelacionNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
@@ -537,6 +538,33 @@ class MessageCatchServiceTest {
         assertThatThrownBy(() -> messageCatchService.eliminar(PROCESO_ID, CATCH_ID, USERNAME))
                 .isInstanceOf(RecursoNoEncontradoException.class)
                 .hasMessage(MessageCatchService.CATCH_ELIMINADO);
+
+        verify(eventoRepository, never()).save(any(Evento.class));
+    }
+
+    @Test
+    void elAdministradorMueveUnMessageCatchYQuedaEnElHistorial() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        MessageCatch messageCatch = existeElCatch(VarianteMessageCatch.INTERMEDIO, true);
+
+        MessageCatchRespuestaDto movido = messageCatchService.mover(PROCESO_ID, CATCH_ID, new MoverNodoDto(90, 70),
+                USERNAME);
+
+        verify(eventoRepository).save(messageCatch);
+        assertThat(movido.getPosicionX()).isEqualTo(90);
+        assertThat(movido.getPoolId()).isEqualTo(POOL_ALPES);
+        assertThat(movido.getVariante()).isEqualTo(VarianteMessageCatch.INTERMEDIO);
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("message catch '" + NOMBRE + "': posicion: (40, 60) -> (90, 70)");
+    }
+
+    @Test
+    void elLectorNoMueveMessageCatch() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+
+        assertThatThrownBy(() -> messageCatchService.mover(PROCESO_ID, CATCH_ID, new MoverNodoDto(90, 70),
+                USERNAME)).isInstanceOf(UsuarioSinPermisoException.class);
 
         verify(eventoRepository, never()).save(any(Evento.class));
     }

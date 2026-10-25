@@ -5,6 +5,7 @@ import { Observable, catchError } from 'rxjs';
 import { lanzarFallo } from '../http/traducir-fallo';
 import { MessageThrowRespuesta } from '../modelos/diagrama';
 import { CrearMessageThrow, EditarMessageThrow } from '../modelos/evento';
+import { MoverNodo } from '../modelos/movimiento';
 
 @Injectable({
   providedIn: 'root',
@@ -19,6 +20,12 @@ export class MessageThrowService {
   editar(procesoId: number, throwId: number, datos: EditarMessageThrow): Observable<MessageThrowRespuesta> {
     return this.http
       .put<MessageThrowRespuesta>(`${this.ruta(procesoId)}/${throwId}`, datos)
+      .pipe(catchError(lanzarFallo));
+  }
+
+  mover(procesoId: number, throwId: number, datos: MoverNodo): Observable<MessageThrowRespuesta> {
+    return this.http
+      .put<MessageThrowRespuesta>(`${this.ruta(procesoId)}/${throwId}/posicion`, datos)
       .pipe(catchError(lanzarFallo));
   }
 

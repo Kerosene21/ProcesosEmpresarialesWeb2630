@@ -5,6 +5,7 @@ import { Observable, catchError } from 'rxjs';
 import { lanzarFallo } from '../http/traducir-fallo';
 import { EnvioExternoRespuesta } from '../modelos/diagrama';
 import { CrearEnvioExterno, EditarEnvioExterno } from '../modelos/evento';
+import { MoverNodo } from '../modelos/movimiento';
 
 @Injectable({
   providedIn: 'root',
@@ -19,6 +20,12 @@ export class EnvioExternoService {
   editar(procesoId: number, envioId: number, datos: EditarEnvioExterno): Observable<EnvioExternoRespuesta> {
     return this.http
       .put<EnvioExternoRespuesta>(`${this.ruta(procesoId)}/${envioId}`, datos)
+      .pipe(catchError(lanzarFallo));
+  }
+
+  mover(procesoId: number, envioId: number, datos: MoverNodo): Observable<EnvioExternoRespuesta> {
+    return this.http
+      .put<EnvioExternoRespuesta>(`${this.ruta(procesoId)}/${envioId}/posicion`, datos)
       .pipe(catchError(lanzarFallo));
   }
 

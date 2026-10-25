@@ -15,6 +15,16 @@
   cursor: crosshair;
 }
 
+.lienzo--movible .nodo {
+  cursor: grab;
+  touch-action: none;
+}
+
+.lienzo--arrastrando .lienzo__svg,
+.lienzo--arrastrando .nodo {
+  cursor: grabbing;
+}
+
 .lienzo__svg {
   display: block;
   font-family: inherit;

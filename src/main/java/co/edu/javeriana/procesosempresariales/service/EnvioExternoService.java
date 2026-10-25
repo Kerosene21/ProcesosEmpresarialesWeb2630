@@ -16,6 +16,7 @@ import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EnvioExternoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.EnvioExternoNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.repository.EnvioExternoRepository;
@@ -132,6 +133,16 @@ public class EnvioExternoService {
         envio.setClaveCorrelacion(claveNueva);
         envioExternoRepository.save(envio);
         eventoService.registrarEdicion(proceso, usuario, envio, nombreAnterior, cambios);
+        return toDto(envio);
+    }
+
+    @Transactional
+    public EnvioExternoRespuestaDto mover(Long procesoId, Long envioId, MoverNodoDto dto, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        EnvioExterno envio = envioActivoDelProceso(envioId, proceso);
+        eventoService.mover(proceso, usuario, envio, dto);
         return toDto(envio);
     }
 

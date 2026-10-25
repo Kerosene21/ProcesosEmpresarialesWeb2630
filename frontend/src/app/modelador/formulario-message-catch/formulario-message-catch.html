@@ -48,7 +48,7 @@
   @if (edicion()) {
     <p class="nota">
       Recibe en el pool «{{ messageCatch()?.poolNombre }}» en x {{ formulario.controls.posicionX.value }}, y
-      {{ formulario.controls.posicionY.value }}. La API actual no permite cambiar el pool ni la posición.
+      {{ formulario.controls.posicionY.value }}. Para cambiar la posición, arrastra el evento en el lienzo; el pool no se puede cambiar.
     </p>
   } @else {
     <div class="campo">

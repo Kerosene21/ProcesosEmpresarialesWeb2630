@@ -1,4 +1,4 @@
-<div class="lienzo" [class.lienzo--colocando]="colocando()">
+<div class="lienzo" [class.lienzo--colocando]="colocando()" [class.lienzo--movible]="movible()" [class.lienzo--arrastrando]="arrastrando()">
   <svg
     class="lienzo__svg"
     role="group"
@@ -7,6 +7,10 @@
     [attr.width]="vista().ancho"
     [attr.height]="vista().alto"
     (click)="pulsarFondo($event)"
+    (pointerdown)="iniciarArrastre($event)"
+    (pointermove)="arrastrar($event)"
+    (pointerup)="soltar($event)"
+    (pointercancel)="cancelarArrastre()"
   >
     <defs>
       <marker [attr.id]="marcador" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
@@ -76,6 +80,8 @@
     @for (actividad of diagrama().actividades; track actividad.id) {
       <g
         appNodoActividad
+        [attr.data-nodo]="'ACTIVIDAD:' + actividad.id"
+        [attr.transform]="traslado('ACTIVIDAD', actividad.id)"
         [actividad]="actividad"
         [seleccionado]="seleccionado('ACTIVIDAD', actividad.id)"
         [marcado]="marcado('ACTIVIDAD', actividad.id)"
@@ -86,6 +92,8 @@
     @for (gateway of diagrama().gateways; track gateway.id) {
       <g
         appNodoGateway
+        [attr.data-nodo]="'GATEWAY:' + gateway.id"
+        [attr.transform]="traslado('GATEWAY', gateway.id)"
         [gateway]="gateway"
         [seleccionado]="seleccionado('GATEWAY', gateway.id)"
         [marcado]="marcado('GATEWAY', gateway.id)"
@@ -96,6 +104,8 @@
     @for (evento of eventos(); track evento.tipo + evento.datos.id) {
       <g
         appNodoEvento
+        [attr.data-nodo]="evento.tipo + ':' + evento.datos.id"
+        [attr.transform]="traslado(evento.tipo, evento.datos.id)"
         [evento]="evento"
         [seleccionado]="seleccionado(evento.tipo, evento.datos.id)"
         [marcado]="marcado(evento.tipo, evento.datos.id)"

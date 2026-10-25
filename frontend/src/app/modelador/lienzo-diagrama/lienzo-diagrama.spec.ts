@@ -4,7 +4,7 @@ import { diagramaCompleto, diagramaInicial } from '../../../testing/diagramas';
 import { DiagramaProceso } from '../../core/modelos/diagrama';
 import { Seleccion } from '../../core/modelos/seleccion';
 import { Punto, calcularGeometria } from '../geometria';
-import { LienzoDiagrama } from './lienzo-diagrama';
+import { LienzoDiagrama, MovimientoNodo } from './lienzo-diagrama';
 
 const SVG = 'http://www.w3.org/2000/svg';
 
@@ -13,14 +13,17 @@ describe('LienzoDiagrama', () => {
   let elemento: HTMLElement;
   let elegidos: Seleccion[];
   let puntos: Punto[];
+  let movimientos: MovimientoNodo[];
 
   async function crear(diagrama: DiagramaProceso, seleccion: Seleccion | null = null): Promise<void> {
     fixture = TestBed.createComponent(LienzoDiagrama);
     elemento = fixture.nativeElement;
     elegidos = [];
     puntos = [];
+    movimientos = [];
     fixture.componentInstance.elementoElegido.subscribe((elegido) => elegidos.push(elegido));
     fixture.componentInstance.fondoPulsado.subscribe((punto) => puntos.push(punto));
+    fixture.componentInstance.nodoMovido.subscribe((movimiento) => movimientos.push(movimiento));
     fixture.componentRef.setInput('diagrama', diagrama);
     fixture.componentRef.setInput('geometria', calcularGeometria(diagrama));
     fixture.componentRef.setInput('seleccion', seleccion);
@@ -124,5 +127,101 @@ describe('LienzoDiagrama', () => {
     await crear(diagrama);
 
     expect(elemento.querySelectorAll('g[appArcoSecuencia]').length).toBe(5);
+  });
+
+  describe('arrastre de nodos', () => {
+    function puntero(tipo: string, destino: Element, clientX: number, clientY: number): void {
+      destino.dispatchEvent(new PointerEvent(tipo, { bubbles: true, button: 0, pointerId: 1, clientX, clientY }));
+    }
+
+    function lineaDelArco(indice: number): string[] {
+      const linea = elemento.querySelectorAll('g[appArcoSecuencia]')[indice].querySelector('.arco__linea')!;
+      return ['x1', 'y1', 'x2', 'y2'].map((atributo) => linea.getAttribute(atributo) ?? '');
+    }
+
+    async function crearMovible(): Promise<SVGSVGElement> {
+      await crear(diagramaCompleto());
+      fixture.componentRef.setInput('movible', true);
+      await fixture.whenStable();
+      return elemento.querySelector('svg')!;
+    }
+
+    it('desplaza la actividad y sus arcos mientras se arrastra y emite un único movimiento al soltar', async () => {
+      const svg = await crearMovible();
+      const evaluar = elemento.querySelector('[data-nodo="ACTIVIDAD:2"]')!;
+
+      puntero('pointerdown', evaluar.querySelector('rect')!, 481, 99);
+      puntero('pointermove', svg, 483, 100);
+      puntero('pointermove', svg, 501, 219);
+      await fixture.whenStable();
+
+      expect(evaluar.getAttribute('transform')).toBe('translate(20 120)');
+      expect(lineaDelArco(1)).toEqual(['225', '83', '387', '180']);
+      expect(elemento.querySelector('.lienzo')?.classList).toContain('lienzo--arrastrando');
+      expect(movimientos).toEqual([]);
+
+      puntero('pointerup', svg, 501, 219);
+      svg.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 501, clientY: 219 }));
+      await fixture.whenStable();
+
+      expect(movimientos).toEqual([{ elemento: { tipo: 'ACTIVIDAD', id: 2 }, esquina: { x: 360, y: 180 } }]);
+      expect(evaluar.getAttribute('transform')).toBeNull();
+      expect(lineaDelArco(1)).toEqual(['225', '83', '340', '83']);
+      expect(puntos).toEqual([]);
+      expect(elegidos).toEqual([]);
+    });
+
+    it('distingue un clic de selección de un arrastre', async () => {
+      const svg = await crearMovible();
+      const gateway = elemento.querySelector('[data-nodo="GATEWAY:4"]')!;
+
+      puntero('pointerdown', gateway, 619, 109);
+      puntero('pointermove', svg, 621, 110);
+      puntero('pointerup', svg, 621, 110);
+      gateway.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await fixture.whenStable();
+
+      expect(movimientos).toEqual([]);
+      expect(elegidos).toEqual([{ tipo: 'GATEWAY', id: 4 }]);
+      expect(gateway.getAttribute('transform')).toBeNull();
+    });
+
+    it('no arrastra si el lienzo no admite movimientos y cancela el arrastre interrumpido', async () => {
+      await crear(diagramaCompleto());
+      const svg = elemento.querySelector('svg')!;
+      const evaluar = elemento.querySelector('[data-nodo="ACTIVIDAD:2"]')!;
+
+      puntero('pointerdown', evaluar, 481, 99);
+      puntero('pointermove', svg, 501, 219);
+      puntero('pointerup', svg, 501, 219);
+      await fixture.whenStable();
+      expect(evaluar.getAttribute('transform')).toBeNull();
+
+      fixture.componentRef.setInput('movible', true);
+      await fixture.whenStable();
+      puntero('pointerdown', evaluar, 481, 99);
+      puntero('pointermove', svg, 501, 219);
+      svg.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId: 1 }));
+      puntero('pointerup', svg, 501, 219);
+      await fixture.whenStable();
+
+      expect(movimientos).toEqual([]);
+      expect(evaluar.getAttribute('transform')).toBeNull();
+    });
+
+    it('mantiene el nodo en su posición provisional mientras el servidor confirma el movimiento', async () => {
+      await crear(diagramaCompleto());
+
+      fixture.componentRef.setInput('provisional', { elemento: { tipo: 'GATEWAY', id: 4 }, esquina: { x: 560, y: 180 } });
+      await fixture.whenStable();
+
+      expect(elemento.querySelector('[data-nodo="GATEWAY:4"]')?.getAttribute('transform')).toBe('translate(40 110)');
+      expect(lineaDelArco(2)[2]).not.toBe('520');
+
+      fixture.componentRef.setInput('provisional', null);
+      await fixture.whenStable();
+      expect(elemento.querySelector('[data-nodo="GATEWAY:4"]')?.getAttribute('transform')).toBeNull();
+      expect(lineaDelArco(2)).toEqual(['405', '83', '520', '91']);
+    });
   });
 });
