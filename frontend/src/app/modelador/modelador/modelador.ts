@@ -2,15 +2,27 @@ import { ChangeDetectionStrategy, Component, computed, input, output, signal } f
 
 import { Aviso } from '../../compartido/aviso/aviso';
 import { TEXTO_TIPO_ELEMENTO, TEXTO_TIPO_GATEWAY } from '../../compartido/textos';
-import { ActividadRespuesta, ArcoRespuesta, DiagramaProceso, GatewayRespuesta } from '../../core/modelos/diagrama';
+import {
+  ActividadRespuesta,
+  ArcoRespuesta,
+  DiagramaProceso,
+  EnvioExternoRespuesta,
+  GatewayRespuesta,
+  MessageCatchRespuesta,
+  MessageThrowRespuesta,
+} from '../../core/modelos/diagrama';
 import { Proceso } from '../../core/modelos/proceso';
 import { Seleccion } from '../../core/modelos/seleccion';
 import { BarraHerramientas, ElementoNuevo, Herramienta } from '../barra-herramientas/barra-herramientas';
 import { motivoRechazo } from '../conexiones';
 import { EliminacionElemento, ElementoEliminable } from '../eliminacion-elemento/eliminacion-elemento';
+import { PropuestaEvento, sistemasExternos } from '../eventos';
 import { FormularioActividad, PropuestaActividad } from '../formulario-actividad/formulario-actividad';
 import { FormularioArco, PropuestaArco } from '../formulario-arco/formulario-arco';
+import { FormularioEnvioExterno } from '../formulario-envio-externo/formulario-envio-externo';
 import { FormularioGateway, PropuestaGateway } from '../formulario-gateway/formulario-gateway';
+import { FormularioMessageCatch } from '../formulario-message-catch/formulario-message-catch';
+import { FormularioMessageThrow } from '../formulario-message-throw/formulario-message-throw';
 import {
   Punto,
   buscarNodo,
@@ -41,7 +53,12 @@ interface GrupoElementos {
 type Solicitud =
   | { tipo: 'ACTIVIDAD'; actividad: ActividadRespuesta | null; propuesta: PropuestaActividad | null }
   | { tipo: 'GATEWAY'; gateway: GatewayRespuesta | null; propuesta: PropuestaGateway | null }
-  | { tipo: 'ARCO'; arco: ArcoRespuesta | null; propuesta: PropuestaArco | null };
+  | { tipo: 'ARCO'; arco: ArcoRespuesta | null; propuesta: PropuestaArco | null }
+  | { tipo: 'MESSAGE_THROW'; evento: MessageThrowRespuesta | null; propuesta: PropuestaEvento | null }
+  | { tipo: 'MESSAGE_CATCH'; evento: MessageCatchRespuesta | null; propuesta: PropuestaEvento | null }
+  | { tipo: 'ENVIO_EXTERNO'; evento: EnvioExternoRespuesta | null; propuesta: PropuestaEvento | null };
+
+type TipoEventoNuevo = 'MESSAGE_THROW' | 'MESSAGE_CATCH' | 'ENVIO_EXTERNO';
 
 type SolicitudDe<T extends Solicitud['tipo']> = Extract<Solicitud, { tipo: T }>;
 
@@ -53,7 +70,10 @@ type SolicitudDe<T extends Solicitud['tipo']> = Extract<Solicitud, { tipo: T }>;
     EliminacionElemento,
     FormularioActividad,
     FormularioArco,
+    FormularioEnvioExterno,
     FormularioGateway,
+    FormularioMessageCatch,
+    FormularioMessageThrow,
     LienzoDiagrama,
     PanelElemento,
   ],
@@ -128,18 +148,18 @@ export class Modelador {
     return origen ? [`${origen.tipo}:${origen.id}`] : [];
   });
   protected readonly colocando = computed(
-    () => this.escritura() && (this.herramienta() === 'ACTIVIDAD' || this.herramienta() === 'GATEWAY'),
+    () => this.escritura() && this.herramienta() !== 'SELECCION' && this.herramienta() !== 'ARCO',
   );
   protected readonly solicitud = signal<Solicitud | null>(null);
   protected readonly solicitudActividad = computed(() => this.solicitudDe('ACTIVIDAD'));
   protected readonly solicitudGateway = computed(() => this.solicitudDe('GATEWAY'));
   protected readonly solicitudArco = computed(() => this.solicitudDe('ARCO'));
+  protected readonly solicitudThrow = computed(() => this.solicitudDe('MESSAGE_THROW'));
+  protected readonly solicitudCatch = computed(() => this.solicitudDe('MESSAGE_CATCH'));
+  protected readonly solicitudEnvio = computed(() => this.solicitudDe('ENVIO_EXTERNO'));
   protected readonly porEliminar = signal<ElementoEliminable | null>(null);
   protected readonly mensaje = signal<string | null>(null);
-  protected readonly modificable = computed(() => {
-    const seleccion = this.seleccion();
-    return seleccion !== null && esModificable(seleccion) ? seleccion : null;
-  });
+  protected readonly modificable = computed<ElementoEliminable | null>(() => this.seleccion());
   protected readonly puedeEditar = computed(() => this.escritura() && this.modificable() !== null);
   protected readonly puedeEliminar = computed(() => this.edicion()?.eliminar === true && this.modificable() !== null);
 
@@ -178,6 +198,9 @@ export class Modelador {
         break;
       case 'SELECCION':
         this.limpiar();
+        break;
+      default:
+        this.proponerEvento(this.herramienta() as TipoEventoNuevo, punto);
     }
   }
 
@@ -221,6 +244,18 @@ export class Modelador {
         const seleccion = this.seleccion();
         const origen = seleccion && seleccion.tipo !== 'ARCO' ? seleccion : null;
         this.abrir({ tipo, arco: null, propuesta: { origen, destino: null } });
+        return;
+      }
+      default: {
+        const pool = pools[0];
+        if (!pool) {
+          this.indicacion.set('El proceso no tiene pools que admitan eventos.');
+          return;
+        }
+        this.abrirEvento(tipo, {
+          poolId: pool.pool.id,
+          posicion: posicionLibre(geometria, 'EVENTO', pool.lanes[0] ?? pool),
+        });
       }
     }
   }
@@ -245,6 +280,21 @@ export class Modelador {
       case 'ARCO': {
         const arco = diagrama.arcos.find((actual) => actual.id === seleccion.id) ?? null;
         this.abrir({ tipo: 'ARCO', arco, propuesta: null });
+        return;
+      }
+      case 'MESSAGE_THROW': {
+        const evento = diagrama.messageThrows.find((actual) => actual.id === seleccion.id) ?? null;
+        this.abrir({ tipo: 'MESSAGE_THROW', evento, propuesta: null });
+        return;
+      }
+      case 'MESSAGE_CATCH': {
+        const evento = diagrama.messageCatches.find((actual) => actual.id === seleccion.id) ?? null;
+        this.abrir({ tipo: 'MESSAGE_CATCH', evento, propuesta: null });
+        return;
+      }
+      case 'ENVIO_EXTERNO': {
+        const evento = diagrama.enviosExternos.find((actual) => actual.id === seleccion.id) ?? null;
+        this.abrir({ tipo: 'ENVIO_EXTERNO', evento, propuesta: null });
       }
     }
   }
@@ -270,6 +320,27 @@ export class Modelador {
     this.confirmar(
       { tipo: 'ARCO', id: arco.id },
       `El arco «${arco.origenNombre} → ${arco.destinoNombre}» se guardó en el servidor.`,
+    );
+  }
+
+  protected throwGuardado(evento: MessageThrowRespuesta): void {
+    this.confirmar(
+      { tipo: 'MESSAGE_THROW', id: evento.id },
+      conAdvertencias(`El Message Throw «${evento.nombreMensaje}» se guardó en el servidor.`, evento.advertencias),
+    );
+  }
+
+  protected catchGuardado(evento: MessageCatchRespuesta): void {
+    this.confirmar(
+      { tipo: 'MESSAGE_CATCH', id: evento.id },
+      conAdvertencias(`El Message Catch «${evento.nombreMensaje}» se guardó en el servidor.`, evento.advertencias),
+    );
+  }
+
+  protected envioGuardado(evento: EnvioExternoRespuesta): void {
+    this.confirmar(
+      { tipo: 'ENVIO_EXTERNO', id: evento.id },
+      conAdvertencias(`El envío externo «${evento.nombreMensaje}» se guardó en el servidor.`, evento.advertencias),
     );
   }
 
@@ -331,6 +402,42 @@ export class Modelador {
     });
   }
 
+  private proponerEvento(tipo: TipoEventoNuevo, punto: Punto): void {
+    const geometria = this.geometria();
+    const ubicacion = ubicacionEn(geometria, punto);
+    if (!ubicacion || ubicacion.pool.pool.cajaNegra) {
+      this.indicacion.set('Ese punto no está dentro de un pool que admita eventos. Pulsa dentro de un pool sin caja negra.');
+      return;
+    }
+    this.abrirEvento(tipo, {
+      poolId: ubicacion.pool.pool.id,
+      posicion: colocarEnBanda('EVENTO', punto, ubicacion.lane ?? ubicacion.pool, geometria.inicioContenido),
+    });
+  }
+
+  private abrirEvento(tipo: TipoEventoNuevo, propuesta: PropuestaEvento): void {
+    const diagrama = this.diagrama();
+    if (tipo === 'MESSAGE_THROW' && diagrama.pools.length < 2) {
+      this.indicacion.set('Un Message Throw necesita otro pool como receptor. Crea antes otro pool del proceso.');
+      return;
+    }
+    if (tipo === 'ENVIO_EXTERNO' && sistemasExternos(diagrama).length === 0) {
+      this.indicacion.set('Un envío externo se dirige a un pool externo de caja negra. Crea antes ese pool.');
+      return;
+    }
+    this.indicacion.set(null);
+    switch (tipo) {
+      case 'MESSAGE_THROW':
+        this.abrir({ tipo, evento: null, propuesta });
+        return;
+      case 'MESSAGE_CATCH':
+        this.abrir({ tipo, evento: null, propuesta });
+        return;
+      case 'ENVIO_EXTERNO':
+        this.abrir({ tipo, evento: null, propuesta });
+    }
+  }
+
   private elegirExtremo(seleccion: Seleccion): void {
     const geometria = this.geometria();
     const nodo = buscarNodo(geometria, seleccion);
@@ -354,6 +461,10 @@ export class Modelador {
   }
 }
 
-function esModificable(seleccion: Seleccion): seleccion is ElementoEliminable {
-  return seleccion.tipo === 'ACTIVIDAD' || seleccion.tipo === 'GATEWAY' || seleccion.tipo === 'ARCO';
+function conAdvertencias(texto: string, advertencias: readonly string[]): string {
+  if (advertencias.length === 0) {
+    return texto;
+  }
+  const cuantas = advertencias.length === 1 ? 'una advertencia' : `${advertencias.length} advertencias`;
+  return `${texto} El servidor informa ${cuantas}: revísalas en el panel del elemento.`;
 }

@@ -1,0 +1,117 @@
+<form class="formulario" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate [attr.aria-labelledby]="id + '-titulo'">
+  <h3 class="formulario__titulo" [id]="id + '-titulo'">
+    {{ edicion() ? 'Editar envío externo' : 'Nuevo envío externo' }}
+  </h3>
+  <p class="nota">
+    Documenta lo que el proceso enviaría a un sistema de terceros. No se envían correos ni se invocan servicios, y no
+    se registran credenciales ni direcciones de conexión.
+  </p>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-nombre'">Nombre del envío</label>
+    <input [id]="id + '-nombre'" class="campo__control" type="text" autocomplete="off" formControlName="nombreMensaje" [attr.aria-invalid]="error('nombreMensaje') !== null" [attr.aria-describedby]="id + '-error-nombre'" />
+    <span class="campo__error" [id]="id + '-error-nombre'">{{ error('nombreMensaje') }}</span>
+  </div>
+
+  @if (edicion()) {
+    <p class="nota">
+      Sale del pool «{{ envio()?.poolOrigenNombre }}» en x {{ formulario.controls.posicionX.value }}, y
+      {{ formulario.controls.posicionY.value }}. La API actual no permite cambiar el pool emisor ni la posición.
+    </p>
+  } @else {
+    <div class="campo">
+      <label class="campo__etiqueta" [for]="id + '-origen'">Pool emisor</label>
+      <select [id]="id + '-origen'" class="campo__control" formControlName="poolOrigenId" [attr.aria-invalid]="error('poolOrigenId') !== null" [attr.aria-describedby]="id + '-error-origen'">
+        <option [ngValue]="null" disabled>Elige un pool</option>
+        @for (pool of origenes(); track pool.id) {
+          <option [ngValue]="pool.id">{{ nombrePool(pool) }}</option>
+        }
+      </select>
+      <span class="campo__error" [id]="id + '-error-origen'">{{ error('poolOrigenId') }}</span>
+    </div>
+  }
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-destino'">Sistema externo</label>
+    <select [id]="id + '-destino'" class="campo__control" formControlName="poolDestinoId" [attr.aria-invalid]="error('poolDestinoId') !== null" [attr.aria-describedby]="id + '-ayuda-destino ' + id + '-error-destino'">
+      <option [ngValue]="null" disabled>Elige el sistema externo</option>
+      @for (pool of destinos(); track pool.id) {
+        <option [ngValue]="pool.id">{{ nombrePool(pool) }}</option>
+      }
+    </select>
+    <span class="campo__ayuda" [id]="id + '-ayuda-destino'">Solo los pools externos de caja negra representan sistemas de terceros.</span>
+    <span class="campo__error" [id]="id + '-error-destino'">{{ error('poolDestinoId') }}</span>
+  </div>
+  @if (destinos().length === 0) {
+    <app-aviso tipo="vacio" titulo="No hay sistemas externos" detalle="Crea en «Pools y participantes» un pool externo de caja negra que represente al sistema de terceros." />
+  }
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-medio'">Medio documentado</label>
+    <select [id]="id + '-medio'" class="campo__control" formControlName="tipoDestino" [attr.aria-invalid]="error('tipoDestino') !== null" [attr.aria-describedby]="id + '-error-medio'">
+      <option [ngValue]="null" disabled>Elige el medio</option>
+      @for (tipo of tiposDestino; track tipo) {
+        <option [ngValue]="tipo">{{ textoDestino[tipo] }}</option>
+      }
+    </select>
+    <span class="campo__error" [id]="id + '-error-medio'">{{ error('tipoDestino') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-datos'">Datos enviados</label>
+    <textarea [id]="id + '-datos'" class="campo__control" rows="3" formControlName="datosEnviados" [attr.aria-invalid]="error('datosEnviados') !== null" [attr.aria-describedby]="id + '-error-datos'"></textarea>
+    <span class="campo__error" [id]="id + '-error-datos'">{{ error('datosEnviados') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-momento'">Momento del proceso</label>
+    <input [id]="id + '-momento'" class="campo__control" type="text" autocomplete="off" formControlName="momentoProceso" [attr.aria-invalid]="error('momentoProceso') !== null" [attr.aria-describedby]="id + '-error-momento'" />
+    <span class="campo__error" [id]="id + '-error-momento'">{{ error('momentoProceso') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-fallo'">Si el envío falla</label>
+    <select [id]="id + '-fallo'" class="campo__control" formControlName="comportamientoFallo" [attr.aria-invalid]="error('comportamientoFallo') !== null" [attr.aria-describedby]="id + '-error-fallo'">
+      <option [ngValue]="null" disabled>Elige el comportamiento</option>
+      @for (comportamiento of comportamientos; track comportamiento) {
+        <option [ngValue]="comportamiento">{{ textoFallo[comportamiento] }}</option>
+      }
+    </select>
+    <span class="campo__error" [id]="id + '-error-fallo'">{{ error('comportamientoFallo') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-clave'">Clave de correlación (opcional)</label>
+    <input [id]="id + '-clave'" class="campo__control" type="text" autocomplete="off" formControlName="claveCorrelacion" [attr.aria-invalid]="error('claveCorrelacion') !== null" [attr.aria-describedby]="id + '-error-clave'" />
+    <span class="campo__error" [id]="id + '-error-clave'">{{ error('claveCorrelacion') }}</span>
+  </div>
+
+  @if (!edicion()) {
+    <fieldset class="formulario__grupo">
+      <legend class="campo__etiqueta">Posición inicial en el lienzo</legend>
+      <div class="formulario__coordenadas">
+        <div class="campo">
+          <label class="campo__etiqueta" [for]="id + '-x'">X</label>
+          <input [id]="id + '-x'" class="campo__control" type="number" step="1" formControlName="posicionX" [attr.aria-invalid]="error('posicionX') !== null" [attr.aria-describedby]="id + '-error-x'" />
+          <span class="campo__error" [id]="id + '-error-x'">{{ error('posicionX') }}</span>
+        </div>
+        <div class="campo">
+          <label class="campo__etiqueta" [for]="id + '-y'">Y</label>
+          <input [id]="id + '-y'" class="campo__control" type="number" step="1" formControlName="posicionY" [attr.aria-invalid]="error('posicionY') !== null" [attr.aria-describedby]="id + '-error-y'" />
+          <span class="campo__error" [id]="id + '-error-y'">{{ error('posicionY') }}</span>
+        </div>
+      </div>
+    </fieldset>
+  }
+
+  @if (fallo(); as falloActual) {
+    <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
+  }
+
+  <div class="formulario__acciones">
+    <button type="button" class="boton boton--texto" [disabled]="guardando()" (click)="cancelado.emit()">Cancelar</button>
+    <button type="submit" class="boton boton--primario" [disabled]="guardando() || destinos().length === 0">
+      {{ guardando() ? 'Guardando…' : edicion() ? 'Guardar cambios' : 'Crear envío externo' }}
+    </button>
+  </div>
+</form>

@@ -62,6 +62,36 @@
           (guardado)="arcoGuardado($event)"
           (cancelado)="cancelar()"
         />
+      } @else if (solicitudThrow(); as actual) {
+        <app-formulario-message-throw
+          [procesoId]="proceso().id"
+          [diagrama]="diagrama()"
+          [geometria]="geometria()"
+          [messageThrow]="actual.evento"
+          [propuesta]="actual.propuesta"
+          (guardado)="throwGuardado($event)"
+          (cancelado)="cancelar()"
+        />
+      } @else if (solicitudCatch(); as actual) {
+        <app-formulario-message-catch
+          [procesoId]="proceso().id"
+          [diagrama]="diagrama()"
+          [geometria]="geometria()"
+          [messageCatch]="actual.evento"
+          [propuesta]="actual.propuesta"
+          (guardado)="catchGuardado($event)"
+          (cancelado)="cancelar()"
+        />
+      } @else if (solicitudEnvio(); as actual) {
+        <app-formulario-envio-externo
+          [procesoId]="proceso().id"
+          [diagrama]="diagrama()"
+          [geometria]="geometria()"
+          [envio]="actual.evento"
+          [propuesta]="actual.propuesta"
+          (guardado)="envioGuardado($event)"
+          (cancelado)="cancelar()"
+        />
       } @else {
         <app-panel-elemento [diagrama]="diagrama()" [seleccion]="seleccion()" (limpiar)="limpiar()">
           @if (puedeEditar()) {

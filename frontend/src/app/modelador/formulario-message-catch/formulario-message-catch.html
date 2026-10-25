@@ -1,0 +1,135 @@
+<form class="formulario" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate [attr.aria-labelledby]="id + '-titulo'">
+  <h3 class="formulario__titulo" [id]="id + '-titulo'">
+    {{ edicion() ? 'Editar Message Catch' : 'Nuevo Message Catch' }}
+  </h3>
+  <p class="nota">Modela la recepción de un mensaje en un pool. Solo se documenta: no se escuchan colas ni servicios reales.</p>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-nombre'">Nombre del mensaje esperado</label>
+    <input [id]="id + '-nombre'" class="campo__control" type="text" autocomplete="off" formControlName="nombreMensaje" [attr.aria-invalid]="error('nombreMensaje') !== null" [attr.aria-describedby]="id + '-error-nombre'" />
+    <span class="campo__error" [id]="id + '-error-nombre'">{{ error('nombreMensaje') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-variante'">Variante</label>
+    <select [id]="id + '-variante'" class="campo__control" formControlName="variante" [attr.aria-invalid]="error('variante') !== null" [attr.aria-describedby]="id + '-ayuda-variante ' + id + '-error-variante'">
+      <option [ngValue]="null" disabled>Elige la variante</option>
+      @for (variante of variantes; track variante) {
+        <option [ngValue]="variante">{{ textoVariante[variante] }}</option>
+      }
+    </select>
+    <span class="campo__ayuda" [id]="id + '-ayuda-variante'">
+      @if (varianteElegida() === 'INICIO') {
+        Inicia un caso nuevo y no admite flujos de secuencia entrantes.
+      } @else if (varianteElegida() === 'INTERMEDIO') {
+        Un caso en curso espera el mensaje para continuar.
+      }
+    </span>
+    @if (varianteElegida() === 'INICIO' && entradas() > 0) {
+      <span class="campo__ayuda formulario__alerta">
+        Tiene {{ entradas() }} {{ entradas() === 1 ? 'flujo de secuencia entrante' : 'flujos de secuencia entrantes' }}: el servidor rechazará el cambio a inicio.
+      </span>
+    }
+    <span class="campo__error" [id]="id + '-error-variante'">{{ error('variante') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-datos'">Datos esperados</label>
+    <textarea [id]="id + '-datos'" class="campo__control" rows="3" formControlName="datosEsperados" [attr.aria-invalid]="error('datosEsperados') !== null" [attr.aria-describedby]="id + '-error-datos'"></textarea>
+    <span class="campo__error" [id]="id + '-error-datos'">{{ error('datosEsperados') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-uso'">Actividades que usan los datos</label>
+    <input [id]="id + '-uso'" class="campo__control" type="text" autocomplete="off" formControlName="actividadesUso" [attr.aria-invalid]="error('actividadesUso') !== null" [attr.aria-describedby]="id + '-error-uso'" />
+    <span class="campo__error" [id]="id + '-error-uso'">{{ error('actividadesUso') }}</span>
+  </div>
+
+  @if (edicion()) {
+    <p class="nota">
+      Recibe en el pool «{{ messageCatch()?.poolNombre }}» en x {{ formulario.controls.posicionX.value }}, y
+      {{ formulario.controls.posicionY.value }}. La API actual no permite cambiar el pool ni la posición.
+    </p>
+  } @else {
+    <div class="campo">
+      <label class="campo__etiqueta" [for]="id + '-pool'">Pool receptor</label>
+      <select [id]="id + '-pool'" class="campo__control" formControlName="poolId" [attr.aria-invalid]="error('poolId') !== null" [attr.aria-describedby]="id + '-error-pool'">
+        <option [ngValue]="null" disabled>Elige un pool</option>
+        @for (pool of pools(); track pool.id) {
+          <option [ngValue]="pool.id">{{ nombrePool(pool) }}</option>
+        }
+      </select>
+      <span class="campo__error" [id]="id + '-error-pool'">{{ error('poolId') }}</span>
+    </div>
+  }
+
+  <fieldset class="formulario__grupo">
+    <legend class="campo__etiqueta">Emisor y correlación</legend>
+    <div class="campo">
+      <label class="casilla">
+        <input type="checkbox" formControlName="origenExterno" />
+        El mensaje llega desde fuera del proceso
+      </label>
+      <span class="campo__ayuda">Si no lo marcas, el servidor espera un Message Throw homólogo con el mismo nombre dirigido a este pool.</span>
+    </div>
+    <div class="campo">
+      <label class="campo__etiqueta" [for]="id + '-clave'">Clave de correlación (opcional)</label>
+      <input [id]="id + '-clave'" class="campo__control" type="text" autocomplete="off" formControlName="claveCorrelacion" [attr.aria-invalid]="error('claveCorrelacion') !== null" [attr.aria-describedby]="id + '-ayuda-clave ' + id + '-error-clave'" />
+      <span class="campo__ayuda" [id]="id + '-ayuda-clave'">Identifica el caso que espera el mensaje; debe coincidir con la del Message Throw homólogo.</span>
+      <span class="campo__error" [id]="id + '-error-clave'">{{ error('claveCorrelacion') }}</span>
+    </div>
+    <div class="campo">
+      <label class="campo__etiqueta" [for]="id + '-sin-caso'">Si llega un mensaje sin caso en espera</label>
+      <select [id]="id + '-sin-caso'" class="campo__control" formControlName="comportamientoSinCaso" [attr.aria-invalid]="error('comportamientoSinCaso') !== null" [attr.aria-describedby]="id + '-ayuda-sin-caso ' + id + '-error-sin-caso'">
+        <option [ngValue]="null">Sin documentar</option>
+        @for (comportamiento of comportamientos; track comportamiento) {
+          <option [ngValue]="comportamiento">{{ textoSinCaso[comportamiento] }}</option>
+        }
+      </select>
+      @if (varianteElegida() === 'INICIO') {
+        <span class="campo__ayuda" [id]="id + '-ayuda-sin-caso'">Un Message Catch de inicio siempre inicia un caso nuevo.</span>
+      }
+      <span class="campo__error" [id]="id + '-error-sin-caso'">{{ error('comportamientoSinCaso') }}</span>
+    </div>
+    @if (messageCatch(); as actual) {
+      @if (actual.advertencias.length > 0) {
+        <ul class="formulario__advertencias" aria-label="Advertencias de correlación actuales">
+          @for (advertencia of actual.advertencias; track $index) {
+            <li>{{ advertencia }}</li>
+          }
+        </ul>
+      }
+    } @else {
+      <p class="nota">Al guardar, el servidor busca el Message Throw homólogo y advierte si falta, si la clave no coincide, si hay ambigüedad o si un Catch intermedio no documenta su correlación.</p>
+    }
+  </fieldset>
+
+  @if (!edicion()) {
+    <fieldset class="formulario__grupo">
+      <legend class="campo__etiqueta">Posición inicial en el lienzo</legend>
+      <div class="formulario__coordenadas">
+        <div class="campo">
+          <label class="campo__etiqueta" [for]="id + '-x'">X</label>
+          <input [id]="id + '-x'" class="campo__control" type="number" step="1" formControlName="posicionX" [attr.aria-invalid]="error('posicionX') !== null" [attr.aria-describedby]="id + '-error-x'" />
+          <span class="campo__error" [id]="id + '-error-x'">{{ error('posicionX') }}</span>
+        </div>
+        <div class="campo">
+          <label class="campo__etiqueta" [for]="id + '-y'">Y</label>
+          <input [id]="id + '-y'" class="campo__control" type="number" step="1" formControlName="posicionY" [attr.aria-invalid]="error('posicionY') !== null" [attr.aria-describedby]="id + '-error-y'" />
+          <span class="campo__error" [id]="id + '-error-y'">{{ error('posicionY') }}</span>
+        </div>
+      </div>
+    </fieldset>
+  }
+
+  @if (fallo(); as falloActual) {
+    <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
+  }
+
+  <div class="formulario__acciones">
+    <button type="button" class="boton boton--texto" [disabled]="guardando()" (click)="cancelado.emit()">Cancelar</button>
+    <button type="submit" class="boton boton--primario" [disabled]="guardando()">
+      {{ guardando() ? 'Guardando…' : edicion() ? 'Guardar cambios' : 'Crear Message Catch' }}
+    </button>
+  </div>
+</form>

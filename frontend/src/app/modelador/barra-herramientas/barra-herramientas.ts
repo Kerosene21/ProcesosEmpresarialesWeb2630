@@ -1,6 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-export type Herramienta = 'SELECCION' | 'ACTIVIDAD' | 'GATEWAY' | 'ARCO';
+export type Herramienta =
+  | 'SELECCION'
+  | 'ACTIVIDAD'
+  | 'GATEWAY'
+  | 'ARCO'
+  | 'MESSAGE_THROW'
+  | 'MESSAGE_CATCH'
+  | 'ENVIO_EXTERNO';
 
 export type ElementoNuevo = Exclude<Herramienta, 'SELECCION'>;
 
@@ -15,12 +22,30 @@ const HERRAMIENTAS: readonly OpcionHerramienta[] = [
   { valor: 'ACTIVIDAD', nombre: 'Actividad', ayuda: 'Pulsa dentro de una lane para ubicar la nueva actividad.' },
   { valor: 'GATEWAY', nombre: 'Gateway', ayuda: 'Pulsa dentro de un pool para ubicar el nuevo gateway.' },
   { valor: 'ARCO', nombre: 'Arco', ayuda: 'Pulsa el nodo de origen y después el nodo de destino.' },
+  {
+    valor: 'MESSAGE_THROW',
+    nombre: 'Message Throw',
+    ayuda: 'Pulsa dentro del pool que emite el mensaje. El pool receptor se elige en el formulario.',
+  },
+  {
+    valor: 'MESSAGE_CATCH',
+    nombre: 'Message Catch',
+    ayuda: 'Pulsa dentro del pool que recibe el mensaje para ubicar el evento.',
+  },
+  {
+    valor: 'ENVIO_EXTERNO',
+    nombre: 'Envío externo',
+    ayuda: 'Pulsa dentro del pool que envía. El destino es un pool externo de caja negra.',
+  },
 ];
 
 const NUEVOS: readonly { valor: ElementoNuevo; nombre: string }[] = [
   { valor: 'ACTIVIDAD', nombre: 'Nueva actividad' },
   { valor: 'GATEWAY', nombre: 'Nuevo gateway' },
   { valor: 'ARCO', nombre: 'Nuevo arco' },
+  { valor: 'MESSAGE_THROW', nombre: 'Nuevo Message Throw' },
+  { valor: 'MESSAGE_CATCH', nombre: 'Nuevo Message Catch' },
+  { valor: 'ENVIO_EXTERNO', nombre: 'Nuevo envío externo' },
 ];
 
 @Component({

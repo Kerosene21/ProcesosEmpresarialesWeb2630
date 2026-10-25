@@ -118,7 +118,7 @@ export function describirElemento(diagrama: DiagramaProceso, seleccion: Seleccio
                 etiqueta: 'Sin caso abierto',
                 valor: evento.comportamientoSinCaso ? TEXTO_SIN_CASO[evento.comportamientoSinCaso] : SIN_DATO,
               },
-              { etiqueta: 'Catch homólogo', valor: evento.catchHomologoId ? `#${evento.catchHomologoId}` : 'No existe' },
+              { etiqueta: 'Catch homólogo', valor: catchHomologo(diagrama, evento.catchHomologoId) },
               { etiqueta: 'Posición', valor: posicion(evento.posicionX, evento.posicionY) },
             ],
             advertencias: evento.advertencias,
@@ -138,7 +138,10 @@ export function describirElemento(diagrama: DiagramaProceso, seleccion: Seleccio
               { etiqueta: 'Actividades que lo usan', valor: evento.actividadesUso },
               { etiqueta: 'Origen externo', valor: evento.origenExterno ? 'Sí' : 'No' },
               { etiqueta: 'Clave de correlación', valor: evento.claveCorrelacion ?? SIN_DATO },
-              { etiqueta: 'Throw homólogo', valor: evento.throwHomologoId ? `#${evento.throwHomologoId}` : 'No existe' },
+              {
+                etiqueta: 'Throw homólogo',
+                valor: evento.origenExterno ? 'No aplica: origen externo' : throwHomologo(diagrama, evento.throwHomologoId),
+              },
               { etiqueta: 'Posición', valor: posicion(evento.posicionX, evento.posicionY) },
             ],
             advertencias: evento.advertencias,
@@ -158,6 +161,7 @@ export function describirElemento(diagrama: DiagramaProceso, seleccion: Seleccio
               { etiqueta: 'Datos enviados', valor: evento.datosEnviados },
               { etiqueta: 'Momento', valor: evento.momentoProceso },
               { etiqueta: 'Si falla', valor: TEXTO_FALLO_ENVIO[evento.comportamientoFallo] },
+              { etiqueta: 'Clave de correlación', valor: evento.claveCorrelacion ?? SIN_DATO },
               { etiqueta: 'Posición', valor: posicion(evento.posicionX, evento.posicionY) },
             ],
             advertencias: evento.advertencias,
@@ -165,6 +169,22 @@ export function describirElemento(diagrama: DiagramaProceso, seleccion: Seleccio
         : null;
     }
   }
+}
+
+function catchHomologo(diagrama: DiagramaProceso, id: number | null): string {
+  const homologo = id === null ? undefined : diagrama.messageCatches.find((actual) => actual.id === id);
+  if (!homologo) {
+    return id === null ? 'No existe' : `#${id}`;
+  }
+  return `«${homologo.nombreMensaje}» en ${homologo.poolNombre} (#${homologo.id})`;
+}
+
+function throwHomologo(diagrama: DiagramaProceso, id: number | null): string {
+  const homologo = id === null ? undefined : diagrama.messageThrows.find((actual) => actual.id === id);
+  if (!homologo) {
+    return id === null ? 'No existe' : `#${id}`;
+  }
+  return `«${homologo.nombreMensaje}» desde ${homologo.poolOrigenNombre} (#${homologo.id})`;
 }
 
 function posicion(x: number | null, y: number | null): string {

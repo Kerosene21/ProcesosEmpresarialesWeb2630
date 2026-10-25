@@ -48,4 +48,19 @@ describe('BarraHerramientas', () => {
     expect(elegidas).toEqual(['ARCO']);
     expect(nuevos).toEqual(['GATEWAY']);
   });
+
+  it('ofrece las herramientas de eventos de mensaje sin quitar las anteriores', async () => {
+    await crear('MESSAGE_THROW');
+    const herramientas = Array.from(elemento.querySelectorAll('[role="toolbar"] button')).map((actual) => actual.textContent?.trim());
+
+    expect(herramientas).toEqual(['Seleccionar', 'Actividad', 'Gateway', 'Arco', 'Message Throw', 'Message Catch', 'Envío externo']);
+    expect(elemento.querySelector('[role="status"]')?.textContent).toContain('El pool receptor se elige en el formulario');
+
+    boton('Envío externo').click();
+    boton('Nuevo Message Catch').click();
+    boton('Nuevo envío externo').click();
+
+    expect(elegidas).toEqual(['ENVIO_EXTERNO']);
+    expect(nuevos).toEqual(['MESSAGE_CATCH', 'ENVIO_EXTERNO']);
+  });
 });

@@ -5,7 +5,10 @@ import { PROCESO_PRUEBA, actividad, diagramaCompleto, diagramaInicial } from '..
 import { DiagramaProceso } from '../../core/modelos/diagrama';
 import { ActividadService } from '../../core/servicios/actividad-service';
 import { ArcoService } from '../../core/servicios/arco-service';
+import { EnvioExternoService } from '../../core/servicios/envio-externo-service';
 import { GatewayService } from '../../core/servicios/gateway-service';
+import { MessageCatchService } from '../../core/servicios/message-catch-service';
+import { MessageThrowService } from '../../core/servicios/message-throw-service';
 import { Modelador, PermisosEdicion } from './modelador';
 
 describe('Modelador', () => {
@@ -14,15 +17,27 @@ describe('Modelador', () => {
   let cambios: number;
   const crearActividad = vi.fn();
   const previsualizarGateway = vi.fn();
+  const crearThrow = vi.fn();
+  const previsualizarCatch = vi.fn();
 
   async function crear(diagrama: DiagramaProceso, edicion: PermisosEdicion | null = null): Promise<void> {
     crearActividad.mockReset();
     previsualizarGateway.mockReset().mockReturnValue(of({ ...diagramaCompleto().gateways[0], advertencias: [] }));
+    crearThrow.mockReset();
+    previsualizarCatch.mockReset().mockReturnValue(
+      of({
+        ...diagramaCompleto().messageCatches[0],
+        advertencias: ["El Message Throw 'Solicitud de servicio' quedará sin Message Catch homólogo en el pool 'Empresa de prueba'."],
+      }),
+    );
     TestBed.configureTestingModule({
       providers: [
         { provide: ActividadService, useValue: { crear: crearActividad } },
         { provide: GatewayService, useValue: { previsualizarEliminacion: previsualizarGateway } },
         { provide: ArcoService, useValue: {} },
+        { provide: MessageThrowService, useValue: { crear: crearThrow } },
+        { provide: MessageCatchService, useValue: { previsualizarEliminacion: previsualizarCatch } },
+        { provide: EnvioExternoService, useValue: {} },
       ],
     });
     fixture = TestBed.createComponent(Modelador);
@@ -163,8 +178,8 @@ describe('Modelador', () => {
 
     botonDeLista('Message Catch: Solicitud de servicio').click();
     await fixture.whenStable();
-    expect(boton('Editar')).toBeUndefined();
-    expect(boton('Eliminar')).toBeUndefined();
+    expect(boton('Editar')).toBeDefined();
+    expect(boton('Eliminar')).toBeDefined();
   });
 
   it('propone la lane y la posición del punto pulsado con la herramienta de actividad', async () => {
@@ -192,6 +207,96 @@ describe('Modelador', () => {
     expect(elemento.querySelector('.formulario__titulo')?.textContent?.trim()).toBe('Nuevo gateway');
     expect(elegida('[formControlName="poolId"]')).toBe('Cliente');
     expect(elemento.querySelector<HTMLInputElement>('[formControlName="posicionY"]')!.value).toBe('377');
+  });
+
+  it('ubica un Message Catch en el pool pulsado y lo rechaza en un pool de caja negra', async () => {
+    await crear(diagramaCompleto(), { escribir: true, eliminar: false });
+    boton('Message Catch')!.click();
+    await fixture.whenStable();
+
+    expect(elemento.querySelector('.lienzo--colocando')).not.toBeNull();
+    await pulsarLienzo(300, 210);
+    expect(elemento.querySelector('.formulario__titulo')?.textContent?.trim()).toBe('Nuevo Message Catch');
+    expect(elegida('[formControlName="poolId"]')).toBe('Empresa de prueba (propietario)');
+    expect(elemento.querySelector<HTMLInputElement>('[formControlName="posicionX"]')!.value).toBe('282');
+    expect(elemento.querySelector<HTMLInputElement>('[formControlName="posicionY"]')!.value).toBe('192');
+
+    boton('Cancelar')!.click();
+    await fixture.whenStable();
+    await pulsarLienzo(300, 540);
+    expect(indicacion()).toContain('no está dentro de un pool que admita eventos');
+    expect(elemento.querySelector('form')).toBeNull();
+  });
+
+  it('exige otro pool para un Message Throw y un sistema externo para un envío externo', async () => {
+    await crear(diagramaInicial(), { escribir: true, eliminar: false });
+
+    boton('Nuevo Message Throw')!.click();
+    await fixture.whenStable();
+    expect(indicacion()).toContain('necesita otro pool como receptor');
+    boton('Nuevo envío externo')!.click();
+    await fixture.whenStable();
+    expect(indicacion()).toContain('pool externo de caja negra');
+    expect(elemento.querySelector('form')).toBeNull();
+
+    TestBed.resetTestingModule();
+    await crear(diagramaCompleto(), { escribir: true, eliminar: false });
+    boton('Nuevo envío externo')!.click();
+    await fixture.whenStable();
+    expect(elemento.querySelector('.formulario__titulo')?.textContent?.trim()).toBe('Nuevo envío externo');
+    expect(elegida('[formControlName="poolDestinoId"]')).toBe('Servicio de correo (externo, caja negra)');
+  });
+
+  it('guarda un Message Throw, avisa del cambio y resume las advertencias del servidor', async () => {
+    await crear(diagramaCompleto(), { escribir: true, eliminar: false });
+    const creado = {
+      ...diagramaCompleto().messageThrows[0],
+      id: 12,
+      nombreMensaje: 'Pago',
+      advertencias: ["No existe un Message Catch 'Pago' en el pool destino 'Cliente': el mensaje no tiene un receptor modelado."],
+    };
+    crearThrow.mockReturnValue(of(creado));
+    boton('Nuevo Message Throw')!.click();
+    await fixture.whenStable();
+    for (const [campo, valor] of [
+      ['nombreMensaje', 'Pago'],
+      ['contenido', 'numeroFactura'],
+    ]) {
+      const control = elemento.querySelector<HTMLInputElement>(`[formControlName="${campo}"]`)!;
+      control.value = valor;
+      control.dispatchEvent(new Event('input'));
+    }
+    const destino = elemento.querySelector<HTMLSelectElement>('[formControlName="poolDestinoId"]')!;
+    destino.selectedIndex = 1;
+    destino.dispatchEvent(new Event('change'));
+    elemento.querySelector('form')!.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    expect(crearThrow).toHaveBeenCalledWith(5, expect.objectContaining({ nombreMensaje: 'Pago', poolOrigenId: 80, poolDestinoId: 81 }));
+    expect(cambios).toBe(1);
+    expect(elemento.querySelector('.modelador__exito')?.textContent).toContain('El servidor informa una advertencia');
+  });
+
+  it('edita y elimina eventos seleccionados con la vista previa del servidor', async () => {
+    await crear(diagramaCompleto(), { escribir: true, eliminar: true });
+    botonDeLista('Message Catch: Solicitud de servicio').click();
+    await fixture.whenStable();
+
+    boton('Editar')!.click();
+    await fixture.whenStable();
+    expect(elemento.querySelector('.formulario__titulo')?.textContent?.trim()).toBe('Editar Message Catch');
+    expect(elemento.querySelector<HTMLInputElement>('[formControlName="nombreMensaje"]')!.value).toBe('Solicitud de servicio');
+    boton('Cancelar')!.click();
+    await fixture.whenStable();
+
+    boton('Eliminar')!.click();
+    await fixture.whenStable();
+    expect(previsualizarCatch).toHaveBeenCalledWith(5, 5);
+    expect(elemento.querySelector('[role="alertdialog"] h2')?.textContent).toBe('¿Eliminar el Message Catch?');
+    expect(elemento.querySelector('.eliminacion__consecuencias')?.textContent).toContain('quedará sin Message Catch homólogo');
+    boton('Cancelar')!.click();
+    await fixture.whenStable();
+    expect(cambios).toBe(0);
   });
 
   it('elige el origen y el destino de un arco en el lienzo respetando las reglas de conexión', async () => {

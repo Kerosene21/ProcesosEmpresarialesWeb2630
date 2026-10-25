@@ -6,7 +6,10 @@ import { GatewayRespuesta } from '../../core/modelos/diagrama';
 import { FalloHttp } from '../../core/modelos/fallo-http';
 import { ActividadService } from '../../core/servicios/actividad-service';
 import { ArcoService } from '../../core/servicios/arco-service';
+import { EnvioExternoService } from '../../core/servicios/envio-externo-service';
 import { GatewayService } from '../../core/servicios/gateway-service';
+import { MessageCatchService } from '../../core/servicios/message-catch-service';
+import { MessageThrowService } from '../../core/servicios/message-throw-service';
 import { calcularGeometria } from '../geometria';
 import { ElementoEliminable, EliminacionElemento } from './eliminacion-elemento';
 
@@ -27,6 +30,12 @@ describe('EliminacionElemento', () => {
   const eliminarGateway = vi.fn<(procesoId: number, id: number) => Observable<void>>();
   const eliminarArco = vi.fn<(procesoId: number, id: number) => Observable<void>>();
   const previsualizar = vi.fn<(procesoId: number, id: number) => Observable<GatewayRespuesta>>();
+  const eliminarThrow = vi.fn<(procesoId: number, id: number) => Observable<void>>();
+  const previsualizarThrow = vi.fn<(procesoId: number, id: number) => Observable<{ advertencias: string[] }>>();
+  const eliminarCatch = vi.fn<(procesoId: number, id: number) => Observable<void>>();
+  const previsualizarCatch = vi.fn<(procesoId: number, id: number) => Observable<{ advertencias: string[] }>>();
+  const eliminarEnvio = vi.fn<(procesoId: number, id: number) => Observable<void>>();
+  const previsualizarEnvio = vi.fn<(procesoId: number, id: number) => Observable<{ advertencias: string[] }>>();
 
   async function crear(seleccion: ElementoEliminable): Promise<void> {
     TestBed.configureTestingModule({
@@ -34,6 +43,9 @@ describe('EliminacionElemento', () => {
         { provide: ActividadService, useValue: { eliminar: eliminarActividad } },
         { provide: GatewayService, useValue: { eliminar: eliminarGateway, previsualizarEliminacion: previsualizar } },
         { provide: ArcoService, useValue: { eliminar: eliminarArco } },
+        { provide: MessageThrowService, useValue: { eliminar: eliminarThrow, previsualizarEliminacion: previsualizarThrow } },
+        { provide: MessageCatchService, useValue: { eliminar: eliminarCatch, previsualizarEliminacion: previsualizarCatch } },
+        { provide: EnvioExternoService, useValue: { eliminar: eliminarEnvio, previsualizarEliminacion: previsualizarEnvio } },
       ],
     });
     fixture = TestBed.createComponent(EliminacionElemento);
@@ -59,7 +71,18 @@ describe('EliminacionElemento', () => {
   }
 
   beforeEach(() => {
-    [eliminarActividad, eliminarGateway, eliminarArco, previsualizar].forEach((simulado) => simulado.mockReset());
+    [
+      eliminarActividad,
+      eliminarGateway,
+      eliminarArco,
+      previsualizar,
+      eliminarThrow,
+      previsualizarThrow,
+      eliminarCatch,
+      previsualizarCatch,
+      eliminarEnvio,
+      previsualizarEnvio,
+    ].forEach((simulado) => simulado.mockReset());
   });
 
   it('informa los arcos que se desactivarán con la actividad y la elimina al confirmar', async () => {
@@ -104,6 +127,47 @@ describe('EliminacionElemento', () => {
     await fixture.whenStable();
 
     expect(elemento.querySelector('.dialogo__error')?.textContent).toContain('Solo un administrador puede eliminar gateways');
+    expect(eliminados).toEqual([]);
+  });
+
+  it('muestra los arcos y los homólogos afectados antes de eliminar un Message Throw', async () => {
+    const advertencias = [
+      'Se desactivarán 0 arcos conectados.',
+      "El Message Catch 'Solicitud de servicio' del pool 'Empresa de prueba' quedará sin Message Throw homólogo.",
+    ];
+    previsualizarThrow.mockReturnValue(of({ advertencias }));
+    eliminarThrow.mockReturnValue(of(undefined));
+    await crear({ tipo: 'MESSAGE_THROW', id: 6 });
+
+    expect(previsualizarThrow).toHaveBeenCalledWith(5, 6);
+    expect(elemento.querySelector('[role="alertdialog"] h2')?.textContent).toBe('¿Eliminar el Message Throw?');
+    expect(consecuencias()).toEqual(advertencias);
+    boton('Eliminar').click();
+    await fixture.whenStable();
+
+    expect(eliminarThrow).toHaveBeenCalledWith(5, 6);
+    expect(eliminados).toEqual(['Se eliminó el Message Throw «Solicitud de servicio».']);
+  });
+
+  it('elimina un Message Catch y un envío externo con su propio endpoint', async () => {
+    previsualizarCatch.mockReturnValue(of({ advertencias: [] }));
+    eliminarCatch.mockReturnValue(of(undefined));
+    await crear({ tipo: 'MESSAGE_CATCH', id: 5 });
+    expect(consecuencias()).toEqual(['El servidor no informa consecuencias adicionales.']);
+    boton('Eliminar').click();
+    await fixture.whenStable();
+    expect(eliminarCatch).toHaveBeenCalledWith(5, 5);
+
+    TestBed.resetTestingModule();
+    previsualizarEnvio.mockReturnValue(of({ advertencias: ['Se desactivarán 2 arcos conectados.'] }));
+    eliminarEnvio.mockReturnValue(throwError(() => ({ ...SIN_PERMISO, detalle: 'Solo un administrador puede eliminar envíos externos' })));
+    await crear({ tipo: 'ENVIO_EXTERNO', id: 7 });
+    expect(elemento.querySelector('[role="alertdialog"] h2')?.textContent).toBe('¿Eliminar el envío externo?');
+    boton('Eliminar').click();
+    await fixture.whenStable();
+
+    expect(eliminarEnvio).toHaveBeenCalledWith(5, 7);
+    expect(elemento.querySelector('.dialogo__error')?.textContent).toContain('Solo un administrador puede eliminar envíos externos');
     expect(eliminados).toEqual([]);
   });
 

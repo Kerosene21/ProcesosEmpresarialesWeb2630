@@ -60,9 +60,29 @@ describe('PanelElemento', () => {
       { etiqueta: 'Condición', valor: 'Sin condición' },
     ]);
     expect(describirElemento(diagrama, { tipo: 'MESSAGE_CATCH', id: 5 })?.filas[0]).toEqual({ etiqueta: 'Variante', valor: 'De inicio' });
-    expect(describirElemento(diagrama, { tipo: 'MESSAGE_THROW', id: 6 })?.filas[5]).toEqual({ etiqueta: 'Catch homólogo', valor: '#5' });
+    expect(describirElemento(diagrama, { tipo: 'MESSAGE_THROW', id: 6 })?.filas[5]).toEqual({
+      etiqueta: 'Catch homólogo',
+      valor: '«Solicitud de servicio» en Empresa de prueba (#5)',
+    });
+    expect(describirElemento(diagrama, { tipo: 'MESSAGE_CATCH', id: 5 })?.filas[6]).toEqual({
+      etiqueta: 'Throw homólogo',
+      valor: '«Solicitud de servicio» desde Cliente (#6)',
+    });
+    expect(describirElemento(diagrama, { tipo: 'ENVIO_EXTERNO', id: 7 })?.filas[6]).toEqual({
+      etiqueta: 'Clave de correlación',
+      valor: 'numeroSolicitud',
+    });
     expect(describirElemento(diagrama, { tipo: 'ENVIO_EXTERNO', id: 7 })?.filas[2]).toEqual({ etiqueta: 'Medio', valor: 'Correo' });
     expect(describirElemento(diagrama, { tipo: 'ACTIVIDAD', id: 99 })).toBeNull();
+  });
+
+  it('indica cuándo un Message Catch no espera emisor porque su origen es externo o no tiene homólogo', () => {
+    const diagrama = diagramaCompleto();
+    diagrama.messageCatches[0] = { ...diagrama.messageCatches[0], origenExterno: true, throwHomologoId: null };
+    diagrama.messageThrows[0] = { ...diagrama.messageThrows[0], catchHomologoId: null };
+
+    expect(describirElemento(diagrama, { tipo: 'MESSAGE_CATCH', id: 5 })?.filas[6].valor).toBe('No aplica: origen externo');
+    expect(describirElemento(diagrama, { tipo: 'MESSAGE_THROW', id: 6 })?.filas[5].valor).toBe('No existe');
   });
 
   it('lista las advertencias del elemento y permite limpiar la selección', async () => {

@@ -40,6 +40,18 @@ describe('NodoEvento', () => {
     expect(nodo.getAttribute('aria-label')).toBe('Message Catch de inicio Solicitud de servicio');
   });
 
+  it('dibuja el Message Catch intermedio con doble círculo, el sobre vacío y la alerta de sus advertencias', async () => {
+    const nodo = await crear({
+      tipo: 'MESSAGE_CATCH',
+      datos: { ...DIAGRAMA.messageCatches[0], variante: 'INTERMEDIO', advertencias: ['No declara clave de correlación'] },
+    });
+
+    expect(nodo.querySelector('.evento__interior')).not.toBeNull();
+    expect(nodo.querySelector('.evento__sobre--lleno')).toBeNull();
+    expect(nodo.querySelector('.alerta')).not.toBeNull();
+    expect(nodo.getAttribute('aria-label')).toBe('Message Catch Solicitud de servicio');
+  });
+
   it('dibuja el Message Throw con doble círculo y el sobre relleno', async () => {
     const nodo = await crear(THROW);
 
