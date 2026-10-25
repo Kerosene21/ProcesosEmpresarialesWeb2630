@@ -1,0 +1,139 @@
+<section class="panel-lanes" aria-labelledby="titulo-lanes">
+  <div>
+    <h2 id="titulo-lanes">Lanes</h2>
+    <p class="nota">Cada lane representa un rol de proceso de tu empresa. Las actividades se crean dentro de una lane.</p>
+  </div>
+
+  @if (pools().length === 0) {
+    <app-aviso tipo="vacio" titulo="El proceso no tiene pools que admitan lanes" />
+  } @else {
+    @if (pools().length > 1) {
+      <div class="campo panel-lanes__pool">
+        <label class="campo__etiqueta" for="lanes-pool">Pool</label>
+        <select id="lanes-pool" class="campo__control" (change)="elegirPool($event)">
+          @for (pool of pools(); track pool.id) {
+            <option [value]="pool.id" [selected]="pool.id === poolId()">{{ pool.nombre }}</option>
+          }
+        </select>
+      </div>
+    }
+
+    @if (mensaje(); as texto) {
+      <p class="panel-lanes__exito" role="status">{{ texto }}</p>
+    }
+    @if (fallo(); as falloActual) {
+      <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
+    }
+    @if (falloRoles(); as falloActual) {
+      <app-aviso tipo="error" titulo="No se pudieron consultar los roles disponibles" [detalle]="falloActual.detalle ?? falloActual.titulo" />
+    }
+
+    @if (lanes().length === 0) {
+      <app-aviso tipo="vacio" titulo="Este pool todavía no tiene lanes" />
+    } @else {
+      <ol class="panel-lanes__lista" aria-label="Lanes del pool en su orden">
+        @for (lane of lanes(); track lane.id; let primera = $first, ultima = $last) {
+          <li class="panel-lanes__lane">
+            <div class="panel-lanes__datos">
+              <strong>{{ lane.orden }}. {{ lane.nombre }}</strong>
+              <span class="nota">
+                {{ lane.rolProcesoId === null ? 'Lane inicial sin rol de proceso' : 'Rol de proceso asignado' }} ·
+                {{ actividades(lane) }} {{ actividades(lane) === 1 ? 'actividad' : 'actividades' }}
+              </span>
+            </div>
+
+            @if (editando() === lane.id) {
+              <form class="panel-lanes__edicion" [formGroup]="edicion" (ngSubmit)="guardarEdicion(lane)" novalidate>
+                <div class="campo">
+                  <label class="campo__etiqueta" [for]="'lane-rol-' + lane.id">Rol de proceso</label>
+                  <select [id]="'lane-rol-' + lane.id" class="campo__control" formControlName="rolProcesoId" [attr.aria-invalid]="errorDe(edicion, 'rolProcesoId') !== null">
+                    <option [ngValue]="null" disabled>Elige un rol</option>
+                    @for (rol of rolesParaEditar(lane); track rol.id) {
+                      <option [ngValue]="rol.id">{{ rol.nombre }}</option>
+                    }
+                  </select>
+                  <span class="campo__error">{{ errorDe(edicion, 'rolProcesoId') }}</span>
+                </div>
+                <div class="panel-lanes__acciones">
+                  <button type="button" class="boton boton--texto" (click)="cancelarEdicion()">Cancelar</button>
+                  <button type="submit" class="boton boton--primario" [disabled]="procesando()">Guardar rol</button>
+                </div>
+              </form>
+            } @else if (permisos().editarLane || permisos().eliminarLane) {
+              <div class="panel-lanes__acciones">
+                @if (permisos().editarLane) {
+                  <button type="button" class="boton boton--secundario" [attr.aria-label]="'Subir la lane ' + lane.nombre" [disabled]="primera || procesando()" (click)="mover(lane, -1)">Subir</button>
+                  <button type="button" class="boton boton--secundario" [attr.aria-label]="'Bajar la lane ' + lane.nombre" [disabled]="ultima || procesando()" (click)="mover(lane, 1)">Bajar</button>
+                  <button type="button" class="boton boton--secundario" [attr.aria-label]="'Cambiar el rol de la lane ' + lane.nombre" [disabled]="procesando()" (click)="iniciarEdicion(lane)">Cambiar rol</button>
+                }
+                @if (permisos().eliminarLane) {
+                  <button
+                    type="button"
+                    class="boton boton--peligro-suave"
+                    [attr.aria-label]="'Eliminar la lane ' + lane.nombre"
+                    [attr.title]="actividades(lane) > 0 ? 'Reasigna o elimina sus actividades antes de eliminarla' : null"
+                    [disabled]="actividades(lane) > 0 || procesando()"
+                    (click)="solicitarEliminacion(lane)"
+                  >
+                    Eliminar
+                  </button>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ol>
+    }
+
+    @if (permisos().crearLane) {
+      <form class="panel-lanes__creacion" [formGroup]="creacion" (ngSubmit)="crear()" novalidate aria-labelledby="titulo-nueva-lane">
+        <h3 id="titulo-nueva-lane" class="panel-lanes__subtitulo">Nueva lane</h3>
+        @if (estadoRoles().tipo === 'listo' && rolesLibres().length === 0) {
+          <p class="nota">
+            No hay roles de proceso libres para este pool.
+            @if (esAdministrador()) {
+              <a routerLink="/roles-proceso/nuevo">Crea un rol de proceso</a> para agregar otra lane.
+            } @else {
+              Un administrador puede crear más roles de proceso.
+            }
+          </p>
+        } @else {
+          <div class="campo">
+            <label class="campo__etiqueta" for="nueva-lane-rol">Rol de proceso</label>
+            <select id="nueva-lane-rol" class="campo__control" formControlName="rolProcesoId" [attr.aria-invalid]="errorDe(creacion, 'rolProcesoId') !== null">
+              <option [ngValue]="null" disabled>Elige un rol</option>
+              @for (rol of rolesLibres(); track rol.id) {
+                <option [ngValue]="rol.id">{{ rol.nombre }}</option>
+              }
+            </select>
+            <span class="campo__error">{{ errorDe(creacion, 'rolProcesoId') }}</span>
+          </div>
+          <div class="campo">
+            <label class="campo__etiqueta" for="nueva-lane-orden">Posición (opcional)</label>
+            <input id="nueva-lane-orden" class="campo__control" type="number" min="1" formControlName="orden" aria-describedby="ayuda-nueva-lane-orden" />
+            <span id="ayuda-nueva-lane-orden" class="campo__ayuda">Si la dejas vacía, la lane se agrega al final.</span>
+            <span class="campo__error">{{ errorDe(creacion, 'orden') }}</span>
+          </div>
+          <div class="panel-lanes__acciones">
+            <button type="submit" class="boton boton--primario" [disabled]="procesando()">{{ procesando() ? 'Guardando…' : 'Crear lane' }}</button>
+          </div>
+        }
+      </form>
+    }
+
+    @if (!puedeModificar()) {
+      <p class="nota">Tu rol no tiene permisos de estructura para modificar las lanes de este proceso.</p>
+    }
+  }
+
+  <app-dialogo-confirmacion
+    [abierto]="porEliminar() !== null"
+    titulo="¿Eliminar esta lane?"
+    [mensaje]="'La lane «' + (porEliminar()?.nombre ?? '') + '» dejará de aparecer en el pool. El backend la rechaza si todavía tiene actividades activas.'"
+    textoConfirmar="Eliminar lane"
+    [procesando]="procesando()"
+    [error]="falloEliminacion()"
+    (confirmado)="eliminar()"
+    (cancelado)="cancelarEliminacion()"
+  />
+</section>

@@ -1,11 +1,13 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, catchError } from 'rxjs';
 
+import { parametrosDe } from '../http/parametros';
 import { lanzarFallo } from '../http/traducir-fallo';
 import { DiagramaProceso } from '../modelos/diagrama';
 import { Historial } from '../modelos/historial';
 import { Pagina } from '../modelos/pagina';
+import { PermisoEstructura } from '../modelos/permiso-estructura';
 import { CrearProceso, EditarProceso, FiltroProcesos, Proceso, ProcesoResumen } from '../modelos/proceso';
 
 @Injectable({
@@ -44,11 +46,10 @@ export class ProcesoService {
   eliminar(id: number): Observable<void> {
     return this.http.delete<void>(`${this.ruta}/${id}`).pipe(catchError(lanzarFallo));
   }
-}
 
-function parametrosDe(filtro: FiltroProcesos): HttpParams {
-  return Object.entries(filtro).reduce((parametros, [clave, valor]) => {
-    const texto = valor === null || valor === undefined ? '' : String(valor).trim();
-    return texto ? parametros.set(clave, texto) : parametros;
-  }, new HttpParams());
+  permisosEstructura(id: number): Observable<PermisoEstructura[]> {
+    return this.http
+      .get<PermisoEstructura[]>(`${this.ruta}/${id}/permisos-estructura`)
+      .pipe(catchError(lanzarFallo));
+  }
 }

@@ -1,0 +1,26 @@
+.migas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espacio-2);
+  font-size: var(--texto-s);
+  color: var(--color-texto-secundario);
+}
+
+.detalle-rol__volver {
+  justify-self: start;
+}
+
+.detalle-rol__descripcion,
+.detalle-rol__cambios {
+  max-width: 75ch;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.detalle-rol__bloqueo {
+  padding: var(--espacio-3) var(--espacio-4);
+  font-size: var(--texto-s);
+  color: var(--color-advertencia);
+  background: var(--color-advertencia-tenue);
+  border-radius: var(--radio-m);
+}

@@ -1,0 +1,72 @@
+<section class="pagina">
+  <nav class="migas" aria-label="Ruta de navegación">
+    <a routerLink="/procesos">Procesos</a>
+    <span aria-hidden="true">/</span>
+    <a [routerLink]="['/procesos', id()]">{{ proceso()?.nombre ?? 'Proceso' }}</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">Modelador</span>
+  </nav>
+
+  @if (estadoProceso().tipo === 'cargando') {
+    <app-aviso tipo="carga" titulo="Cargando el proceso…" />
+  } @else if (falloProceso(); as fallo) {
+    <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+    <a class="boton boton--secundario modelador-proceso__volver" routerLink="/procesos">Volver al listado</a>
+  } @else if (proceso(); as datos) {
+    <header class="encabezado-pagina">
+      <div class="encabezado-pagina__texto">
+        <p class="encabezado-pagina__antetitulo">Modelador BPMN</p>
+        <h1>{{ datos.nombre }}</h1>
+        <div class="grupo-chips">
+          <app-etiqueta-estado [estado]="datos.estado" />
+          @if (datos.eliminado) {
+            <span class="chip chip--peligro">Eliminado</span>
+          }
+          @if (datos.soloLectura) {
+            <span class="chip chip--informacion">Solo lectura</span>
+          }
+        </div>
+      </div>
+      <div class="encabezado-pagina__acciones">
+        <a class="boton boton--secundario" [routerLink]="['/procesos', datos.id]">Volver al proceso</a>
+      </div>
+    </header>
+
+    @if (!modificable()) {
+      <app-aviso
+        titulo="Este proceso solo se puede consultar"
+        [detalle]="datos.soloLectura ? 'Pertenece a otra empresa y se comparte en solo lectura.' : 'El proceso fue eliminado y no admite cambios en su modelo.'"
+      />
+    }
+
+    <article class="tarjeta modelador-proceso__diagrama" aria-labelledby="titulo-modelo">
+      <h2 id="titulo-modelo" class="visualmente-oculto">Diagrama del proceso</h2>
+      @if (estadoDiagrama().tipo === 'cargando') {
+        <app-aviso tipo="carga" titulo="Cargando el diagrama…" />
+      } @else if (falloDiagrama(); as fallo) {
+        <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+      } @else if (diagrama(); as modelo) {
+        @if (actualizando()) {
+          <p class="nota" role="status">Actualizando el diagrama con los datos del servidor…</p>
+        }
+        @if (falloActualizacion(); as fallo) {
+          <app-aviso tipo="error" titulo="No se pudo actualizar el diagrama" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="refrescarDiagrama()" />
+        }
+        <app-modelador [proceso]="datos" [diagrama]="modelo" [edicion]="edicion()" (cambio)="refrescarDiagrama()" />
+      }
+    </article>
+
+    @if (modificable() && diagrama(); as modelo) {
+      <article class="tarjeta">
+        @if (estadoPermisos().tipo === 'cargando') {
+          <app-aviso tipo="carga" titulo="Consultando los permisos de estructura…" />
+        } @else {
+          @if (falloPermisos(); as fallo) {
+            <app-aviso tipo="error" titulo="No se pudieron consultar los permisos de estructura" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+          }
+          <app-panel-lanes [procesoId]="datos.id" [diagrama]="modelo" [permisos]="permisos()" (cambio)="refrescarDiagrama()" />
+        }
+      </article>
+    }
+  }
+</section>

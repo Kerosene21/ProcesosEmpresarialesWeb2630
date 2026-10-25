@@ -117,6 +117,12 @@ describe('ProcesoService', () => {
     expect(fallo?.detalle).toBe('Solo un administrador puede eliminar procesos');
   });
 
+  it('consulta la matriz de permisos de estructura del proceso', () => {
+    servicio.permisosEstructura(7).subscribe();
+
+    expect(http.expectOne('/api/procesos/7/permisos-estructura').request.method).toBe('GET');
+  });
+
   it('consulta el historial con el contrato de HistorialProcesoRespuestaDto', () => {
     const historial = [
       {
