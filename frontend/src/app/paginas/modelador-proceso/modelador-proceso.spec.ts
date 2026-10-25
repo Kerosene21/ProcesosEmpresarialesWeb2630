@@ -12,6 +12,8 @@ import { RolProceso } from '../../core/modelos/rol-proceso';
 import { RolUsuario } from '../../core/modelos/sesion';
 import { ActividadService } from '../../core/servicios/actividad-service';
 import { LaneService } from '../../core/servicios/lane-service';
+import { MessageThrowService } from '../../core/servicios/message-throw-service';
+import { PoolService } from '../../core/servicios/pool-service';
 import { ProcesoService } from '../../core/servicios/proceso-service';
 import { SesionService } from '../../core/servicios/sesion-service';
 import { ModeladorProceso } from './modelador-proceso';
@@ -38,6 +40,8 @@ describe('ModeladorProceso', () => {
   const permisosEstructura = vi.fn<(id: number) => Observable<PermisoEstructura[]>>();
   const reordenar = vi.fn<() => Observable<unknown>>();
   const crearActividad = vi.fn();
+  const editarPool = vi.fn<() => Observable<unknown>>();
+  const crearThrow = vi.fn();
 
   async function crear(proceso: Proceso = PROCESO_PRUEBA, rol: RolUsuario = 'EDITOR', permisos = of(MATRIZ)): Promise<void> {
     obtener.mockReset().mockReturnValue(of(proceso));
@@ -45,11 +49,15 @@ describe('ModeladorProceso', () => {
     permisosEstructura.mockReset().mockReturnValue(permisos);
     reordenar.mockReset().mockReturnValue(of([]));
     crearActividad.mockReset();
+    editarPool.mockReset();
+    crearThrow.mockReset();
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         { provide: ProcesoService, useValue: { obtener, obtenerDiagrama, permisosEstructura } },
         { provide: LaneService, useValue: { rolesDisponibles: () => of<RolProceso[]>([]), reordenar } },
+        { provide: PoolService, useValue: { editar: editarPool } },
+        { provide: MessageThrowService, useValue: { crear: crearThrow } },
         { provide: ActividadService, useValue: { crear: crearActividad } },
         { provide: SesionService, useValue: { rol: signal(rol), tieneRol: (roles: readonly RolUsuario[]) => roles.includes(rol) } },
       ],
@@ -131,6 +139,7 @@ describe('ModeladorProceso', () => {
     expect(elemento.textContent).toContain('Pertenece a otra empresa');
     expect(permisosEstructura).not.toHaveBeenCalled();
     expect(elemento.querySelector('app-panel-lanes')).toBeNull();
+    expect(elemento.querySelector('app-panel-pools')).toBeNull();
     expect(elemento.querySelector('[role="toolbar"]')).toBeNull();
     expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(3);
   });
@@ -179,6 +188,95 @@ describe('ModeladorProceso', () => {
     expect(elemento.querySelector('.panel__nombre')?.textContent).toBe('Archivar solicitud');
     expect(botonConTexto('Editar')).toBeDefined();
     expect(botonConTexto('Eliminar')).toBeUndefined();
+  });
+
+  it('aplica a los pools la fila del rol de la sesión en la matriz de permisos', async () => {
+    await crear();
+
+    expect(elemento.querySelectorAll('.panel-pools__pool').length).toBe(3);
+    expect(boton('Editar el pool Cliente')).toBeDefined();
+    expect(boton('Eliminar el pool Cliente')).toBeUndefined();
+    expect(elemento.querySelector('.panel-pools__creacion')).toBeNull();
+  });
+
+  it('tras un cambio de estructura vuelve a consultar los permisos y el diagrama', async () => {
+    await crear();
+    editarPool.mockReturnValue(of({ id: 81, nombre: 'Clientes', tipo: 'EXTERNO' }));
+
+    boton('Editar el pool Cliente')!.click();
+    await fixture.whenStable();
+    elemento.querySelector('[data-pool="81"] form')!.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    expect(editarPool).toHaveBeenCalledWith(5, 81, { nombre: 'Cliente', cajaNegra: false, empresaParticipanteId: null });
+    expect(permisosEstructura).toHaveBeenCalledTimes(2);
+    expect(obtenerDiagrama).toHaveBeenCalledTimes(2);
+    expect(elemento.querySelector('.panel-pools')).not.toBeNull();
+  });
+
+  it('si el backend rechaza una operación por permisos retira los controles obsoletos', async () => {
+    await crear();
+    const restringida = MATRIZ.map((fila) => (fila.rol === 'EDITOR' ? { ...fila, editarPool: false } : fila));
+    permisosEstructura.mockReturnValue(of(restringida));
+    editarPool.mockReturnValue(
+      throwError((): FalloHttp => ({
+        tipo: 'sin-permiso',
+        estado: 403,
+        codigo: 'USUARIO_SIN_PERMISO',
+        titulo: 'No tienes permiso para esta consulta',
+        detalle: 'El rol EDITOR no tiene permiso para editar pools en este proceso',
+      })),
+    );
+
+    boton('Editar el pool Cliente')!.click();
+    await fixture.whenStable();
+    elemento.querySelector('[data-pool="81"] form')!.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    expect(permisosEstructura).toHaveBeenCalledTimes(2);
+    expect(obtenerDiagrama).toHaveBeenCalledTimes(1);
+    expect(boton('Editar el pool Cliente')).toBeUndefined();
+    expect(elemento.querySelector('.panel-pools [role="alert"]')?.textContent).toContain('no tiene permiso para editar pools');
+  });
+
+  it('tras crear un evento recarga el diagrama y dibuja el flujo de mensaje que confirma el servidor', async () => {
+    await crear();
+    const creado = { ...diagramaCompleto().messageThrows[0], id: 12, nombreMensaje: 'Pago', poolOrigenId: 80, poolDestinoId: 82 };
+    const actualizado = diagramaCompleto();
+    actualizado.messageThrows.push(creado);
+    actualizado.flujosMensaje.push({
+      tipoEvento: 'MESSAGE_THROW',
+      eventoId: 12,
+      nombreMensaje: 'Pago',
+      poolOrigenId: 80,
+      poolDestinoId: 82,
+      catchDestinoId: null,
+    });
+    crearThrow.mockReturnValue(of(creado));
+    obtenerDiagrama.mockReturnValue(of(actualizado));
+
+    expect(elemento.querySelectorAll('g[appFlujoMensaje]').length).toBe(2);
+    botonConTexto('Nuevo Message Throw')!.click();
+    await fixture.whenStable();
+    for (const [campo, valor] of [
+      ['nombreMensaje', 'Pago'],
+      ['contenido', 'numeroFactura'],
+    ]) {
+      const control = elemento.querySelector<HTMLInputElement>(`app-formulario-message-throw [formControlName="${campo}"]`)!;
+      control.value = valor;
+      control.dispatchEvent(new Event('input'));
+    }
+    const destino = elemento.querySelector<HTMLSelectElement>('app-formulario-message-throw [formControlName="poolDestinoId"]')!;
+    destino.selectedIndex = 2;
+    destino.dispatchEvent(new Event('change'));
+    elemento.querySelector('app-formulario-message-throw form')!.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+
+    expect(crearThrow).toHaveBeenCalledWith(5, expect.objectContaining({ poolOrigenId: 80, poolDestinoId: 82 }));
+    expect(obtenerDiagrama).toHaveBeenCalledTimes(2);
+    expect(elemento.querySelectorAll('g[appNodoEvento]').length).toBe(4);
+    expect(elemento.querySelectorAll('g[appFlujoMensaje]').length).toBe(3);
+    expect(elemento.querySelector('.panel__nombre')?.textContent).toBe('Pago');
   });
 
   it('solo el administrador puede eliminar actividades, gateways y arcos', async () => {

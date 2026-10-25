@@ -9,14 +9,20 @@ import { explicarFallo } from '../../compartido/textos';
 import { DiagramaProceso } from '../../core/modelos/diagrama';
 import { CARGANDO, EstadoCarga } from '../../core/modelos/estado-carga';
 import { FalloHttp } from '../../core/modelos/fallo-http';
-import { PermisoEstructura, SIN_PERMISOS_ESTRUCTURA } from '../../core/modelos/permiso-estructura';
+import {
+  ConfigurarPermisoEstructura,
+  PermisoEstructura,
+  SIN_PERMISOS_ESTRUCTURA,
+  operacionesDe,
+} from '../../core/modelos/permiso-estructura';
 import { Proceso } from '../../core/modelos/proceso';
 import { ROLES_ESCRITURA, RolUsuario } from '../../core/modelos/sesion';
 import { conEstadoCarga } from '../../core/rxjs/con-estado-carga';
 import { ProcesoService } from '../../core/servicios/proceso-service';
 import { SesionService } from '../../core/servicios/sesion-service';
 import { Modelador, PermisosEdicion } from '../../modelador/modelador/modelador';
-import { PanelLanes, PermisosLanes } from '../../modelador/panel-lanes/panel-lanes';
+import { PanelLanes } from '../../modelador/panel-lanes/panel-lanes';
+import { PanelPools } from '../../modelador/panel-pools/panel-pools';
 
 const IDENTIFICADOR_NO_VALIDO: EstadoCarga<never> = {
   tipo: 'error',
@@ -29,11 +35,11 @@ const IDENTIFICADOR_NO_VALIDO: EstadoCarga<never> = {
   },
 };
 
-const SIN_PERMISOS: EstadoCarga<PermisosLanes> = { tipo: 'listo', datos: SIN_PERMISOS_ESTRUCTURA };
+const SIN_PERMISOS: EstadoCarga<ConfigurarPermisoEstructura> = { tipo: 'listo', datos: SIN_PERMISOS_ESTRUCTURA };
 
 @Component({
   selector: 'app-modelador-proceso',
-  imports: [RouterLink, Aviso, EtiquetaEstado, Modelador, PanelLanes],
+  imports: [RouterLink, Aviso, EtiquetaEstado, Modelador, PanelLanes, PanelPools],
   templateUrl: './modelador-proceso.html',
   styleUrl: './modelador-proceso.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,13 +78,25 @@ export class ModeladorProceso {
       : null,
   );
 
+  private readonly consultaPermisos = signal(0);
   protected readonly estadoPermisos = toSignal(
-    toObservable(computed(() => (this.modificable() ? (this.proceso()?.id ?? null) : null))).pipe(
-      switchMap((id) => this.cargarPermisos(id)),
-    ),
-    { initialValue: CARGANDO as EstadoCarga<PermisosLanes> },
+    toObservable(
+      computed(() => ({
+        id: this.modificable() ? (this.proceso()?.id ?? null) : null,
+        consulta: this.consultaPermisos(),
+      })),
+    ).pipe(switchMap(({ id }) => this.cargarPermisos(id))),
+    { initialValue: CARGANDO as EstadoCarga<ConfigurarPermisoEstructura> },
   );
-  protected readonly permisos = computed(() => datosDe(this.estadoPermisos()) ?? SIN_PERMISOS_ESTRUCTURA);
+  private readonly vigentes = linkedSignal<EstadoCarga<ConfigurarPermisoEstructura>, ConfigurarPermisoEstructura | null>({
+    source: this.estadoPermisos,
+    computation: (estado, previo) =>
+      estado.tipo === 'listo' ? estado.datos : estado.tipo === 'cargando' ? (previo?.value ?? null) : null,
+  });
+  protected readonly permisos = computed(() => this.vigentes() ?? SIN_PERMISOS_ESTRUCTURA);
+  protected readonly consultandoPermisos = computed(
+    () => this.vigentes() === null && this.estadoPermisos().tipo === 'cargando',
+  );
   protected readonly falloPermisos = computed(() => falloDe(this.estadoPermisos()));
 
   protected readonly actualizando = signal(false);
@@ -108,11 +126,20 @@ export class ModeladorProceso {
     }
   }
 
+  protected cambioDeEstructura(): void {
+    this.refrescarPermisos();
+    this.refrescarDiagrama();
+  }
+
+  protected refrescarPermisos(): void {
+    this.consultaPermisos.update((consulta) => consulta + 1);
+  }
+
   protected reintentar(): void {
     this.intento.update((intento) => intento + 1);
   }
 
-  private cargarPermisos(id: number | null): Observable<EstadoCarga<PermisosLanes>> {
+  private cargarPermisos(id: number | null): Observable<EstadoCarga<ConfigurarPermisoEstructura>> {
     const rol = this.sesion.rol();
     if (id === null || rol === null) {
       return of(SIN_PERMISOS);
@@ -128,11 +155,9 @@ export class ModeladorProceso {
   }
 }
 
-function permisosDelRol(matriz: PermisoEstructura[], rol: RolUsuario): PermisosLanes {
+function permisosDelRol(matriz: PermisoEstructura[], rol: RolUsuario): ConfigurarPermisoEstructura {
   const fila = matriz.find((permiso) => permiso.rol === rol);
-  return fila
-    ? { crearLane: fila.crearLane, editarLane: fila.editarLane, eliminarLane: fila.eliminarLane }
-    : SIN_PERMISOS_ESTRUCTURA;
+  return fila ? operacionesDe(fila) : SIN_PERMISOS_ESTRUCTURA;
 }
 
 function datosDe<T>(estado: EstadoCarga<T>): T | null {

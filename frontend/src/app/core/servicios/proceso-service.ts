@@ -7,8 +7,9 @@ import { lanzarFallo } from '../http/traducir-fallo';
 import { DiagramaProceso } from '../modelos/diagrama';
 import { Historial } from '../modelos/historial';
 import { Pagina } from '../modelos/pagina';
-import { PermisoEstructura } from '../modelos/permiso-estructura';
+import { ConfigurarPermisoEstructura, PermisoEstructura } from '../modelos/permiso-estructura';
 import { CrearProceso, EditarProceso, FiltroProcesos, Proceso, ProcesoResumen } from '../modelos/proceso';
+import { RolUsuario } from '../modelos/sesion';
 
 @Injectable({
   providedIn: 'root',
@@ -50,6 +51,16 @@ export class ProcesoService {
   permisosEstructura(id: number): Observable<PermisoEstructura[]> {
     return this.http
       .get<PermisoEstructura[]>(`${this.ruta}/${id}/permisos-estructura`)
+      .pipe(catchError(lanzarFallo));
+  }
+
+  configurarPermisosEstructura(
+    id: number,
+    rol: RolUsuario,
+    datos: ConfigurarPermisoEstructura,
+  ): Observable<PermisoEstructura[]> {
+    return this.http
+      .put<PermisoEstructura[]>(`${this.ruta}/${id}/permisos-estructura/${rol}`, datos)
       .pipe(catchError(lanzarFallo));
   }
 }

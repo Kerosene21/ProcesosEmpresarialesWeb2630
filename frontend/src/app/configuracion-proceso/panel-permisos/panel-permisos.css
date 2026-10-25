@@ -1,0 +1,38 @@
+.permisos {
+  display: grid;
+  gap: var(--espacio-4);
+}
+
+.permisos__tabla th[scope='colgroup'],
+.permisos__tabla td {
+  text-align: center;
+}
+
+.permisos__tabla th[scope='row'] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--espacio-2);
+}
+
+.permisos__casilla {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-primario);
+}
+
+.permisos__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--espacio-2);
+  margin-top: var(--espacio-3);
+}
+
+.permisos__exito {
+  padding: var(--espacio-2) var(--espacio-3);
+  font-size: var(--texto-s);
+  color: var(--color-exito);
+  background: var(--color-exito-tenue);
+  border-radius: var(--radio-s);
+}

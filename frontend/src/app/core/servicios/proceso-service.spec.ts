@@ -123,6 +123,23 @@ describe('ProcesoService', () => {
     expect(http.expectOne('/api/procesos/7/permisos-estructura').request.method).toBe('GET');
   });
 
+  it('configura los permisos de un rol de acceso con las seis operaciones de estructura', () => {
+    const datos = {
+      crearPool: true,
+      editarPool: true,
+      eliminarPool: false,
+      crearLane: true,
+      editarLane: false,
+      eliminarLane: false,
+    };
+
+    servicio.configurarPermisosEstructura(7, 'EDITOR', datos).subscribe();
+
+    const peticion = http.expectOne('/api/procesos/7/permisos-estructura/EDITOR');
+    expect(peticion.request.method).toBe('PUT');
+    expect(peticion.request.body).toEqual(datos);
+  });
+
   it('consulta el historial con el contrato de HistorialProcesoRespuestaDto', () => {
     const historial = [
       {

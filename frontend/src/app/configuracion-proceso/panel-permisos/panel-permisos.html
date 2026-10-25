@@ -1,0 +1,77 @@
+<section class="permisos" aria-labelledby="titulo-permisos">
+  <div>
+    <h2 id="titulo-permisos" class="tarjeta__titulo">Permisos de estructura</h2>
+    <p class="nota">
+      Qué puede hacer cada <strong>rol de acceso</strong> de tu empresa con los pools y las lanes de este proceso. No
+      confundir con los roles de proceso (Analista, Coordinador…), que se representan como lanes. El servidor aplica
+      estos permisos en cada operación.
+    </p>
+  </div>
+
+  @if (mensaje(); as texto) {
+    <p class="permisos__exito" role="status">{{ texto }}</p>
+  }
+  @if (fallo(); as falloActual) {
+    <app-aviso tipo="error" titulo="No se guardaron los permisos" [detalle]="falloActual.detalle ?? falloActual.titulo" />
+  }
+
+  @if (matriz(); as filas) {
+    <form [formGroup]="formulario()" (ngSubmit)="guardar()" novalidate>
+      <div class="tabla-contenedor">
+        <table class="tabla permisos__tabla">
+          <caption class="visualmente-oculto">Permisos de estructura por rol de acceso</caption>
+          <thead>
+            <tr>
+              <th scope="col" rowspan="2">Rol de acceso</th>
+              <th scope="colgroup" colspan="3">Pools</th>
+              <th scope="colgroup" colspan="3">Lanes</th>
+            </tr>
+            <tr>
+              @for (operacion of operaciones; track operacion.clave) {
+                <th scope="col">{{ operacion.accion }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (permiso of filas; track permiso.rol) {
+              <tr [formGroupName]="permiso.rol" [attr.data-rol]="permiso.rol">
+                <th scope="row">
+                  {{ textoRol[permiso.rol] }}
+                  <span class="chip" [class.chip--informacion]="permiso.configurable">{{ permiso.configurable ? 'Configurable' : 'Fijo' }}</span>
+                </th>
+                @for (operacion of operaciones; track operacion.clave) {
+                  <td>
+                    <input
+                      type="checkbox"
+                      class="permisos__casilla"
+                      [formControlName]="operacion.clave"
+                      [attr.aria-label]="operacion.accion + ' ' + operacion.elemento.toLowerCase() + ': ' + textoRol[permiso.rol]"
+                      (change)="marcar()"
+                    />
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (configurable()) {
+        <div class="permisos__acciones">
+          <button type="button" class="boton boton--texto" [disabled]="!cambios() || guardando()" (click)="restaurar()">Descartar cambios</button>
+          <button type="submit" class="boton boton--primario" [disabled]="!cambios() || guardando()">{{ guardando() ? 'Guardando…' : 'Guardar permisos' }}</button>
+        </div>
+      }
+    </form>
+    <p class="nota">
+      El administrador conserva siempre todos los permisos y el rol de solo lectura nunca modifica la estructura.
+      @if (!configurable()) {
+        {{ proceso().eliminado ? 'El proceso fue eliminado: la configuración ya no se puede cambiar.' : 'Solo un administrador puede cambiar los permisos del editor.' }}
+      }
+    </p>
+  } @else if (falloConsulta(); as falloActual) {
+    <app-aviso tipo="error" titulo="No se pudieron consultar los permisos de estructura" [detalle]="explicar(falloActual)" accion="Reintentar" (accionSolicitada)="recargar()" />
+  } @else {
+    <app-aviso tipo="carga" titulo="Consultando los permisos de estructura…" />
+  }
+</section>
