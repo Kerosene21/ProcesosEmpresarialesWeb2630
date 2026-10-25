@@ -6,7 +6,7 @@ import { Observable, of, switchMap } from 'rxjs';
 import { Aviso } from '../../compartido/aviso/aviso';
 import { DialogoConfirmacion } from '../../compartido/dialogo-confirmacion/dialogo-confirmacion';
 import { EtiquetaEstado } from '../../compartido/etiqueta-estado/etiqueta-estado';
-import { TEXTO_ESTADO, TEXTO_TIPO_ACTIVIDAD, TEXTO_TIPO_POOL, explicarFallo } from '../../compartido/textos';
+import { TEXTO_ESTADO, explicarFallo } from '../../compartido/textos';
 import { DiagramaProceso } from '../../core/modelos/diagrama';
 import { CARGANDO, EstadoCarga } from '../../core/modelos/estado-carga';
 import { FalloHttp } from '../../core/modelos/fallo-http';
@@ -15,6 +15,7 @@ import { ROLES_ESCRITURA } from '../../core/modelos/sesion';
 import { conEstadoCarga } from '../../core/rxjs/con-estado-carga';
 import { ProcesoService } from '../../core/servicios/proceso-service';
 import { SesionService } from '../../core/servicios/sesion-service';
+import { Modelador } from '../../modelador/modelador/modelador';
 
 interface Metrica {
   etiqueta: string;
@@ -34,7 +35,7 @@ const IDENTIFICADOR_NO_VALIDO: EstadoCarga<never> = {
 
 @Component({
   selector: 'app-detalle-proceso',
-  imports: [RouterLink, Aviso, DialogoConfirmacion, EtiquetaEstado],
+  imports: [RouterLink, Aviso, DialogoConfirmacion, EtiquetaEstado, Modelador],
   templateUrl: './detalle-proceso.html',
   styleUrl: './detalle-proceso.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -93,42 +94,6 @@ export class DetalleProceso {
       { etiqueta: 'Envíos externos', valor: diagrama.enviosExternos.length },
       { etiqueta: 'Flujos de mensaje', valor: diagrama.flujosMensaje.length },
     ];
-  });
-
-  protected readonly pools = computed(() => {
-    const diagrama = this.diagrama();
-    if (!diagrama) {
-      return [];
-    }
-    return diagrama.pools.map((pool) => ({
-      id: pool.id,
-      nombre: pool.nombre,
-      tipo: TEXTO_TIPO_POOL[pool.tipo],
-      cajaNegra: pool.cajaNegra,
-      empresa: pool.empresaNombre,
-      lanes: diagrama.lanes
-        .filter((lane) => lane.poolId === pool.id)
-        .map((lane) => ({
-          id: lane.id,
-          nombre: lane.nombre,
-          actividades: diagrama.actividades.filter((actividad) => actividad.laneId === lane.id).length,
-        })),
-    }));
-  });
-
-  protected readonly actividades = computed(() => {
-    const diagrama = this.diagrama();
-    if (!diagrama) {
-      return [];
-    }
-    const nombresPool = new Map(diagrama.pools.map((pool) => [pool.id, pool.nombre]));
-    return diagrama.actividades.map((actividad) => ({
-      id: actividad.id,
-      nombre: actividad.nombre,
-      tipo: TEXTO_TIPO_ACTIVIDAD[actividad.tipo],
-      lane: actividad.laneNombre,
-      pool: nombresPool.get(actividad.poolId) ?? '',
-    }));
   });
 
   protected reintentar(): void {

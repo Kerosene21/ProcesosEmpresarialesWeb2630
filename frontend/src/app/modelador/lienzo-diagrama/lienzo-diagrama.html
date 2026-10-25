@@ -1,0 +1,96 @@
+<div class="lienzo" [class.lienzo--colocando]="colocando()">
+  <svg
+    class="lienzo__svg"
+    role="group"
+    aria-label="Diagrama BPMN del proceso"
+    [attr.viewBox]="cajaVista()"
+    [attr.width]="vista().ancho"
+    [attr.height]="vista().alto"
+    (click)="pulsarFondo($event)"
+  >
+    <defs>
+      <marker [attr.id]="marcador" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path class="punta" d="M0,0 L10,5 L0,10 z" />
+      </marker>
+      <marker [attr.id]="marcador + '-seleccion'" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path class="punta punta--seleccion" d="M0,0 L10,5 L0,10 z" />
+      </marker>
+      <marker [attr.id]="marcadorMensaje" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto">
+        <path class="punta punta--mensaje" d="M1,1 L9,5 L1,9 z" />
+      </marker>
+    </defs>
+
+    @for (banda of geometria().pools; track banda.pool.id) {
+      <g class="pool" [class.pool--caja-negra]="banda.pool.cajaNegra" [attr.data-pool]="banda.pool.id">
+        <rect class="pool__marco" [attr.x]="banda.x" [attr.y]="banda.y" [attr.width]="banda.ancho" [attr.height]="banda.alto" />
+        <rect class="pool__cabecera" [attr.x]="banda.x" [attr.y]="banda.y" [attr.width]="cabeceraPool" [attr.height]="banda.alto" />
+        @if (banda.pool.cajaNegra) {
+          <text class="pool__nombre pool__nombre--horizontal" [attr.x]="banda.x + cabeceraPool + 16" [attr.y]="banda.y + banda.alto / 2 - 4">
+            {{ banda.pool.nombre }}
+          </text>
+          <text class="pool__nota" [attr.x]="banda.x + cabeceraPool + 16" [attr.y]="banda.y + banda.alto / 2 + 14">Caja negra</text>
+        } @else {
+          @let nombrePool = rotuloPool(banda);
+          <text class="pool__nombre" [attr.x]="nombrePool.x" [attr.y]="nombrePool.y" [attr.transform]="nombrePool.giro">
+            {{ nombrePool.texto }}
+          </text>
+        }
+        @for (franja of banda.lanes; track franja.lane.id) {
+          <g class="lane" [attr.data-lane]="franja.lane.id">
+            <rect class="lane__marco" [attr.x]="franja.x" [attr.y]="franja.y" [attr.width]="franja.ancho" [attr.height]="franja.alto" />
+            <rect class="lane__cabecera" [attr.x]="franja.x" [attr.y]="franja.y" [attr.width]="cabeceraLane" [attr.height]="franja.alto" />
+            @let nombreLane = rotuloLane(franja);
+            <text class="lane__nombre" [attr.x]="nombreLane.x" [attr.y]="nombreLane.y" [attr.transform]="nombreLane.giro">
+              {{ nombreLane.texto }}
+            </text>
+          </g>
+        }
+      </g>
+    }
+
+    @for (ubicado of flujos(); track ubicado.flujo.tipoEvento + ubicado.flujo.eventoId) {
+      <g appFlujoMensaje [flujo]="ubicado.flujo" [segmento]="ubicado.segmento" [marcador]="marcadorMensaje"></g>
+    }
+
+    @for (ubicado of arcos(); track ubicado.arco.id) {
+      <g
+        appArcoSecuencia
+        [arco]="ubicado.arco"
+        [segmento]="ubicado.segmento"
+        [marcador]="marcador"
+        [seleccionado]="seleccionado('ARCO', ubicado.arco.id)"
+        (elegido)="elegir('ARCO', ubicado.arco.id)"
+      ></g>
+    }
+
+    @for (actividad of diagrama().actividades; track actividad.id) {
+      <g
+        appNodoActividad
+        [actividad]="actividad"
+        [seleccionado]="seleccionado('ACTIVIDAD', actividad.id)"
+        [marcado]="marcado('ACTIVIDAD', actividad.id)"
+        (elegido)="elegir('ACTIVIDAD', actividad.id)"
+      ></g>
+    }
+
+    @for (gateway of diagrama().gateways; track gateway.id) {
+      <g
+        appNodoGateway
+        [gateway]="gateway"
+        [seleccionado]="seleccionado('GATEWAY', gateway.id)"
+        [marcado]="marcado('GATEWAY', gateway.id)"
+        (elegido)="elegir('GATEWAY', gateway.id)"
+      ></g>
+    }
+
+    @for (evento of eventos(); track evento.tipo + evento.datos.id) {
+      <g
+        appNodoEvento
+        [evento]="evento"
+        [seleccionado]="seleccionado(evento.tipo, evento.datos.id)"
+        [marcado]="marcado(evento.tipo, evento.datos.id)"
+        (elegido)="elegir(evento.tipo, evento.datos.id)"
+      ></g>
+    }
+  </svg>
+</div>

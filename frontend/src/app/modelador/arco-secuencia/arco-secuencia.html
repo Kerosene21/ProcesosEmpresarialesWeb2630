@@ -1,0 +1,22 @@
+<svg:title>{{ arco().origenNombre }} → {{ arco().destinoNombre }}</svg:title>
+<svg:line
+  class="arco__zona"
+  [attr.x1]="segmento().desde.x"
+  [attr.y1]="segmento().desde.y"
+  [attr.x2]="segmento().hasta.x"
+  [attr.y2]="segmento().hasta.y"
+/>
+<svg:line
+  class="arco__linea"
+  [attr.x1]="segmento().desde.x"
+  [attr.y1]="segmento().desde.y"
+  [attr.x2]="segmento().hasta.x"
+  [attr.y2]="segmento().hasta.y"
+  [attr.marker-end]="punta()"
+/>
+@if (etiqueta(); as texto) {
+  <svg:text class="arco__texto" [attr.x]="medio().x" [attr.y]="medio().y - 6">{{ texto }}</svg:text>
+}
+@if (condicion(); as texto) {
+  <svg:text class="arco__texto arco__texto--condicion" [attr.x]="medio().x" [attr.y]="medio().y + 12">{{ texto }}</svg:text>
+}

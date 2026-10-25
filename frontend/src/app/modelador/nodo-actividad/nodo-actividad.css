@@ -1,0 +1,45 @@
+:host {
+  cursor: pointer;
+  outline: none;
+}
+
+.actividad {
+  fill: var(--color-superficie);
+  stroke: var(--color-primario);
+  stroke-width: 1.5;
+}
+
+.actividad__nombre {
+  font-size: 13px;
+  font-weight: 600;
+  fill: var(--color-texto);
+}
+
+.actividad__tipo {
+  font-size: 11px;
+  fill: var(--color-texto-secundario);
+}
+
+:host(.nodo--marcado) .actividad {
+  stroke: var(--color-acento);
+  stroke-dasharray: 5 3;
+  stroke-width: 2.5;
+}
+
+:host(.nodo--seleccionado) .actividad,
+:host(:focus-visible) .actividad {
+  fill: var(--color-primario-tenue);
+  stroke: var(--color-foco);
+  stroke-width: 3;
+}
+
+.alerta {
+  fill: var(--color-advertencia);
+}
+
+.alerta__signo {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--color-superficie);
+  text-anchor: middle;
+}

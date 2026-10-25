@@ -1,0 +1,33 @@
+:host {
+  cursor: pointer;
+  outline: none;
+}
+
+.arco__zona {
+  stroke: transparent;
+  stroke-width: 12;
+}
+
+.arco__linea {
+  stroke: var(--color-texto-secundario);
+  stroke-width: 1.6;
+}
+
+.arco__texto {
+  font-size: 11px;
+  fill: var(--color-texto);
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--color-superficie);
+  stroke-width: 3;
+}
+
+.arco__texto--condicion {
+  fill: var(--color-advertencia);
+}
+
+:host(.arco--seleccionado) .arco__linea,
+:host(:focus-visible) .arco__linea {
+  stroke: var(--color-foco);
+  stroke-width: 3;
+}

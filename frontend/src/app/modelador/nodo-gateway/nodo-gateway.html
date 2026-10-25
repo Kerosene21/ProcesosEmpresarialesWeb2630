@@ -1,0 +1,19 @@
+<svg:title>{{ gateway().etiqueta }}</svg:title>
+<svg:polygon class="gateway" [attr.points]="rombo()" />
+@for (linea of lineas(); track $index) {
+  <svg:line
+    [class]="'gateway__simbolo gateway__simbolo--' + gateway().tipo.toLowerCase()"
+    [attr.x1]="linea.x1"
+    [attr.y1]="linea.y1"
+    [attr.x2]="linea.x2"
+    [attr.y2]="linea.y2"
+  />
+}
+@if (gateway().tipo === 'INCLUSIVO') {
+  <svg:circle class="gateway__simbolo gateway__simbolo--inclusivo" [attr.cx]="centro().x" [attr.cy]="centro().y" r="11" />
+}
+<svg:text class="gateway__tipo" [attr.x]="centro().x" [attr.y]="caja().y + caja().alto + 14">{{ tipo() }}</svg:text>
+@if (alerta()) {
+  <svg:circle class="alerta" [attr.cx]="caja().x + caja().ancho" [attr.cy]="caja().y" r="8" />
+  <svg:text class="alerta__signo" [attr.x]="caja().x + caja().ancho" [attr.y]="caja().y + 4">!</svg:text>
+}

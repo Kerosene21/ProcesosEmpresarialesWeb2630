@@ -85,15 +85,20 @@
     </article>
 
     <article class="tarjeta diagrama" aria-labelledby="titulo-diagrama">
-      <div>
-        <h2 id="titulo-diagrama">Resumen del diagrama</h2>
-        <p class="nota">Vista estructurada del modelo BPMN. El editor visual se desarrollará más adelante.</p>
+      <div class="diagrama__encabezado">
+        <div>
+          <h2 id="titulo-diagrama">Diagrama del proceso</h2>
+          <p class="nota">Modelo BPMN dibujado con los datos del backend. Selecciona un elemento para consultar su información.</p>
+        </div>
+        @if (puedeEditar()) {
+          <a class="boton boton--primario" [routerLink]="['/procesos', datos.id, 'modelador']">Abrir modelador</a>
+        }
       </div>
       @if (estadoDiagrama().tipo === 'cargando') {
         <app-aviso tipo="carga" titulo="Cargando el diagrama…" />
       } @else if (falloDiagrama(); as fallo) {
         <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
-      } @else {
+      } @else if (diagrama(); as modelo) {
         <ul class="metricas" aria-label="Elementos del modelo">
           @for (metrica of metricas(); track metrica.etiqueta) {
             <li class="metrica">
@@ -102,71 +107,7 @@
             </li>
           }
         </ul>
-
-        <section class="diagrama__seccion" aria-labelledby="titulo-pools">
-          <h3 id="titulo-pools">Pools y lanes</h3>
-          <div class="pools">
-            @for (pool of pools(); track pool.id) {
-              <section class="pool" [attr.aria-label]="'Pool ' + pool.nombre">
-                <header class="pool__encabezado">
-                  <strong>{{ pool.nombre }}</strong>
-                  <span class="grupo-chips">
-                    <span class="chip">{{ pool.tipo }}</span>
-                    @if (pool.cajaNegra) {
-                      <span class="chip chip--advertencia">Caja negra</span>
-                    }
-                  </span>
-                </header>
-                @if (pool.empresa) {
-                  <p class="nota">{{ pool.empresa }}</p>
-                }
-                @if (pool.lanes.length > 0) {
-                  <ul class="lanes">
-                    @for (lane of pool.lanes; track lane.id) {
-                      <li class="lane">
-                        <span>{{ lane.nombre }}</span>
-                        <span class="lane__conteo">{{ lane.actividades }} {{ lane.actividades === 1 ? 'actividad' : 'actividades' }}</span>
-                      </li>
-                    }
-                  </ul>
-                } @else {
-                  <p class="nota">Sin lanes</p>
-                }
-              </section>
-            }
-          </div>
-        </section>
-
-        <section class="diagrama__seccion" aria-labelledby="titulo-actividades">
-          <h3 id="titulo-actividades">Actividades</h3>
-          @if (actividades().length > 0) {
-            <div class="tabla-contenedor">
-              <table class="tabla tabla--adaptable">
-                <caption class="visualmente-oculto">Actividades del proceso</caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Actividad</th>
-                    <th scope="col">Tipo</th>
-                    <th scope="col">Lane</th>
-                    <th scope="col">Pool</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (actividad of actividades(); track actividad.id) {
-                    <tr>
-                      <td data-etiqueta="Actividad">{{ actividad.nombre }}</td>
-                      <td data-etiqueta="Tipo">{{ actividad.tipo }}</td>
-                      <td data-etiqueta="Lane">{{ actividad.lane }}</td>
-                      <td data-etiqueta="Pool">{{ actividad.pool }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          } @else {
-            <app-aviso tipo="vacio" titulo="El proceso todavía no tiene actividades" />
-          }
-        </section>
+        <app-modelador [proceso]="datos" [diagrama]="modelo" />
       }
     </article>
   }

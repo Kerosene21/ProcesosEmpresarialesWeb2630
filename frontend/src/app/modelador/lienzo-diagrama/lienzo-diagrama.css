@@ -1,0 +1,80 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.lienzo {
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--color-superficie-suave);
+  border: 1px solid var(--color-borde);
+  border-radius: var(--radio-m);
+}
+
+.lienzo--colocando .lienzo__svg {
+  cursor: crosshair;
+}
+
+.lienzo__svg {
+  display: block;
+  font-family: inherit;
+}
+
+.pool__marco,
+.lane__marco {
+  fill: var(--color-superficie);
+  stroke: var(--color-borde-fuerte);
+  stroke-width: 1;
+}
+
+.pool__cabecera {
+  fill: var(--color-primario-tenue);
+  stroke: var(--color-borde-fuerte);
+}
+
+.lane__cabecera {
+  fill: var(--color-superficie-suave);
+  stroke: var(--color-borde);
+}
+
+.pool--caja-negra .pool__marco {
+  fill: var(--color-fondo);
+}
+
+.pool__nombre,
+.lane__nombre {
+  font-size: 12px;
+  font-weight: 600;
+  fill: var(--color-primario-oscuro);
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.pool__nombre--horizontal {
+  text-anchor: start;
+}
+
+.lane__nombre {
+  font-weight: 500;
+  fill: var(--color-texto-secundario);
+}
+
+.pool__nota {
+  font-size: 12px;
+  font-style: italic;
+  fill: var(--color-texto-secundario);
+}
+
+.punta {
+  fill: var(--color-texto-secundario);
+}
+
+.punta--seleccion {
+  fill: var(--color-foco);
+}
+
+.punta--mensaje {
+  fill: var(--color-superficie);
+  stroke: var(--color-texto-secundario);
+  stroke-width: 1.2;
+}

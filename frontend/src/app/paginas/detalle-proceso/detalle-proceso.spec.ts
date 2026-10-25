@@ -107,21 +107,53 @@ describe('DetalleProceso', () => {
       ?.querySelector('.metrica__valor')?.textContent?.trim();
   }
 
-  it('muestra los datos del DTO y el resumen del diagrama', async () => {
+  it('muestra los datos del DTO, el resumen y el diagrama gráfico del backend', async () => {
     await crear('5', of(PROCESO));
 
     expect(obtener).toHaveBeenCalledWith(5);
-    expect(obtenerDiagrama).toHaveBeenCalledWith(5);
+    expect(obtenerDiagrama).toHaveBeenCalledTimes(1);
     expect(elemento.querySelector('h1')?.textContent).toBe('Atención de solicitudes');
     expect(elemento.querySelector('.lista-datos')?.textContent).toContain('Servicio al cliente');
     expect(metrica('Pools')).toBe('2');
     expect(metrica('Actividades')).toBe('2');
-    expect(elemento.querySelectorAll('.pool').length).toBe(2);
-    expect(elemento.textContent).toContain('Caja negra');
-    expect(elemento.querySelector('.lane')?.textContent).toContain('2 actividades');
-    expect(elemento.querySelectorAll('tbody tr').length).toBe(2);
+    expect(elemento.querySelectorAll('svg .pool').length).toBe(2);
+    expect(elemento.querySelector('.pool--caja-negra')?.textContent).toContain('Caja negra');
+    expect(elemento.querySelector('.lane__nombre')?.textContent?.trim()).toBe('General');
+    expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(2);
+    expect(elemento.textContent).not.toContain('se desarrollará más adelante');
     const editar = Array.from(elemento.querySelectorAll('a')).find((enlace) => enlace.textContent === 'Editar proceso');
     expect(editar?.getAttribute('href')).toBe('/procesos/5/editar');
+  });
+
+  it('muestra el error del diagrama sin ocultar la información del proceso y permite reintentar', async () => {
+    await crear(
+      '5',
+      of(PROCESO),
+      throwError(() => ({
+        tipo: 'servidor',
+        estado: 500,
+        codigo: null,
+        titulo: 'El servidor no pudo atender la solicitud',
+        detalle: null,
+      })),
+    );
+
+    expect(elemento.querySelector('h1')?.textContent).toBe('Atención de solicitudes');
+    expect(elemento.querySelector('.diagrama [role="alert"]')?.textContent).toContain('El servidor no pudo atender la solicitud');
+    expect(elemento.querySelector('svg')).toBeNull();
+
+    obtenerDiagrama.mockReturnValue(of(DIAGRAMA));
+    elemento.querySelector<HTMLButtonElement>('.diagrama .aviso__accion')!.click();
+    await fixture.whenStable();
+
+    expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(2);
+  });
+
+  it('en un proceso eliminado sigue mostrando el diagrama solo para consulta', async () => {
+    await crear('5', of({ ...PROCESO, eliminado: true }));
+
+    expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(2);
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial']);
   });
 
   it('no ofrece edición en un proceso compartido en solo lectura', async () => {
@@ -178,13 +210,28 @@ describe('DetalleProceso', () => {
     await crear('5', of(PROCESO), of(DIAGRAMA), 'EDITOR');
 
     expect(acciones()).toEqual(['Volver al listado', 'Ver historial', 'Editar proceso']);
+    expect(enlaceModelador()?.getAttribute('href')).toBe('/procesos/5/modelador');
   });
 
   it('a un usuario de solo lectura solo le deja consultar', async () => {
     await crear('5', of(PROCESO), of(DIAGRAMA), 'SOLO_LECTURA');
 
     expect(acciones()).toEqual(['Volver al listado', 'Ver historial']);
+    expect(enlaceModelador()).toBeUndefined();
   });
+
+  it('no ofrece el modelador en procesos compartidos o eliminados', async () => {
+    await crear('5', of({ ...PROCESO, soloLectura: true }));
+    expect(enlaceModelador()).toBeUndefined();
+
+    TestBed.resetTestingModule();
+    await crear('5', of({ ...PROCESO, eliminado: true }));
+    expect(enlaceModelador()).toBeUndefined();
+  });
+
+  function enlaceModelador(): HTMLAnchorElement | undefined {
+    return Array.from(elemento.querySelectorAll('a')).find((enlace) => enlace.textContent?.trim() === 'Abrir modelador');
+  }
 
   it('en un proceso compartido no ofrece el historial, que es exclusivo de la empresa propietaria', async () => {
     await crear('5', of({ ...PROCESO, soloLectura: true }));

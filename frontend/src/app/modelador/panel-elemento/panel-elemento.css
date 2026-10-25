@@ -1,0 +1,52 @@
+.panel {
+  display: grid;
+  gap: var(--espacio-2);
+}
+
+.panel__titulo {
+  font-size: var(--texto-m);
+}
+
+.panel__tipo {
+  font-size: var(--texto-xs);
+  font-weight: 700;
+  color: var(--color-acento);
+  text-transform: uppercase;
+}
+
+.panel__nombre {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.panel__datos {
+  display: grid;
+  gap: var(--espacio-2);
+  margin: 0;
+  font-size: var(--texto-s);
+}
+
+.panel__datos dt {
+  font-size: var(--texto-xs);
+  color: var(--color-texto-secundario);
+}
+
+.panel__datos dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.panel__advertencias {
+  margin: 0;
+  padding: var(--espacio-2) var(--espacio-2) var(--espacio-2) var(--espacio-5);
+  font-size: var(--texto-s);
+  color: var(--color-advertencia);
+  background: var(--color-advertencia-tenue);
+  border-radius: var(--radio-s);
+}
+
+.panel__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espacio-2);
+}

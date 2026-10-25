@@ -1,0 +1,65 @@
+:host {
+  cursor: pointer;
+  outline: none;
+}
+
+.evento__borde,
+.evento__interior {
+  fill: var(--color-superficie);
+  stroke: var(--color-acento);
+  stroke-width: 1.5;
+}
+
+.evento__interior {
+  fill: none;
+}
+
+:host(.evento--envio-externo) .evento__borde {
+  stroke-dasharray: 4 2;
+}
+
+.evento__sobre,
+.evento__solapa {
+  fill: var(--color-superficie);
+  stroke: var(--color-texto);
+  stroke-width: 1.2;
+}
+
+.evento__sobre--lleno {
+  fill: var(--color-texto);
+}
+
+.evento__solapa--lleno {
+  fill: none;
+  stroke: var(--color-superficie);
+}
+
+.evento__nombre {
+  font-size: 11px;
+  fill: var(--color-texto-secundario);
+  text-anchor: middle;
+}
+
+:host(.nodo--marcado) .evento__borde {
+  stroke: var(--color-acento);
+  stroke-dasharray: 5 3;
+  stroke-width: 2.5;
+}
+
+:host(.nodo--seleccionado) .evento__borde,
+:host(:focus-visible) .evento__borde {
+  fill: var(--color-primario-tenue);
+  stroke: var(--color-foco);
+  stroke-width: 3;
+}
+
+.alerta {
+  fill: var(--color-advertencia);
+}
+
+.alerta__signo {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--color-superficie);
+  text-anchor: middle;
+}
