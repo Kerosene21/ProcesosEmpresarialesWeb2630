@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.servlet.http.Cookie;
@@ -28,6 +29,7 @@ import com.jayway.jsonpath.JsonPath;
 
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.domain.Usuario;
+import co.edu.javeriana.procesosempresariales.repository.ProcesoRepository;
 import co.edu.javeriana.procesosempresariales.repository.UsuarioRepository;
 
 @SpringBootTest
@@ -40,19 +42,26 @@ class UsuariosApiIntegracionTest {
     private static final String RUTA_SESION = "/api/sesion";
     private static final String RUTA_EMPRESAS = "/api/empresas";
     private static final String RUTA_USUARIOS = "/api/usuarios";
+    private static final String RUTA_PROCESOS = "/api/procesos";
     private static final String COOKIE_CSRF = "XSRF-TOKEN";
     private static final String CABECERA_CSRF = "X-XSRF-TOKEN";
     private static final String CORREO_ALPES = "admin@alpes-usuarios.com";
     private static final String CORREO_ANDES = "admin@andes-usuarios.com";
     private static final String CORREO_EDITOR = "editor@alpes-usuarios.com";
+    private static final String CORREO_EDITOR_DOS = "editor2@alpes-usuarios.com";
+    private static final String CORREO_LECTURA = "lectura@alpes-usuarios.com";
     private static final String PASSWORD = "Clave-Usuarios-2026";
     private static final String CODIGO = "$.codigo";
+    private static final String NO_AUTORIZADO = "USUARIO_NO_AUTORIZADO";
 
     @Autowired
     private MockMvc mockMvc;
 
     @Autowired
     private UsuarioRepository usuarioRepository;
+
+    @Autowired
+    private ProcesoRepository procesoRepository;
 
     private Cookie tokenCsrf(MockHttpSession sesion) throws Exception {
         MvcResult resultado = mockMvc.perform(get(RUTA_SESION).session(sesion)).andReturn();
@@ -104,6 +113,30 @@ class UsuariosApiIntegracionTest {
 
     private Usuario guardado(String correo) {
         return usuarioRepository.findByUsername(correo).orElseThrow();
+    }
+
+    private String proceso(String nombre) {
+        return "{\"nombre\":\"" + nombre + "\",\"descripcion\":\"Proceso comercial\",\"categoria\":\"Comercial\"}";
+    }
+
+    private long crearProceso(MockHttpSession sesion, String nombre) throws Exception {
+        MvcResult resultado = mockMvc.perform(conCsrf(post(RUTA_PROCESOS), sesion)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso(nombre)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return ((Number) JsonPath.read(resultado.getResponse().getContentAsString(), "$.id")).longValue();
+    }
+
+    private void desactivar(MockHttpSession administrador, long usuarioId) throws Exception {
+        mockMvc.perform(conCsrf(post(RUTA_USUARIOS + "/" + usuarioId + "/desactivacion"), administrador))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.activo").value(false));
+    }
+
+    private MockHttpServletRequestBuilder conToken(MockHttpServletRequestBuilder peticion, MockHttpSession sesion,
+            Cookie token) {
+        return peticion.session(sesion).cookie(token).header(CABECERA_CSRF, token.getValue());
     }
 
     @Test
@@ -245,5 +278,90 @@ class UsuariosApiIntegracionTest {
         mockMvc.perform(get(RUTA_USUARIOS + "/" + editor).session(administrador))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activo").value(false));
+    }
+
+    @Test
+    void lasSesionesAbiertasAntesDeLaDesactivacionDejanDeLeerYModificar() throws Exception {
+        MockHttpSession administrador = administradorDeAlpes();
+        long editor = crearUsuario(administrador, CORREO_EDITOR, "EDITOR");
+        long empresa = guardado(CORREO_ALPES).getEmpresa().getId();
+        MockHttpSession creacion = iniciarSesion(CORREO_EDITOR, 204);
+        MockHttpSession edicion = iniciarSesion(CORREO_EDITOR, 204);
+        MockHttpSession lectura = iniciarSesion(CORREO_EDITOR, 204);
+        MockHttpSession web = iniciarSesion(CORREO_EDITOR, 204);
+        MockHttpSession consulta = iniciarSesion(CORREO_EDITOR, 204);
+        long compras = crearProceso(edicion, "Compras");
+        mockMvc.perform(get(RUTA_PROCESOS + "/" + compras).session(lectura))
+                .andExpect(status().isOk());
+        Cookie token = tokenCsrf(new MockHttpSession());
+
+        desactivar(administrador, editor);
+
+        mockMvc.perform(conToken(post(RUTA_PROCESOS), creacion, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Ventas")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath(CODIGO).value(NO_AUTORIZADO));
+        mockMvc.perform(conToken(put(RUTA_PROCESOS + "/" + compras), edicion, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Compras modificadas")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath(CODIGO).value(NO_AUTORIZADO));
+        mockMvc.perform(get(RUTA_PROCESOS + "/" + compras).session(lectura))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath(CODIGO).value(NO_AUTORIZADO));
+        mockMvc.perform(get("/procesos").session(web))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login"));
+        mockMvc.perform(get(RUTA_SESION).session(consulta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.autenticado").value(false));
+
+        assertThat(creacion.isInvalid()).isTrue();
+        assertThat(edicion.isInvalid()).isTrue();
+        assertThat(lectura.isInvalid()).isTrue();
+        assertThat(web.isInvalid()).isTrue();
+        assertThat(consulta.isInvalid()).isTrue();
+        assertThat(procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(empresa, "Ventas")).isFalse();
+        assertThat(procesoRepository.findById(compras).orElseThrow().getNombre()).isEqualTo("Compras");
+        iniciarSesion(CORREO_EDITOR, 401);
+    }
+
+    @Test
+    void desactivarAUnUsuarioNoAfectaLasSesionesNiLosRolesDeLosDemas() throws Exception {
+        MockHttpSession administrador = administradorDeAlpes();
+        long editor = crearUsuario(administrador, CORREO_EDITOR, "EDITOR");
+        crearUsuario(administrador, CORREO_EDITOR_DOS, "EDITOR");
+        crearUsuario(administrador, CORREO_LECTURA, "SOLO_LECTURA");
+        long empresa = guardado(CORREO_ALPES).getEmpresa().getId();
+        MockHttpSession editorDos = iniciarSesion(CORREO_EDITOR_DOS, 204);
+        MockHttpSession lectura = iniciarSesion(CORREO_LECTURA, 204);
+
+        desactivar(administrador, editor);
+
+        mockMvc.perform(get(RUTA_USUARIOS).session(administrador))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].correo",
+                        containsInAnyOrder(CORREO_ALPES, CORREO_EDITOR, CORREO_EDITOR_DOS, CORREO_LECTURA)));
+        crearProceso(editorDos, "Compras");
+        mockMvc.perform(get(RUTA_USUARIOS).session(editorDos))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
+        mockMvc.perform(get(RUTA_PROCESOS).session(lectura))
+                .andExpect(status().isOk());
+        mockMvc.perform(conCsrf(post(RUTA_PROCESOS), lectura)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Ventas")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
+        mockMvc.perform(get(RUTA_SESION).session(lectura))
+                .andExpect(jsonPath("$.autenticado").value(true))
+                .andExpect(jsonPath("$.rol").value("SOLO_LECTURA"));
+
+        assertThat(administrador.isInvalid()).isFalse();
+        assertThat(editorDos.isInvalid()).isFalse();
+        assertThat(lectura.isInvalid()).isFalse();
+        assertThat(procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(empresa, "Compras")).isTrue();
+        assertThat(procesoRepository.existsByEmpresaIdAndNombreIgnoreCase(empresa, "Ventas")).isFalse();
     }
 }

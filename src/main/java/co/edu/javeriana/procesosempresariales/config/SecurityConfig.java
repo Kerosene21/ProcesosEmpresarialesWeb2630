@@ -9,6 +9,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
@@ -16,6 +17,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.access.RequestMatcherDelegatingAccessDeniedHandler;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
@@ -61,9 +63,11 @@ public class SecurityConfig {
 
     @Bean
     @Order(1)
-    SecurityFilterChain sesionApiFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain sesionApiFilterChain(HttpSecurity http, UserDetailsService userDetailsService)
+            throws Exception {
         return http
                 .securityMatcher(RUTA_API_SESION)
+                .addFilterBefore(new UsuarioActivoFilter(userDetailsService), AnonymousAuthenticationFilter.class)
                 .csrf(csrf -> csrf.spa())
                 .authorizeHttpRequests(peticiones -> peticiones.anyRequest().permitAll())
                 .formLogin(login -> login
@@ -89,8 +93,10 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, UserDetailsService userDetailsService)
+            throws Exception {
         return http
+                .addFilterBefore(new UsuarioActivoFilter(userDetailsService), AnonymousAuthenticationFilter.class)
                 .csrf(csrf -> csrf.spa())
                 .authorizeHttpRequests(peticiones -> peticiones
                         .requestMatchers(RECURSOS_PUBLICOS).permitAll()
