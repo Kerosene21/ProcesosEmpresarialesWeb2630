@@ -11,10 +11,18 @@ import { SesionService } from '../../core/servicios/sesion-service';
 
 const LIMITES = { correo: 180, password: 100 } as const;
 
+const CIERRE_SIN_CONFIRMAR =
+  'El servidor no confirmó la revocación. La sesión no se restaurará sola y se intentará revocar de nuevo ' +
+  'al volver a abrir la aplicación.';
+const CIERRE_SIGUE_SIN_CONFIRMAR =
+  'El servidor sigue sin confirmar el cierre. Vuelve a intentarlo cuando haya conexión.';
+
 const AVISOS: Readonly<Record<string, string>> = {
   expirada: 'Tu sesión expiró. Inicia sesión de nuevo para continuar.',
-  registrada: 'La empresa quedó registrada. Inicia sesión con el correo de contacto y la contraseña del administrador.',
+  registrada:
+    'La empresa quedó registrada. Inicia sesión con el correo de contacto y la contraseña del administrador.',
   cerrada: 'Cerraste la sesión.',
+  'otra-pestana': 'Cerraste la sesión en otra pestaña.',
 };
 
 @Component({
@@ -46,6 +54,18 @@ export class InicioSesion {
   protected readonly enviando = signal(false);
   protected readonly fallo = signal<FalloHttp | null>(null);
   protected readonly aviso = computed(() => AVISOS[this.motivo() ?? ''] ?? null);
+  protected readonly reintentandoCierre = signal(false);
+  protected readonly reintentoFallido = signal(false);
+  protected readonly cierreConfirmado = signal(false);
+  private readonly cierrePendienteAlCargar = this.sesion.cierrePendiente();
+  protected readonly cierreSinConfirmar = computed(
+    () =>
+      !this.cierreConfirmado() &&
+      (this.cierrePendienteAlCargar || this.motivo() === 'cierre-sin-confirmar'),
+  );
+  protected readonly detalleCierre = computed(() =>
+    this.reintentoFallido() ? CIERRE_SIGUE_SIN_CONFIRMAR : CIERRE_SIN_CONFIRMAR,
+  );
   protected readonly mensajeFallo = computed(() => {
     const fallo = this.fallo();
     if (!fallo) {
@@ -76,6 +96,21 @@ export class InicioSesion {
         if (fallo.tipo === 'sin-permiso') {
           this.sesion.cargar().subscribe({ error: () => undefined });
         }
+      },
+    });
+  }
+
+  protected reintentarCierre(): void {
+    this.reintentandoCierre.set(true);
+    this.reintentoFallido.set(false);
+    this.sesion.reintentarCierre().subscribe({
+      next: () => {
+        this.reintentandoCierre.set(false);
+        this.cierreConfirmado.set(true);
+      },
+      error: () => {
+        this.reintentandoCierre.set(false);
+        this.reintentoFallido.set(true);
       },
     });
   }

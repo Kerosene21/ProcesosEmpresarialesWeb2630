@@ -1,7 +1,7 @@
 import { computed, signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, Subject, of, throwError } from 'rxjs';
 
 import { App } from './app';
 import { routes } from './app.routes';
@@ -13,6 +13,7 @@ import { SesionService } from './core/servicios/sesion-service';
 describe('App', () => {
   const estado = signal<Sesion | null>(null);
   const cerrar = vi.fn<() => Observable<void>>();
+  const cierresExternos = new Subject<void>();
   let fixture: ComponentFixture<App>;
 
   async function crear(sesion: Sesion): Promise<HTMLElement> {
@@ -32,6 +33,7 @@ describe('App', () => {
               return rol !== null && rol !== undefined && roles.includes(rol);
             },
             cerrar,
+            cierreEnOtraPestana: cierresExternos.asObservable(),
           },
         },
       ],
@@ -42,13 +44,19 @@ describe('App', () => {
   }
 
   function enlaces(elemento: HTMLElement): (string | null)[] {
-    return Array.from(elemento.querySelectorAll('nav[aria-label="Navegación principal"] a')).map((enlace) =>
-      enlace.getAttribute('href'),
+    return Array.from(elemento.querySelectorAll('nav[aria-label="Navegación principal"] a')).map(
+      (enlace) => enlace.getAttribute('href'),
     );
   }
 
   function usuario(rol: RolUsuario): Sesion {
-    return { autenticado: true, correo: 'usuario@alpes.com', rol, empresaId: 10, empresaNombre: 'Alpes Logistica' };
+    return {
+      autenticado: true,
+      correo: 'usuario@alpes.com',
+      rol,
+      empresaId: 10,
+      empresaNombre: 'Alpes Logistica',
+    };
   }
 
   it('muestra la marca, el enlace para saltar al contenido y el área principal', async () => {
@@ -69,7 +77,12 @@ describe('App', () => {
   it('a un editor le muestra la navegación completa, su usuario y el cierre de sesión', async () => {
     const elemento = await crear(usuario('EDITOR'));
 
-    expect(enlaces(elemento)).toEqual(['/procesos', '/procesos/nuevo', '/roles-proceso', '/mi-empresa']);
+    expect(enlaces(elemento)).toEqual([
+      '/procesos',
+      '/procesos/nuevo',
+      '/roles-proceso',
+      '/mi-empresa',
+    ]);
     expect(elemento.querySelector('.usuario')?.textContent).toContain('usuario@alpes.com');
     expect(elemento.querySelector('.usuario')?.textContent).toContain('Editor · Alpes Logistica');
   });
@@ -83,14 +96,25 @@ describe('App', () => {
   it('solo al administrador le ofrece la gestión de usuarios', async () => {
     const elemento = await crear(usuario('ADMINISTRADOR'));
 
-    expect(enlaces(elemento)).toEqual(['/procesos', '/procesos/nuevo', '/roles-proceso', '/usuarios', '/mi-empresa']);
+    expect(enlaces(elemento)).toEqual([
+      '/procesos',
+      '/procesos/nuevo',
+      '/roles-proceso',
+      '/usuarios',
+      '/mi-empresa',
+    ]);
   });
 
   it('protege las rutas de usuarios con la sesión y el rol de administrador', () => {
-    const protegidas = routes.find((ruta) => ruta.canActivateChild?.includes(sesionGuard))?.children ?? [];
+    const protegidas =
+      routes.find((ruta) => ruta.canActivateChild?.includes(sesionGuard))?.children ?? [];
     const usuarios = protegidas.filter((ruta) => ruta.path?.startsWith('usuarios'));
 
-    expect(usuarios.map((ruta) => ruta.path)).toEqual(['usuarios', 'usuarios/nuevo', 'usuarios/:id']);
+    expect(usuarios.map((ruta) => ruta.path)).toEqual([
+      'usuarios',
+      'usuarios/nuevo',
+      'usuarios/:id',
+    ]);
     usuarios.forEach((ruta) => {
       expect(ruta.canActivate).toEqual([rolGuard]);
       expect(ruta.data?.['roles']).toEqual(['ADMINISTRADOR']);
@@ -105,18 +129,44 @@ describe('App', () => {
     elemento.querySelector<HTMLButtonElement>('.usuario__salir')!.click();
 
     expect(cerrar).toHaveBeenCalledTimes(1);
-    expect(navegar).toHaveBeenCalledWith(['/iniciar-sesion'], { queryParams: { motivo: 'cerrada' } });
+    expect(navegar).toHaveBeenCalledWith(['/iniciar-sesion'], {
+      queryParams: { motivo: 'cerrada' },
+    });
   });
 
-  it('informa si el servidor no pudo cerrar la sesión', async () => {
+  it('si el servidor no confirma el cierre no lo presenta como cerrado y avisa en el inicio de sesión', async () => {
     const elemento = await crear(usuario('ADMINISTRADOR'));
+    const navegar = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
     cerrar.mockReturnValue(
-      throwError(() => ({ tipo: 'sin-permiso', estado: 403, codigo: null, titulo: 'No tienes permiso para esta consulta', detalle: null })),
+      throwError(() => ({
+        tipo: 'conexion',
+        estado: 0,
+        codigo: null,
+        titulo: 'Sin conexión',
+        detalle: null,
+      })),
     );
 
     elemento.querySelector<HTMLButtonElement>('.usuario__salir')!.click();
     await fixture.whenStable();
 
-    expect(elemento.querySelector('.cabecera__error')?.textContent).toContain('No se pudo cerrar la sesión');
+    expect(navegar).toHaveBeenCalledWith(['/iniciar-sesion'], {
+      queryParams: { motivo: 'cierre-sin-confirmar' },
+    });
+    expect(navegar).not.toHaveBeenCalledWith(['/iniciar-sesion'], {
+      queryParams: { motivo: 'cerrada' },
+    });
+  });
+
+  it('si otra pestaña cierra la sesión lleva al inicio de sesión', async () => {
+    await crear(usuario('EDITOR'));
+    const navegar = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+    cierresExternos.next();
+
+    expect(navegar).toHaveBeenCalledWith(['/iniciar-sesion'], {
+      queryParams: { motivo: 'otra-pestana' },
+    });
+    expect(cerrar).not.toHaveBeenCalled();
   });
 });

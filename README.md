@@ -220,6 +220,13 @@ Las vistas Thymeleaf conservan su sesión con el formulario de `/login`, que no 
 - Un Bearer ausente, inválido, expirado o revocado responde 401 con `WWW-Authenticate: Bearer`; una
   sesión `JSESSIONID` nunca lo sustituye y las peticiones con Bearer no crean sesiones HTTP.
 - La antigua API de sesión `/api/sesion` se retiró.
+- Una tarea programada purga cada hora (`PURGA_REFRESCO_CRON`, por defecto `0 17 * * * *` en UTC) los
+  refresh tokens caducados y las sesiones vencidas hace más de 15 minutos y 30 segundos, de modo que la
+  revocación se conserva mientras pueda existir un token de acceso vigente. Un bloqueo consultivo de
+  PostgreSQL (`pg_try_advisory_xact_lock`) evita que varias réplicas la ejecuten a la vez.
+- En Angular el token de acceso vive solo en memoria. Al cerrar sesión se avisa a las demás pestañas
+  por `BroadcastChannel` (sin enviar tokens). Si el servidor no confirma la revocación, la aplicación lo
+  indica, no restaura la sesión al recargar y vuelve a intentar el cierre.
 
 ## Pruebas y calidad
 
@@ -262,30 +269,43 @@ El plan [`jmeter/backend-procesos.jmx`](jmeter/backend-procesos.jmx) simula usua
 consultando la API:
 
 - 25 usuarios, ramp-up de 10 segundos y 5 iteraciones.
-- Cada usuario se autentica una sola vez: `GET /login`, extracción del token CSRF y `POST /login`.
-- La cookie `JSESSIONID` se mantiene durante toda la prueba.
-- En cada iteración consulta `GET /api/procesos`.
+- Cada usuario se autentica una sola vez: `AUTH 01` obtiene la cookie `XSRF-TOKEN` en
+  `GET /api/auth/csrf` y `AUTH 02` hace `POST /api/auth/login` con `X-XSRF-TOKEN`, del que se extrae
+  `tokenAcceso`.
+- En cada iteración `API 03` consulta `GET /api/procesos` con `Authorization: Bearer`.
+- Las etiquetas `AUTH` y `API` separan las métricas de autenticación de las de negocio.
 
-> Desde que la API es stateless, la sesión de `/login` ya no da acceso a `/api/**`: el plan está
-> pendiente de adaptarse al login JWT y al encabezado `Authorization: Bearer`.
-
-El plan apunta a `localhost:8085`, por lo que la aplicación debe levantarse en ese puerto (por
-ejemplo, `./mvnw spring-boot:run -Dspring-boot.run.arguments=--server.port=8085`). El usuario y la
-contraseña se reciben como propiedades externas y **nunca deben guardarse en el `.jmx`**:
+El plan apunta por defecto a `http://localhost:8085` (propiedades `host`, `port` y `protocol`). Debe
+ejecutarse solo contra una base controlada, nunca contra datos que deban conservarse. El usuario y la
+contraseña se reciben como propiedades externas y **nunca deben guardarse en el `.jmx`**. JMeter
+escribe en su log las propiedades `-J`, así que el log debe quedar fuera del repositorio:
 
 ```bash
-jmeter -n -t jmeter/backend-procesos.jmx -Jusername=USUARIO -Jpassword=CONTRASENA -l jmeter/resultados/carga.jtl -e -o jmeter/resultados/reporte-html
+jmeter -n -t jmeter/backend-procesos.jmx -Jusername=USUARIO -Jpassword=CONTRASENA -j /ruta/fuera/del/repo/jmeter.log -l jmeter/resultados/carga.jtl -e -o jmeter/resultados/reporte-html
 ```
 
-La última validación local produjo **175 solicitudes con 0 errores**. Los tiempos obtenidos en una
-máquina local son orientativos y no constituyen una garantía de rendimiento. La carpeta
-`jmeter/resultados/` no se versiona.
+Los tiempos obtenidos en una máquina local son orientativos y no constituyen una garantía de
+rendimiento. La carpeta `jmeter/resultados/` no se versiona.
 
-### Validación manual con Postman
+### Pruebas de API con Postman y Newman
 
-La API también se validó manualmente con Postman: autenticación, manejo del token CSRF, consultas
-protegidas, creación y consulta de recursos, y el error de negocio por nombre duplicado. La
-colección se usó de forma local y no forma parte del repositorio.
+La colección [`pruebas/api/procesos-empresariales.postman_collection.json`](pruebas/api/procesos-empresariales.postman_collection.json)
+y el entorno [`pruebas/api/local.postman_environment.json`](pruebas/api/local.postman_environment.json)
+se importan en Postman Desktop o se ejecutan con Newman. Cubren CSRF, login, refresh, logout,
+`/api/auth/me`, credenciales inválidas, usuarios desactivados, Bearer ausente, inválido, expirado y
+revocado, roles, CRUD de empresas, usuarios y procesos, aislamiento multiempresa, procesos
+compartidos y la definición OpenAPI.
+
+- Cada ejecución registra sus propias empresas con un sufijo único y genera la contraseña en tiempo de
+  ejecución: los archivos no contienen credenciales ni tokens. Debe ejecutarse contra una base
+  controlada.
+- `cookieSegura` debe coincidir con `COOKIE_SEGURA` del backend (`false` en http local).
+- El caso de Bearer expirado firma un token con `jwtSecretoPruebas`, que solo se pasa al ejecutar y debe
+  ser la `JWT_SECRET` del backend de pruebas. Sin ese valor, ese caso y su control se omiten.
+
+```bash
+npx newman@6 run pruebas/api/procesos-empresariales.postman_collection.json -e pruebas/api/local.postman_environment.json
+```
 
 ## Documentación
 

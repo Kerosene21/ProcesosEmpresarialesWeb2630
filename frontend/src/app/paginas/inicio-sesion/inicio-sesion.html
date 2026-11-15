@@ -3,15 +3,32 @@
     <div class="encabezado-pagina__texto">
       <p class="encabezado-pagina__antetitulo">Acceso</p>
       <h1>Iniciar sesión</h1>
-      <p class="encabezado-pagina__descripcion">Ingresa con el correo y la contraseña de tu usuario.</p>
+      <p class="encabezado-pagina__descripcion">
+        Ingresa con el correo y la contraseña de tu usuario.
+      </p>
     </div>
   </header>
 
-  @if (aviso(); as texto) {
+  @if (cierreSinConfirmar()) {
+    <app-aviso
+      tipo="error"
+      titulo="La sesión se cerró solo en este navegador"
+      [detalle]="detalleCierre()"
+      [accion]="reintentandoCierre() ? null : 'Reintentar el cierre'"
+      (accionSolicitada)="reintentarCierre()"
+    />
+  } @else if (cierreConfirmado()) {
+    <app-aviso titulo="El servidor confirmó el cierre de la sesión." />
+  } @else if (aviso(); as texto) {
     <app-aviso [titulo]="texto" />
   }
 
-  <form class="tarjeta acceso__formulario" [formGroup]="formulario" (ngSubmit)="iniciar()" novalidate>
+  <form
+    class="tarjeta acceso__formulario"
+    [formGroup]="formulario"
+    (ngSubmit)="iniciar()"
+    novalidate
+  >
     <div class="campo">
       <label class="campo__etiqueta" for="campo-correo">Correo</label>
       <input

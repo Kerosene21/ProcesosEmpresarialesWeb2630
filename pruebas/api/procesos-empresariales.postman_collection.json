@@ -1,0 +1,3281 @@
+{
+  "info": {
+    "name": "Procesos Empresariales - API REST con JWT",
+    "description": "Pruebas funcionales y de seguridad de la API stateless: CSRF, login, refresh, logout, /api/auth/me, roles, multiempresa y procesos compartidos. Cada ejecución crea sus propias empresas con un sufijo único y genera la contraseña en tiempo de ejecución; el archivo no contiene credenciales ni tokens. Ejecutar contra una base controlada, nunca contra datos que deban conservarse.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.response.headers.all()",
+          "  .filter((h) => h.key.toLowerCase() === 'set-cookie')",
+          "  .map((h) => /^XSRF-TOKEN=([^;]+)/.exec(h.value))",
+          "  .filter(Boolean)",
+          "  .forEach((coincidencia) => pm.collectionVariables.set('csrf', coincidencia[1]));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "sufijo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "nitAlpes",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "nitAndes",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "correoAdmin",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "correoEditor",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "correoLector",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "correoInactivo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "correoAndes",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "csrf",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idEmpresaAlpes",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idEmpresaAndes",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idAdmin",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idEditor",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idLector",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idInactivo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idProcesoAlpes",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "idProcesoEditor",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenAdmin",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenEditor",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenLector",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenInactivo",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenAndes",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenAlterado",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenFirmadoVigente",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenExpirado",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenRevocado",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Preparación y registro público",
+      "description": "Genera datos únicos de la ejecución y registra dos empresas por el endpoint público. Nada se guarda en el archivo: los valores viven en variables de colección durante la ejecución.",
+      "item": [
+        {
+          "name": "Generar datos de la ejecución y obtener CSRF",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/csrf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "csrf"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cripto = require('crypto-js');",
+                  "const sufijo = Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36);",
+                  "const digitos = String(Date.now()).slice(-8);",
+                  "pm.collectionVariables.set('sufijo', sufijo);",
+                  "pm.collectionVariables.set('password', 'Pm-' + cripto.lib.WordArray.random(12).toString() + '-2026');",
+                  "pm.collectionVariables.set('nitAlpes', '91' + digitos + '-1');",
+                  "pm.collectionVariables.set('nitAndes', '92' + digitos + '-2');",
+                  "pm.collectionVariables.set('correoAdmin', 'admin.alpes.' + sufijo + '@postman.test');",
+                  "pm.collectionVariables.set('correoEditor', 'editor.alpes.' + sufijo + '@postman.test');",
+                  "pm.collectionVariables.set('correoLector', 'lector.alpes.' + sufijo + '@postman.test');",
+                  "pm.collectionVariables.set('correoInactivo', 'inactivo.alpes.' + sufijo + '@postman.test');",
+                  "pm.collectionVariables.set('correoAndes', 'admin.andes.' + sufijo + '@postman.test');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('emite el token CSRF sin contenido', () => pm.response.to.have.status(204));",
+                  "pm.test('la cookie XSRF-TOKEN es legible por la SPA y cubre toda la aplicación', () => {",
+                  "  const cookie = pm.response.headers.all().map((h) => h.value).find((v) => v.startsWith('XSRF-TOKEN='));",
+                  "  pm.expect(cookie, 'Set-Cookie XSRF-TOKEN').to.be.a('string');",
+                  "  pm.expect(cookie).to.match(/Path=\\//);",
+                  "  pm.expect(cookie.toLowerCase()).to.not.include('httponly');",
+                  "  pm.expect(pm.collectionVariables.get('csrf')).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.test('no abre una sesión HTTP', () => {",
+                  "  const cabeceras = pm.response.headers.all().map((h) => h.value).join(';');",
+                  "  pm.expect(cabeceras).to.not.include('JSESSIONID');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar empresa Alpes (público, sin CSRF)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/empresas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empresas"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Alpes Postman {{sufijo}}\",\n  \"nit\": \"{{nitAlpes}}\",\n  \"correoContacto\": \"{{correoAdmin}}\",\n  \"passwordAdministrador\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('registra la empresa', () => pm.response.to.have.status(201));",
+                  "const cuerpo = pm.response.json();",
+                  "pm.test('crea el administrador con el correo de contacto y nunca devuelve la contraseña', () => {",
+                  "  pm.expect(cuerpo.administradorUsername).to.eql(pm.collectionVariables.get('correoAdmin'));",
+                  "  pm.expect(JSON.stringify(cuerpo)).to.not.include(pm.collectionVariables.get('password'));",
+                  "});",
+                  "pm.collectionVariables.set('idEmpresaAlpes', cuerpo.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Registrar empresa Andes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/empresas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empresas"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Andes Postman {{sufijo}}\",\n  \"nit\": \"{{nitAndes}}\",\n  \"correoContacto\": \"{{correoAndes}}\",\n  \"passwordAdministrador\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('registra la segunda empresa', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('idEmpresaAndes', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rechazar un NIT duplicado",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/empresas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empresas"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Duplicada {{sufijo}}\",\n  \"nit\": \"{{nitAlpes}}\",\n  \"correoContacto\": \"duplicada.{{sufijo}}@postman.test\",\n  \"passwordAdministrador\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 409 con EMPRESA_NIT_DUPLICADO', () => {",
+                  "  pm.response.to.have.status(409);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('EMPRESA_NIT_DUPLICADO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rechazar un registro con datos no válidos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/empresas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empresas"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"\",\n  \"nit\": \"\",\n  \"correoContacto\": \"no-es-correo\",\n  \"passwordAdministrador\": \"corta\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400 con DATOS_NO_VALIDOS', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('DATOS_NO_VALIDOS');",
+                  "});",
+                  "pm.test('identifica los campos inválidos', () => {",
+                  "  pm.expect(pm.response.json().campos).to.include.keys('correoContacto', 'passwordAdministrador');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 Autenticación JWT",
+      "description": "Login, /me y refresh con la cookie HttpOnly PE_REFRESH y el encabezado X-XSRF-TOKEN.",
+      "item": [
+        {
+          "name": "Login sin token CSRF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoAdmin}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});",
+                  "pm.test('no entrega cookie de refresco', () => {",
+                  "  pm.expect(pm.response.headers.all().map((h) => h.value).join(';')).to.not.include('PE_REFRESH=');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login del administrador de Alpes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoAdmin}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cripto = require('crypto-js');",
+                  "pm.test('inicia sesión', () => pm.response.to.have.status(200));",
+                  "const cuerpo = pm.response.json();",
+                  "pm.test('entrega un token Bearer de 15 minutos y los datos actuales', () => {",
+                  "  pm.expect(cuerpo.tipoToken).to.eql('Bearer');",
+                  "  pm.expect(cuerpo.expiraEnSegundos).to.eql(900);",
+                  "  pm.expect(cuerpo.tokenAcceso.split('.')).to.have.lengthOf(3);",
+                  "  pm.expect(cuerpo.usuario.rol).to.eql('ADMINISTRADOR');",
+                  "  pm.expect(cuerpo.usuario.empresaNombre).to.include('Alpes Postman');",
+                  "});",
+                  "pm.test('el refresh token solo viaja en la cookie', () => pm.expect(cuerpo).to.not.have.property('refreshToken'));",
+                  "pm.test('el token no contiene rol ni empresa', () => {",
+                  "  const base64 = cuerpo.tokenAcceso.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');",
+                  "  const carga = JSON.parse(cripto.enc.Utf8.stringify(",
+                  "    cripto.enc.Base64.parse(base64 + '='.repeat((4 - (base64.length % 4)) % 4))));",
+                  "  pm.expect(carga).to.include.keys('sub', 'sid', 'jti', 'exp', 'iat');",
+                  "  pm.expect(carga).to.not.have.any.keys('rol', 'roles', 'scope', 'empresaId');",
+                  "});",
+                  "pm.test('la cookie PE_REFRESH es HttpOnly, SameSite=Strict y limitada a /api/auth', () => {",
+                  "  const cookie = pm.response.headers.all().map((h) => h.value).find((v) => v.startsWith('PE_REFRESH='));",
+                  "  pm.expect(cookie, 'Set-Cookie PE_REFRESH').to.be.a('string');",
+                  "  pm.expect(cookie).to.include('HttpOnly').and.include('Path=/api/auth').and.include('SameSite=Strict');",
+                  "  const segura = String(pm.environment.get('cookieSegura')) === 'true';",
+                  "  pm.expect(cookie.includes('Secure'), 'atributo Secure').to.eql(segura);",
+                  "});",
+                  "pm.collectionVariables.set('tokenAdmin', cuerpo.tokenAcceso);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Consultar /api/auth/me con Bearer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('devuelve los datos actuales del usuario', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().correo).to.eql(pm.collectionVariables.get('correoAdmin'));",
+                  "  pm.expect(pm.response.json().rol).to.eql('ADMINISTRADOR');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh sin token CSRF",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh con cookie y CSRF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('renueva el token de acceso', () => pm.response.to.have.status(200));",
+                  "const nuevo = pm.response.json().tokenAcceso;",
+                  "pm.test('entrega un token distinto y rota la cookie', () => {",
+                  "  pm.expect(nuevo).to.not.eql(pm.collectionVariables.get('tokenAdmin'));",
+                  "  pm.expect(pm.response.headers.all().map((h) => h.value).some((v) => v.startsWith('PE_REFRESH=') && !v.startsWith('PE_REFRESH=;'))).to.be.true;",
+                  "});",
+                  "pm.collectionVariables.set('tokenAdmin', nuevo);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Contraseña incorrecta",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoAdmin}}\",\n  \"password\": \"Clave-Incorrecta-2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con CREDENCIALES_INVALIDAS', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('CREDENCIALES_INVALIDAS');",
+                  "});",
+                  "pm.test('no revela si el usuario existe', () => pm.expect(pm.response.json().mensaje).to.eql('Correo o contraseña incorrectos'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Usuario inexistente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"nadie.{{sufijo}}@postman.test\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con CREDENCIALES_INVALIDAS', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('CREDENCIALES_INVALIDAS');",
+                  "});",
+                  "pm.test('usa el mismo mensaje que una contraseña incorrecta', () => pm.expect(pm.response.json().mensaje).to.eql('Correo o contraseña incorrectos'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login con datos incompletos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \" \",\n  \"password\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 400 con DATOS_NO_VALIDOS', () => {",
+                  "  pm.response.to.have.status(400);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('DATOS_NO_VALIDOS');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 Usuarios y roles",
+      "description": "Gestión de usuarios restringida al administrador de la propia empresa; desactivación con revocación inmediata.",
+      "item": [
+        {
+          "name": "Crear editor (administrador, sin CSRF)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoEditor}}\",\n  \"password\": \"{{password}}\",\n  \"rol\": \"EDITOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('crea el usuario activo con su rol', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(pm.response.json().rol).to.eql('EDITOR');",
+                  "  pm.expect(pm.response.json().activo).to.be.true;",
+                  "  pm.expect(pm.response.json()).to.not.have.property('password');",
+                  "});",
+                  "pm.collectionVariables.set('idEditor', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear lector (administrador, sin CSRF)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoLector}}\",\n  \"password\": \"{{password}}\",\n  \"rol\": \"SOLO_LECTURA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('crea el usuario activo con su rol', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(pm.response.json().rol).to.eql('SOLO_LECTURA');",
+                  "  pm.expect(pm.response.json().activo).to.be.true;",
+                  "  pm.expect(pm.response.json()).to.not.have.property('password');",
+                  "});",
+                  "pm.collectionVariables.set('idLector', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Crear usuario que se desactivará (administrador, sin CSRF)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoInactivo}}\",\n  \"password\": \"{{password}}\",\n  \"rol\": \"EDITOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('crea el usuario activo con su rol', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(pm.response.json().rol).to.eql('EDITOR');",
+                  "  pm.expect(pm.response.json().activo).to.be.true;",
+                  "  pm.expect(pm.response.json()).to.not.have.property('password');",
+                  "});",
+                  "pm.collectionVariables.set('idInactivo', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Listar usuarios de la empresa (administrador)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('lista solo los usuarios de Alpes', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const correos = pm.response.json().map((u) => u.correo);",
+                  "  pm.expect(correos).to.have.members(['correoAdmin', 'correoEditor', 'correoLector', 'correoInactivo']",
+                  "    .map((clave) => pm.collectionVariables.get(clave)));",
+                  "});",
+                  "const administrador = pm.response.json().find((u) => u.correo === pm.collectionVariables.get('correoAdmin'));",
+                  "pm.collectionVariables.set('idAdmin', administrador.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login del editor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoEditor}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('inicia sesión con el rol EDITOR', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().usuario.rol).to.eql('EDITOR');",
+                  "});",
+                  "pm.collectionVariables.set('tokenEditor', pm.response.json().tokenAcceso);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login del lector",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoLector}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('inicia sesión con el rol SOLO_LECTURA', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().usuario.rol).to.eql('SOLO_LECTURA');",
+                  "});",
+                  "pm.collectionVariables.set('tokenLector', pm.response.json().tokenAcceso);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login del usuario que se desactivará",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoInactivo}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('inicia sesión con el rol EDITOR', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().usuario.rol).to.eql('EDITOR');",
+                  "});",
+                  "pm.collectionVariables.set('tokenInactivo', pm.response.json().tokenAcceso);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El editor no puede listar usuarios",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEditor}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El lector no puede crear usuarios",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenLector}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"intruso.{{sufijo}}@postman.test\",\n  \"password\": \"{{password}}\",\n  \"rol\": \"ADMINISTRADOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El administrador no puede cambiar su propio rol",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{idAdmin}}/rol",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{idAdmin}}",
+                "rol"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rol\": \"EDITOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Desactivar un usuario (administrador)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{idInactivo}}/desactivacion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{idInactivo}}",
+                "desactivacion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('desactiva lógicamente al usuario', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().activo).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El token del usuario desactivado deja de servir",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenInactivo}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con USUARIO_NO_AUTORIZADO', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_NO_AUTORIZADO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El usuario desactivado no puede iniciar sesión",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoInactivo}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con CREDENCIALES_INVALIDAS', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('CREDENCIALES_INVALIDAS');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 Procesos según el rol",
+      "description": "CRUD de procesos con Bearer y sin CSRF: el administrador y el editor escriben, el lector solo consulta y solo el administrador elimina.",
+      "item": [
+        {
+          "name": "El administrador crea un proceso",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Compras {{sufijo}}\",\n  \"descripcion\": \"Proceso creado por la colección Postman\",\n  \"categoria\": \"Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('crea el proceso sin token CSRF', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(pm.request.headers.has('X-XSRF-TOKEN')).to.be.false;",
+                  "});",
+                  "pm.collectionVariables.set('idProcesoAlpes', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El editor crea un proceso",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEditor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Ventas {{sufijo}}\",\n  \"descripcion\": \"Proceso creado por la colección Postman\",\n  \"categoria\": \"Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('crea el proceso', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('idProcesoEditor', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El lector no puede crear procesos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenLector}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Prohibido {{sufijo}}\",\n  \"descripcion\": \"Proceso creado por la colección Postman\",\n  \"categoria\": \"Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El lector consulta el listado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenLector}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('ve los procesos de su empresa', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const nombres = pm.response.json().content.map((p) => p.nombre);",
+                  "  const sufijo = pm.collectionVariables.get('sufijo');",
+                  "  pm.expect(nombres).to.include.members(['Compras ' + sufijo, 'Ventas ' + sufijo]);",
+                  "  pm.expect(nombres).to.not.include('Prohibido ' + sufijo);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El lector consulta el detalle",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoAlpes}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoAlpes}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenLector}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('consulta el proceso propio', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().soloLectura).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El editor edita el proceso",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoEditor}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoEditor}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEditor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Ventas editado {{sufijo}}\",\n  \"descripcion\": \"Proceso creado por la colección Postman\",\n  \"categoria\": \"Postman\",\n  \"estado\": \"BORRADOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('guarda los cambios', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().nombre).to.eql('Ventas editado ' + pm.collectionVariables.get('sufijo'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El lector no puede editar",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoEditor}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoEditor}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenLector}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Intento del lector {{sufijo}}\",\n  \"descripcion\": \"Proceso creado por la colección Postman\",\n  \"categoria\": \"Postman\",\n  \"estado\": \"BORRADOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El editor no puede eliminar",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoEditor}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoEditor}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEditor}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El administrador consulta el historial",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoEditor}}/historial",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoEditor}}",
+                "historial"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('el historial registra la edición del editor', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().map((h) => h.usuarioCorreo)).to.include(pm.collectionVariables.get('correoEditor'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El administrador elimina el proceso",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoEditor}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoEditor}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('elimina lógicamente sin contenido', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 Multiempresa y procesos compartidos",
+      "description": "Cada empresa solo ve sus recursos; un proceso compartido es de solo lectura para la empresa invitada.",
+      "item": [
+        {
+          "name": "Login del administrador de Andes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoAndes}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('inicia sesión en Andes', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('tokenAndes', pm.response.json().tokenAcceso);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Andes consulta su propia empresa",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/empresas/actual",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "empresas",
+                "actual"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAndes}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('devuelve solo Andes', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('idEmpresaAndes')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Andes no ve un proceso no compartido de Alpes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoAlpes}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoAlpes}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAndes}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Andes no ve usuarios de Alpes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{idEditor}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{idEditor}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAndes}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 404', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Andes no puede desactivar usuarios de Alpes",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{idLector}}/desactivacion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{idLector}}",
+                "desactivacion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAndes}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 404', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alpes comparte el proceso con Andes",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoAlpes}}/compartido-con/{{idEmpresaAndes}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoAlpes}}",
+                "compartido-con",
+                "{{idEmpresaAndes}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('registra la empresa invitada', () => {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.expect(pm.response.json().empresaId).to.eql(Number(pm.collectionVariables.get('idEmpresaAndes')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Andes consulta el proceso compartido",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoAlpes}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoAlpes}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAndes}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('lo ve en solo lectura', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().soloLectura).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Andes lista los procesos compartidos",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos?alcance=COMPARTIDOS",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ],
+              "query": [
+                {
+                  "key": "alcance",
+                  "value": "COMPARTIDOS"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAndes}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('incluye el proceso de Alpes marcado como solo lectura', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  const compartido = pm.response.json().content.find((p) => p.id === Number(pm.collectionVariables.get('idProcesoAlpes')));",
+                  "  pm.expect(compartido, 'proceso compartido').to.be.an('object');",
+                  "  pm.expect(compartido.soloLectura).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Andes no puede editar el proceso compartido",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoAlpes}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoAlpes}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAndes}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Intento de Andes {{sufijo}}\",\n  \"descripcion\": \"Proceso creado por la colección Postman\",\n  \"categoria\": \"Postman\",\n  \"estado\": \"BORRADOR\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Andes no puede eliminar el proceso compartido",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos/{{idProcesoAlpes}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos",
+                "{{idProcesoAlpes}}"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAndes}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "05 Bearer ausente, inválido, expirado y revocado",
+      "description": "Sin un Bearer vigente la API responde 401 con WWW-Authenticate: Bearer. El caso expirado firma un token con jwtSecretoPruebas, que solo se pasa en la ejecución; si falta, el caso se omite.",
+      "item": [
+        {
+          "name": "Sin Bearer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con USUARIO_NO_AUTORIZADO', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_NO_AUTORIZADO');",
+                  "});",
+                  "pm.test('indica el esquema Bearer', () => pm.expect(pm.response.headers.get('WWW-Authenticate')).to.eql('Bearer'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bearer mal formado",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer no-es-un-jwt"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con USUARIO_NO_AUTORIZADO', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_NO_AUTORIZADO');",
+                  "});",
+                  "pm.test('marca el token como inválido', () => pm.expect(pm.response.headers.get('WWW-Authenticate')).to.include('invalid_token'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bearer con la firma alterada",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAlterado}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const partes = pm.collectionVariables.get('tokenAdmin').split('.');",
+                  "const firma = partes[2];",
+                  "partes[2] = (firma[0] === 'A' ? 'B' : 'A') + firma.slice(1);",
+                  "pm.collectionVariables.set('tokenAlterado', partes.join('.'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con USUARIO_NO_AUTORIZADO', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_NO_AUTORIZADO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Control: un token firmado por la colección y vigente es aceptado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenFirmadoVigente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cripto = require('crypto-js');",
+                  "const secreto = pm.environment.get('jwtSecretoPruebas');",
+                  "if (!secreto) {",
+                  "  console.log('Sin jwtSecretoPruebas: se omite tokenFirmadoVigente.');",
+                  "  pm.execution.skipRequest();",
+                  "} else {",
+                  "  const base64url = (palabras) => cripto.enc.Base64.stringify(palabras).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+                  "  const decodificar = (texto) => {",
+                  "    const base64 = texto.replace(/-/g, '+').replace(/_/g, '/');",
+                  "    return JSON.parse(cripto.enc.Utf8.stringify(cripto.enc.Base64.parse(base64 + '='.repeat((4 - (base64.length % 4)) % 4))));",
+                  "  };",
+                  "  const carga = decodificar(pm.collectionVariables.get('tokenAdmin').split('.')[1]);",
+                  "  const ahora = Math.floor(Date.now() / 1000);",
+                  "  carga.iat = ahora - 60;",
+                  "  carga.exp = ahora + 600;",
+                  "  carga.jti = pm.variables.replaceIn('{{$guid}}');",
+                  "  const cabecera = base64url(cripto.enc.Utf8.parse(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));",
+                  "  const cuerpo = base64url(cripto.enc.Utf8.parse(JSON.stringify(carga)));",
+                  "  const firma = base64url(cripto.HmacSHA256(cabecera + '.' + cuerpo, cripto.enc.Base64.parse(secreto)));",
+                  "  pm.collectionVariables.set('tokenFirmadoVigente', cabecera + '.' + cuerpo + '.' + firma);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('el servidor acepta la firma de control', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bearer expirado con firma válida",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenExpirado}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cripto = require('crypto-js');",
+                  "const secreto = pm.environment.get('jwtSecretoPruebas');",
+                  "if (!secreto) {",
+                  "  console.log('Sin jwtSecretoPruebas: se omite tokenExpirado.');",
+                  "  pm.execution.skipRequest();",
+                  "} else {",
+                  "  const base64url = (palabras) => cripto.enc.Base64.stringify(palabras).replace(/=+$/, '').replace(/\\+/g, '-').replace(/\\//g, '_');",
+                  "  const decodificar = (texto) => {",
+                  "    const base64 = texto.replace(/-/g, '+').replace(/_/g, '/');",
+                  "    return JSON.parse(cripto.enc.Utf8.stringify(cripto.enc.Base64.parse(base64 + '='.repeat((4 - (base64.length % 4)) % 4))));",
+                  "  };",
+                  "  const carga = decodificar(pm.collectionVariables.get('tokenAdmin').split('.')[1]);",
+                  "  const ahora = Math.floor(Date.now() / 1000);",
+                  "  carga.iat = ahora - 7200;",
+                  "  carga.exp = ahora - 3600;",
+                  "  carga.jti = pm.variables.replaceIn('{{$guid}}');",
+                  "  const cabecera = base64url(cripto.enc.Utf8.parse(JSON.stringify({ alg: 'HS256', typ: 'JWT' })));",
+                  "  const cuerpo = base64url(cripto.enc.Utf8.parse(JSON.stringify(carga)));",
+                  "  const firma = base64url(cripto.HmacSHA256(cabecera + '.' + cuerpo, cripto.enc.Base64.parse(secreto)));",
+                  "  pm.collectionVariables.set('tokenExpirado', cabecera + '.' + cuerpo + '.' + firma);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con USUARIO_NO_AUTORIZADO', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_NO_AUTORIZADO');",
+                  "});",
+                  "pm.test('marca el token como inválido', () => pm.expect(pm.response.headers.get('WWW-Authenticate')).to.include('invalid_token'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login de una sesión que se revocará",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"correo\": \"{{correoAdmin}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('inicia otra sesión del administrador', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('tokenRevocado', pm.response.json().tokenAcceso);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout sin token CSRF",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout con CSRF",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "logout"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('revoca la sesión sin contenido', () => pm.response.to.have.status(204));",
+                  "pm.test('elimina la cookie de refresco', () => {",
+                  "  const cookie = pm.response.headers.all().map((h) => h.value).find((v) => v.startsWith('PE_REFRESH='));",
+                  "  pm.expect(cookie).to.include('Max-Age=0').and.include('Path=/api/auth');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El Bearer de la sesión cerrada queda revocado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenRevocado}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con USUARIO_NO_AUTORIZADO', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_NO_AUTORIZADO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/auth/me rechaza el Bearer revocado",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenRevocado}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh después del logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-XSRF-TOKEN",
+                "value": "{{csrf}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "refresh"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 401 con SESION_EXPIRADA', () => {",
+                  "  pm.response.to.have.status(401);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('SESION_EXPIRADA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Las demás sesiones siguen vigentes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('el logout solo revoca su propia sesión', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "La API antigua /api/sesion ya no existe",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/sesion",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "sesion"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 404', () => {",
+                  "  pm.response.to.have.status(404);",
+                  "",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 Cambio de rol sin emitir un token nuevo",
+      "description": "El rol se consulta en la base de datos en cada petición.",
+      "item": [
+        {
+          "name": "El administrador degrada al editor a lector",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/usuarios/{{idEditor}}/rol",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "usuarios",
+                "{{idEditor}}",
+                "rol"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rol\": \"SOLO_LECTURA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('cambia el rol', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().rol).to.eql('SOLO_LECTURA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "El mismo token del editor ya no puede crear procesos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/procesos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "procesos"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEditor}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Tras degradar {{sufijo}}\",\n  \"descripcion\": \"Proceso creado por la colección Postman\",\n  \"categoria\": \"Postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responde 403 con USUARIO_SIN_PERMISO', () => {",
+                  "  pm.response.to.have.status(403);",
+                  "  pm.expect(pm.response.json().codigo).to.eql('USUARIO_SIN_PERMISO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "/api/auth/me refleja el rol nuevo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEditor}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('devuelve SOLO_LECTURA', () => {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().rol).to.eql('SOLO_LECTURA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 Documentación OpenAPI",
+      "description": "La definición es pública y documenta el esquema bearerAuth.",
+      "item": [
+        {
+          "name": "Definición OpenAPI con bearerAuth",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v3/api-docs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v3",
+                "api-docs"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('es pública', () => pm.response.to.have.status(200));",
+                  "const doc = pm.response.json();",
+                  "pm.test('declara bearerAuth como HTTP Bearer JWT', () => {",
+                  "  pm.expect(doc.components.securitySchemes.bearerAuth).to.include({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' });",
+                  "  pm.expect(doc.components.securitySchemes).to.not.have.property('sesion');",
+                  "});",
+                  "pm.test('protege la API con Bearer y reserva CSRF a las rutas con cookies', () => {",
+                  "  pm.expect(doc.paths['/api/procesos'].get.security).to.eql([{ bearerAuth: [] }]);",
+                  "  pm.expect(doc.paths['/api/auth/login'].post.security).to.eql([{ csrf: [] }]);",
+                  "  pm.expect(doc.paths['/api/empresas'].post.security).to.eql([]);",
+                  "  pm.expect(doc.paths).to.not.have.property('/api/sesion');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

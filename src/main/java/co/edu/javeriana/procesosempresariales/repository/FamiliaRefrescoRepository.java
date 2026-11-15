@@ -31,4 +31,7 @@ public interface FamiliaRefrescoRepository extends JpaRepository<FamiliaRefresco
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from FamiliaRefresco f where f.expiraEn < :limite")
     int eliminarExpiradasAntesDe(@Param("limite") Instant limite);
+
+    @Query(value = "select pg_try_advisory_xact_lock(:clave)", nativeQuery = true)
+    boolean bloquearPurga(@Param("clave") long clave);
 }

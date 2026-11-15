@@ -2,6 +2,7 @@ package co.edu.javeriana.procesosempresariales.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,8 @@ import co.edu.javeriana.procesosempresariales.repository.RefreshTokenRepository;
 
 @Service
 public class FamiliaRefrescoService {
+
+    public static final long CLAVE_BLOQUEO_PURGA = 0x5045_5245_4652_4553L;
 
     private FamiliaRefrescoRepository familiaRefrescoRepository;
     private RefreshTokenRepository refreshTokenRepository;
@@ -52,11 +55,14 @@ public class FamiliaRefrescoService {
     }
 
     @Transactional
-    public PurgaRefresco purgarCaducados() {
+    public Optional<PurgaRefresco> purgarCaducados() {
+        if (!familiaRefrescoRepository.bloquearPurga(CLAVE_BLOQUEO_PURGA)) {
+            return Optional.empty();
+        }
         Instant ahora = reloj.instant();
         int tokens = refreshTokenRepository.eliminarExpiradosAntesDe(ahora);
         int familias = familiaRefrescoRepository.eliminarExpiradasAntesDe(limiteConservacionFamilias(ahora));
-        return new PurgaRefresco(tokens, familias);
+        return Optional.of(new PurgaRefresco(tokens, familias));
     }
 
     Instant limiteConservacionFamilias(Instant ahora) {

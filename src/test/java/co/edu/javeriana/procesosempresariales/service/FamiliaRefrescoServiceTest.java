@@ -99,13 +99,23 @@ class FamiliaRefrescoServiceTest {
     @Test
     void laPurgaConservaLasFamiliasMientrasPuedaHaberTokensDeAccesoVigentes() {
         Instant limiteFamilias = AHORA.minus(Duration.ofMinutes(15)).minusSeconds(30);
+        when(familiaRefrescoRepository.bloquearPurga(FamiliaRefrescoService.CLAVE_BLOQUEO_PURGA)).thenReturn(true);
         when(refreshTokenRepository.eliminarExpiradosAntesDe(AHORA)).thenReturn(3);
         when(familiaRefrescoRepository.eliminarExpiradasAntesDe(limiteFamilias)).thenReturn(1);
 
-        PurgaRefresco purga = servicio.purgarCaducados();
-
-        assertThat(purga).isEqualTo(new PurgaRefresco(3, 1));
+        assertThat(servicio.purgarCaducados()).contains(new PurgaRefresco(3, 1));
         assertThat(servicio.limiteConservacionFamilias(AHORA)).isEqualTo(limiteFamilias);
+    }
+
+    @Test
+    void siOtraInstanciaTieneElBloqueoLaPurgaNoEliminaNada() {
+        when(familiaRefrescoRepository.bloquearPurga(FamiliaRefrescoService.CLAVE_BLOQUEO_PURGA)).thenReturn(false);
+
+        assertThat(servicio.purgarCaducados()).isEmpty();
+
+        verify(familiaRefrescoRepository, never()).eliminarExpiradasAntesDe(any());
+        verifyNoInteractions(refreshTokenRepository);
+        verify(familiaRefrescoRepository).bloquearPurga(FamiliaRefrescoService.CLAVE_BLOQUEO_PURGA);
     }
 
     @Test

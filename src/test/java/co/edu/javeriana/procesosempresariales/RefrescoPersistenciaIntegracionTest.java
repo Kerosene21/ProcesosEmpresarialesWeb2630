@@ -158,7 +158,7 @@ class RefrescoPersistenciaIntegracionTest {
         RefreshToken vigente = token(activa, ahora.plus(Duration.ofDays(7)));
         RefreshToken rotadoCaducado = token(activa, ahora.minus(Duration.ofMinutes(1)));
 
-        PurgaRefresco purga = familiaRefrescoService.purgarCaducados();
+        PurgaRefresco purga = familiaRefrescoService.purgarCaducados().orElseThrow();
 
         assertThat(purga.tokensEliminados()).isEqualTo(3);
         assertThat(purga.familiasEliminadas()).isEqualTo(1);

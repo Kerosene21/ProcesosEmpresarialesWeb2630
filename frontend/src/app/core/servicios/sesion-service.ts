@@ -2,6 +2,7 @@ import { HttpClient, HttpXsrfTokenExtractor } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import {
   Observable,
+  Subject,
   catchError,
   defer,
   finalize,
@@ -9,6 +10,7 @@ import {
   of,
   shareReplay,
   switchMap,
+  tap,
   throwError,
 } from 'rxjs';
 
@@ -22,6 +24,12 @@ import {
   SESION_ANONIMA,
   Sesion,
 } from '../modelos/sesion';
+import {
+  ALMACEN_MARCAS,
+  CANAL_SESION,
+  CLAVE_CIERRE_PENDIENTE,
+  esMensajeDeCierre,
+} from './canal-sesion';
 
 export const CODIGO_SESION_DESCARTADA = 'SESION_DESCARTADA';
 
@@ -39,6 +47,9 @@ const SESION_DESCARTADA: FalloHttp = {
 export class SesionService {
   private readonly http = inject(HttpClient);
   private readonly xsrf = inject(HttpXsrfTokenExtractor);
+  private readonly canal = inject(CANAL_SESION);
+  private readonly almacen = inject(ALMACEN_MARCAS);
+  private readonly cierresExternos = new Subject<void>();
   private readonly estado = signal<Sesion | null>(null);
   private tokenActual: string | null = null;
   private generacion = 0;
@@ -47,13 +58,21 @@ export class SesionService {
   readonly sesion = this.estado.asReadonly();
   readonly autenticado = computed(() => this.estado()?.autenticado === true);
   readonly rol = computed(() => this.estado()?.rol ?? null);
+  readonly cierreEnOtraPestana = this.cierresExternos.asObservable();
+
+  constructor() {
+    this.canal?.addEventListener('message', (evento) => this.recibir(evento.data));
+  }
 
   tokenAcceso(): string | null {
     return this.tokenActual;
   }
 
   cargar(): Observable<Sesion> {
-    return this.tokenActual ? this.consultarActual() : this.restaurar();
+    if (this.tokenActual) {
+      return this.consultarActual();
+    }
+    return this.cierrePendiente() ? this.completarCierrePendiente() : this.restaurar();
   }
 
   asegurar(): Observable<Sesion> {
@@ -68,6 +87,7 @@ export class SesionService {
     return this.conCsrf(this.http.post<RespuestaToken>(RUTAS_AUTENTICACION.login, cuerpo)).pipe(
       catchError(lanzarFallo),
       switchMap((respuesta) => this.aplicar(respuesta, generacion)),
+      tap(() => this.recordarCierrePendiente(false)),
       map((respuesta) => respuesta.usuario),
     );
   }
@@ -96,10 +116,21 @@ export class SesionService {
 
   cerrar(): Observable<void> {
     this.olvidar();
-    return this.conCsrf(this.http.post<void>(RUTAS_AUTENTICACION.logout, null)).pipe(
-      map(() => undefined),
-      catchError(lanzarFallo),
-    );
+    this.recordarCierrePendiente(true);
+    this.canal?.postMessage({ tipo: 'cerrada' });
+    return this.revocarEnServidor();
+  }
+
+  reintentarCierre(): Observable<void> {
+    return this.revocarEnServidor();
+  }
+
+  cierrePendiente(): boolean {
+    try {
+      return this.almacen !== null && this.almacen.getItem(CLAVE_CIERRE_PENDIENTE) !== null;
+    } catch {
+      return false;
+    }
   }
 
   olvidar(): void {
@@ -112,6 +143,45 @@ export class SesionService {
   tieneRol(roles: readonly RolUsuario[]): boolean {
     const rol = this.rol();
     return rol !== null && roles.includes(rol);
+  }
+
+  private revocarEnServidor(): Observable<void> {
+    return this.conCsrf(this.http.post<void>(RUTAS_AUTENTICACION.logout, null)).pipe(
+      tap(() => this.recordarCierrePendiente(false)),
+      map(() => undefined),
+      catchError(lanzarFallo),
+    );
+  }
+
+  private completarCierrePendiente(): Observable<Sesion> {
+    this.olvidar();
+    return this.revocarEnServidor().pipe(
+      map(() => SESION_ANONIMA),
+      catchError(() => of(SESION_ANONIMA)),
+    );
+  }
+
+  private recordarCierrePendiente(pendiente: boolean): void {
+    try {
+      if (pendiente) {
+        this.almacen?.setItem(CLAVE_CIERRE_PENDIENTE, '1');
+      } else {
+        this.almacen?.removeItem(CLAVE_CIERRE_PENDIENTE);
+      }
+    } catch {
+      return;
+    }
+  }
+
+  private recibir(dato: unknown): void {
+    if (!esMensajeDeCierre(dato)) {
+      return;
+    }
+    const estabaAutenticado = this.autenticado();
+    this.olvidar();
+    if (estabaAutenticado) {
+      this.cierresExternos.next();
+    }
   }
 
   private restaurar(): Observable<Sesion> {

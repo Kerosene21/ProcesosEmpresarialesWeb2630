@@ -27,16 +27,27 @@ describe('InicioSesion', () => {
   let navegar: MockInstance;
   const iniciar = vi.fn<(credenciales: Credenciales) => Observable<Sesion>>();
   const cargar = vi.fn<() => Observable<Sesion>>();
+  const cierrePendiente = vi.fn<() => boolean>();
+  const reintentarCierre = vi.fn<() => Observable<void>>();
 
-  async function crear(entradas: Record<string, string> = {}): Promise<void> {
+  async function crear(entradas: Record<string, string> = {}, pendiente = false): Promise<void> {
     iniciar.mockReset();
     cargar.mockReset().mockReturnValue(of(SESION));
+    cierrePendiente.mockReset().mockReturnValue(pendiente);
     TestBed.configureTestingModule({
-      providers: [provideRouter([]), { provide: SesionService, useValue: { iniciar, cargar } }],
+      providers: [
+        provideRouter([]),
+        {
+          provide: SesionService,
+          useValue: { iniciar, cargar, cierrePendiente, reintentarCierre },
+        },
+      ],
     });
     navegar = vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
     fixture = TestBed.createComponent(InicioSesion);
-    Object.entries(entradas).forEach(([nombre, valor]) => fixture.componentRef.setInput(nombre, valor));
+    Object.entries(entradas).forEach(([nombre, valor]) =>
+      fixture.componentRef.setInput(nombre, valor),
+    );
     elemento = fixture.nativeElement;
     await fixture.whenStable();
   }
@@ -90,7 +101,10 @@ describe('InicioSesion', () => {
 
     await completar();
 
-    expect(iniciar).toHaveBeenCalledWith({ correo: 'admin@alpes.com', password: 'Clave-Inicial-2026' });
+    expect(iniciar).toHaveBeenCalledWith({
+      correo: 'admin@alpes.com',
+      password: 'Clave-Inicial-2026',
+    });
     expect(navegar).toHaveBeenCalledWith('/procesos/5');
   });
 
@@ -105,21 +119,31 @@ describe('InicioSesion', () => {
 
   it('muestra el error genérico de credenciales, borra la contraseña y no navega', async () => {
     await crear();
-    iniciar.mockReturnValue(throwError(() => fallo(401, 'CREDENCIALES_INVALIDAS', 'Correo o contraseña incorrectos')));
+    iniciar.mockReturnValue(
+      throwError(() => fallo(401, 'CREDENCIALES_INVALIDAS', 'Correo o contraseña incorrectos')),
+    );
 
     await completar();
 
-    expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('No se pudo iniciar sesión');
+    expect(elemento.querySelector('[role="alert"]')?.textContent).toContain(
+      'No se pudo iniciar sesión',
+    );
     expect(elemento.textContent).toContain('Correo o contraseña incorrectos');
     expect(elemento.querySelector<HTMLInputElement>('#campo-password')?.value).toBe('');
-    expect(elemento.querySelector<HTMLInputElement>('#campo-correo')?.value).toBe('admin@alpes.com');
-    expect(elemento.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+    expect(elemento.querySelector<HTMLInputElement>('#campo-correo')?.value).toBe(
+      'admin@alpes.com',
+    );
+    expect(elemento.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
+      false,
+    );
     expect(navegar).not.toHaveBeenCalled();
   });
 
   it('renueva el token CSRF cuando el servidor rechaza la solicitud', async () => {
     await crear();
-    iniciar.mockReturnValue(throwError(() => fallo(403, 'USUARIO_SIN_PERMISO', 'No tienes permiso')));
+    iniciar.mockReturnValue(
+      throwError(() => fallo(403, 'USUARIO_SIN_PERMISO', 'No tienes permiso')),
+    );
 
     await completar();
 
@@ -129,7 +153,12 @@ describe('InicioSesion', () => {
 
   it('informa un fallo del servidor sin presentarlo como credenciales incorrectas', async () => {
     await crear();
-    iniciar.mockReturnValue(throwError(() => ({ ...fallo(500, null, null), titulo: 'El servidor no pudo atender la solicitud' })));
+    iniciar.mockReturnValue(
+      throwError(() => ({
+        ...fallo(500, null, null),
+        titulo: 'El servidor no pudo atender la solicitud',
+      })),
+    );
 
     await completar();
 
@@ -152,6 +181,40 @@ describe('InicioSesion', () => {
     await crear({ motivo: 'expirada' });
 
     expect(elemento.textContent).toContain('Tu sesión expiró');
+  });
+
+  it('explica que la sesión se cerró en otra pestaña', async () => {
+    await crear({ motivo: 'otra-pestana' });
+
+    expect(elemento.textContent).toContain('Cerraste la sesión en otra pestaña.');
+  });
+
+  it('un cierre sin confirmar no se presenta como cerrado y se puede reintentar hasta confirmarlo', async () => {
+    reintentarCierre.mockReset();
+    reintentarCierre
+      .mockReturnValueOnce(throwError(() => fallo(503, null, null)))
+      .mockReturnValueOnce(of(undefined));
+    await crear({ motivo: 'cierre-sin-confirmar' });
+
+    expect(elemento.textContent).toContain('La sesión se cerró solo en este navegador');
+    expect(elemento.textContent).toContain('El servidor no confirmó la revocación');
+    expect(elemento.textContent).not.toContain('Cerraste la sesión.');
+
+    elemento.querySelector<HTMLButtonElement>('.aviso__accion')!.click();
+    await fixture.whenStable();
+    expect(elemento.textContent).toContain('El servidor sigue sin confirmar el cierre');
+
+    elemento.querySelector<HTMLButtonElement>('.aviso__accion')!.click();
+    await fixture.whenStable();
+    expect(elemento.textContent).toContain('El servidor confirmó el cierre de la sesión.');
+    expect(elemento.querySelector('.aviso__accion')).toBeNull();
+    expect(reintentarCierre).toHaveBeenCalledTimes(2);
+  });
+
+  it('avisa de un cierre pendiente aunque se llegue al inicio de sesión sin motivo', async () => {
+    await crear({}, true);
+
+    expect(elemento.textContent).toContain('La sesión se cerró solo en este navegador');
   });
 
   it('solo acepta rutas de retorno internas', () => {
