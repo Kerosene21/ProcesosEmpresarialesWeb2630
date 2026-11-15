@@ -1,9 +1,7 @@
 package co.edu.javeriana.procesosempresariales;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -20,10 +18,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -129,11 +125,8 @@ class MovimientoNodosIntegracionTest {
                 PASSWORD)).getId();
     }
 
-    private MockHttpSession iniciarSesion(String correo) throws Exception {
-        MvcResult resultado = mockMvc.perform(formLogin().user(correo).password(PASSWORD))
-                .andExpect(authenticated().withUsername(correo))
-                .andReturn();
-        return (MockHttpSession) resultado.getRequest().getSession(false);
+    private AccesoJwt iniciarSesion(String correo) throws Exception {
+        return new ClientePruebaJwt(mockMvc).iniciarSesion(correo, PASSWORD);
     }
 
     private Modelo modeloConDosLanes() {
@@ -166,8 +159,8 @@ class MovimientoNodosIntegracionTest {
     }
 
     private ResultActions moverActividad(Modelo modelo, ActividadRespuestaDto actividad, Long laneId, int x, int y,
-            MockHttpSession sesion) throws Exception {
-        return mockMvc.perform(put(rutaActividad(modelo, actividad) + "/posicion").session(sesion).with(csrf())
+            AccesoJwt acceso) throws Exception {
+        return mockMvc.perform(put(rutaActividad(modelo, actividad) + "/posicion").with(acceso).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"laneId\":" + laneId + ",\"posicionX\":" + x + ",\"posicionY\":" + y + "}"));
     }
@@ -188,9 +181,9 @@ class MovimientoNodosIntegracionTest {
     void bajarDeLaneConLaPosicionGuardaAmbasCosasYElDiagramaLasConservaAlRecargar() throws Exception {
         registrarEmpresas();
         Modelo modelo = modeloConDosLanes();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
-        mockMvc.perform(put(rutaActividad(modelo, modelo.registrar())).session(admin).with(csrf())
+        mockMvc.perform(put(rutaActividad(modelo, modelo.registrar())).with(admin).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nombre\":\"Registrar solicitud\",\"tipo\":\"TAREA_USUARIO\",\"laneId\":" + modelo.analista()
                         + ",\"posicionX\":100,\"posicionY\":200}"))
@@ -202,7 +195,7 @@ class MovimientoNodosIntegracionTest {
         assertThat(((Number) fila.get("lane_id")).longValue()).isEqualTo(modelo.analista());
         assertThat(fila.get("posicion_x")).isEqualTo(100);
         assertThat(fila.get("posicion_y")).isEqualTo(200);
-        mockMvc.perform(get(ruta(modelo) + "/diagrama").session(admin))
+        mockMvc.perform(get(ruta(modelo) + "/diagrama").with(admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.actividades[?(@.nombre == 'Registrar solicitud')].laneId")
                         .value(modelo.analista().intValue()))
@@ -217,7 +210,7 @@ class MovimientoNodosIntegracionTest {
     void subirDeLaneYMoverDentroDeLaMismaLaneSePersistenConElEndpointDeMovimiento() throws Exception {
         registrarEmpresas();
         Modelo modelo = modeloConDosLanes();
-        MockHttpSession editor = iniciarSesion(EDITOR_ALPES);
+        AccesoJwt editor = iniciarSesion(EDITOR_ALPES);
         moverActividad(modelo, modelo.evaluar(), modelo.analista(), 300, 200, editor).andExpect(status().isOk());
 
         moverActividad(modelo, modelo.evaluar(), modelo.general(), 320, 70, editor)
@@ -243,9 +236,9 @@ class MovimientoNodosIntegracionTest {
         Modelo modelo = modeloConDosLanes();
         arcoService.crear(modelo.proceso().getId(), new CrearArcoDto(TipoNodoFlujo.ACTIVIDAD,
                 modelo.evaluar().getId(), TipoNodoFlujo.GATEWAY, modelo.gateway().getId(), null, null), ADMIN_ALPES);
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
-        mockMvc.perform(put(ruta(modelo) + "/gateways/" + modelo.gateway().getId() + "/posicion").session(admin)
+        mockMvc.perform(put(ruta(modelo) + "/gateways/" + modelo.gateway().getId() + "/posicion").with(admin)
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":560,\"posicionY\":190}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posicionX").value(560));
@@ -253,7 +246,7 @@ class MovimientoNodosIntegracionTest {
         Map<String, Object> fila = filaGuardada("gateway", modelo.gateway().getId());
         assertThat(fila.get("posicion_x")).isEqualTo(560);
         assertThat(fila.get("posicion_y")).isEqualTo(190);
-        mockMvc.perform(get(ruta(modelo) + "/arcos").session(admin))
+        mockMvc.perform(get(ruta(modelo) + "/arcos").with(admin))
                 .andExpect(jsonPath("$[?(@.destinoTipo == 'GATEWAY')].origenX").value(365))
                 .andExpect(jsonPath("$[?(@.destinoTipo == 'GATEWAY')].destinoX").value(560));
         assertThat(historial(modelo)).contains("gateway #" + modelo.gateway().getId() + ": posicion: (500, 60) -> "
@@ -270,12 +263,12 @@ class MovimientoNodosIntegracionTest {
                 .getId();
         Long despacho = laneService.crear(modelo.proceso().getId(), distribuidor, new CrearLaneDto(rol, null),
                 ADMIN_ALPES).getId();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
         moverActividad(modelo, modelo.registrar(), despacho, 100, 420, admin)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath(CODIGO).value("SECUENCIA_ENTRE_POOLS"));
-        mockMvc.perform(put(rutaActividad(modelo, modelo.evaluar())).session(admin).with(csrf())
+        mockMvc.perform(put(rutaActividad(modelo, modelo.evaluar())).with(admin).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nombre\":\"Evaluar solicitud\",\"tipo\":\"TAREA_USUARIO\",\"laneId\":" + despacho
                         + ",\"posicionX\":300,\"posicionY\":420}"))
@@ -292,8 +285,8 @@ class MovimientoNodosIntegracionTest {
         registrarEmpresas();
         Modelo modelo = modeloConDosLanes();
         comparticionProcesoService.compartir(modelo.proceso().getId(), andesId, ADMIN_ALPES);
-        MockHttpSession lector = iniciarSesion(LECTOR_ALPES);
-        MockHttpSession andes = iniciarSesion(ADMIN_ANDES);
+        AccesoJwt lector = iniciarSesion(LECTOR_ALPES);
+        AccesoJwt andes = iniciarSesion(ADMIN_ANDES);
         String rutaGateway = ruta(modelo) + "/gateways/" + modelo.gateway().getId() + "/posicion";
 
         moverActividad(modelo, modelo.registrar(), modelo.general(), 200, 70, lector)
@@ -301,11 +294,11 @@ class MovimientoNodosIntegracionTest {
                 .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
         moverActividad(modelo, modelo.registrar(), modelo.general(), 200, 70, andes)
                 .andExpect(status().isForbidden());
-        mockMvc.perform(put(rutaGateway).session(andes).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(rutaGateway).with(andes).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"posicionX\":600,\"posicionY\":60}"))
                 .andExpect(status().isForbidden());
         mockMvc.perform(put(rutaActividad(modelo, modelo.registrar()) + "/posicion")
-                .session(iniciarSesion(ADMIN_ALPES)).contentType(MediaType.APPLICATION_JSON)
+                .with(iniciarSesion(ADMIN_ALPES)).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"laneId\":" + modelo.general() + ",\"posicionX\":200,\"posicionY\":70}"))
                 .andExpect(status().isForbidden());
 
@@ -318,7 +311,7 @@ class MovimientoNodosIntegracionTest {
     void unProcesoEliminadoNoAdmiteMovimientosYLasCoordenadasInvalidasSeRechazan() throws Exception {
         registrarEmpresas();
         Modelo modelo = modeloConDosLanes();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
         moverActividad(modelo, modelo.registrar(), modelo.general(), -20, 70, admin)
                 .andExpect(status().isBadRequest())
@@ -335,7 +328,7 @@ class MovimientoNodosIntegracionTest {
 
         moverActividad(modelo, modelo.registrar(), modelo.general(), 200, 70, admin)
                 .andExpect(status().isNotFound());
-        mockMvc.perform(put(ruta(modelo) + "/gateways/" + modelo.gateway().getId() + "/posicion").session(admin)
+        mockMvc.perform(put(ruta(modelo) + "/gateways/" + modelo.gateway().getId() + "/posicion").with(admin)
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":600,\"posicionY\":60}"))
                 .andExpect(status().isNotFound());
         assertThat(filaGuardada("actividad", modelo.registrar().getId()).get("posicion_x")).isEqualTo(100);
@@ -350,9 +343,9 @@ class MovimientoNodosIntegracionTest {
         MessageThrowRespuestaDto solicitud = messageThrowService.crear(modelo.proceso().getId(),
                 new CrearMessageThrowDto("Solicitud de pago", "valor: decimal", modelo.proceso().getPoolId(), banco,
                         null, ComportamientoSinCaso.DESCARTAR, 700, 70), ADMIN_ALPES);
-        MockHttpSession editor = iniciarSesion(EDITOR_ALPES);
+        AccesoJwt editor = iniciarSesion(EDITOR_ALPES);
 
-        mockMvc.perform(put(ruta(modelo) + "/message-throws/" + solicitud.getId() + "/posicion").session(editor)
+        mockMvc.perform(put(ruta(modelo) + "/message-throws/" + solicitud.getId() + "/posicion").with(editor)
                 .with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":760,\"posicionY\":80}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.poolOrigenId").value(modelo.proceso().getPoolId()))
@@ -361,7 +354,7 @@ class MovimientoNodosIntegracionTest {
         Map<String, Object> fila = filaGuardada("evento", solicitud.getId());
         assertThat(fila.get("posicion_x")).isEqualTo(760);
         assertThat(fila.get("posicion_y")).isEqualTo(80);
-        mockMvc.perform(get(ruta(modelo) + "/diagrama").session(editor))
+        mockMvc.perform(get(ruta(modelo) + "/diagrama").with(editor))
                 .andExpect(jsonPath("$.flujosMensaje[0].eventoId").value(solicitud.getId()))
                 .andExpect(jsonPath("$.flujosMensaje[0].poolDestinoId").value(banco));
         assertThat(historial(modelo)).contains("message throw 'Solicitud de pago': posicion: (700, 70) -> (760, 80)");
@@ -371,24 +364,24 @@ class MovimientoNodosIntegracionTest {
     void laRecolocacionDeVariosNodosEsAtomicaYQuedaEnElHistorial() throws Exception {
         registrarEmpresas();
         Modelo modelo = modeloConDosLanes();
-        MockHttpSession editor = iniciarSesion(EDITOR_ALPES);
+        AccesoJwt editor = iniciarSesion(EDITOR_ALPES);
         String ruta = ruta(modelo) + "/diagrama/posiciones";
         String registrar = "{\"tipo\":\"ACTIVIDAD\",\"id\":" + modelo.registrar().getId()
                 + ",\"posicionX\":100,\"posicionY\":200}";
         String gateway = "{\"tipo\":\"GATEWAY\",\"id\":" + modelo.gateway().getId()
                 + ",\"posicionX\":500,\"posicionY\":210}";
 
-        mockMvc.perform(put(ruta).session(editor).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(ruta).with(editor).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nodos\":[" + registrar + ",{\"tipo\":\"GATEWAY\",\"id\":987654,"
                         + "\"posicionX\":10,\"posicionY\":10}]}"))
                 .andExpect(status().isNotFound());
         assertThat(filaGuardada("actividad", modelo.registrar().getId()).get("posicion_y")).isEqualTo(60);
 
-        mockMvc.perform(put(ruta).session(iniciarSesion(LECTOR_ALPES)).with(csrf())
+        mockMvc.perform(put(ruta).with(iniciarSesion(LECTOR_ALPES)).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content("{\"nodos\":[" + registrar + "]}"))
                 .andExpect(status().isForbidden());
 
-        mockMvc.perform(put(ruta).session(editor).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(ruta).with(editor).with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nodos\":[" + registrar + "," + gateway + "]}"))
                 .andExpect(status().isNoContent());
 

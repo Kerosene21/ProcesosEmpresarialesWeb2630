@@ -2,9 +2,7 @@ package co.edu.javeriana.procesosempresariales;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -24,10 +22,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
@@ -110,18 +106,15 @@ class EnviosExternosIntegracionTest {
                 .getId();
     }
 
-    private MockHttpSession iniciarSesion(String correo) throws Exception {
-        MvcResult resultado = mockMvc.perform(formLogin().user(correo).password(PASSWORD))
-                .andExpect(authenticated().withUsername(correo))
-                .andReturn();
-        return (MockHttpSession) resultado.getRequest().getSession(false);
+    private AccesoJwt iniciarSesion(String correo) throws Exception {
+        return new ClientePruebaJwt(mockMvc).iniciarSesion(correo, PASSWORD);
     }
 
     private String ruta(String recurso) {
         return "/api/procesos/" + proceso.getId() + "/" + recurso;
     }
 
-    private ResultActions enviar(String metodo, String ruta, String json, MockHttpSession sesion) throws Exception {
+    private ResultActions enviar(String metodo, String ruta, String json, AccesoJwt acceso) throws Exception {
         MockHttpServletRequestBuilder peticion = switch (metodo) {
             case "POST" -> post(ruta);
             case "PUT" -> put(ruta);
@@ -130,7 +123,7 @@ class EnviosExternosIntegracionTest {
         if (json != null) {
             peticion.contentType(MediaType.APPLICATION_JSON).content(json);
         }
-        return mockMvc.perform(peticion.session(sesion).with(csrf()));
+        return mockMvc.perform(peticion.with(acceso).with(csrf()));
     }
 
     private Long idCreado(ResultActions resultado) throws Exception {
@@ -153,9 +146,9 @@ class EnviosExternosIntegracionTest {
                 """.formatted(DESPACHO, destino, tipo, fallo);
     }
 
-    private Long crearEnvio(MockHttpSession sesion) throws Exception {
+    private Long crearEnvio(AccesoJwt acceso) throws Exception {
         return idCreado(enviar("POST", ruta("envios-externos"),
-                jsonEnvio(poolAlpes, pasarela, "SERVICIO_WEB", "CONTINUAR"), sesion));
+                jsonEnvio(poolAlpes, pasarela, "SERVICIO_WEB", "CONTINUAR"), acceso));
     }
 
     private List<String> historial() {
@@ -192,7 +185,7 @@ class EnviosExternosIntegracionTest {
     @Test
     void seDocumentanTodosLosTiposDeDestinoYComportamientosAnteFallo() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         String[][] combinaciones = { { "CORREO", "CONTINUAR" }, { "SERVICIO_WEB", "RUTA_ERROR" },
                 { "COLA", "FINALIZAR" } };
 
@@ -204,7 +197,7 @@ class EnviosExternosIntegracionTest {
                     .andExpect(jsonPath("$.comportamientoFallo").value(combinacion[1]));
         }
 
-        mockMvc.perform(get(ruta("envios-externos")).session(iniciarSesion(LECTOR_ALPES)))
+        mockMvc.perform(get(ruta("envios-externos")).with(iniciarSesion(LECTOR_ALPES)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(3)));
     }
@@ -214,7 +207,7 @@ class EnviosExternosIntegracionTest {
         prepararProceso();
         Long abierto = crearPool("Banco", TipoPool.EXTERNO, false, null);
         Long socio = crearPool("Andes", TipoPool.PARTICIPANTE, true, andesId);
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
         enviar("POST", ruta("envios-externos"), jsonEnvio(pasarela, poolAlpes, "CORREO", "CONTINUAR"), admin)
                 .andExpect(status().isBadRequest())
@@ -259,7 +252,7 @@ class EnviosExternosIntegracionTest {
     @Test
     void editarUnEnvioRegistraLosCambiosYUnaEdicionSinCambiosNo() throws Exception {
         prepararProceso();
-        MockHttpSession editor = iniciarSesion(EDITOR_ALPES);
+        AccesoJwt editor = iniciarSesion(EDITOR_ALPES);
         Long envioId = crearEnvio(editor);
         Long dian = crearPool("DIAN", TipoPool.EXTERNO, true, null);
 
@@ -279,10 +272,10 @@ class EnviosExternosIntegracionTest {
     @Test
     void eliminarUnEnvioEsLogicoYLaSegundaEliminacionNoEncuentraNada() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long envioId = crearEnvio(admin);
 
-        mockMvc.perform(get(ruta("envios-externos/" + envioId + "/eliminacion")).session(admin))
+        mockMvc.perform(get(ruta("envios-externos/" + envioId + "/eliminacion")).with(admin))
                 .andExpect(status().isOk());
         enviar("DELETE", ruta("envios-externos/" + envioId), null, iniciarSesion(EDITOR_ALPES))
                 .andExpect(status().isForbidden());
@@ -291,13 +284,13 @@ class EnviosExternosIntegracionTest {
         assertThat(filaDelEnvio(envioId)).containsEntry("activo", false);
         assertThat(historial()).contains("envío externo eliminado: '" + DESPACHO + "'");
         enviar("DELETE", ruta("envios-externos/" + envioId), null, admin).andExpect(status().isNotFound());
-        mockMvc.perform(get(ruta("envios-externos/" + envioId)).session(admin)).andExpect(status().isNotFound());
+        mockMvc.perform(get(ruta("envios-externos/" + envioId)).with(admin)).andExpect(status().isNotFound());
     }
 
     @Test
     void unSistemaExternoConEnviosNoDejaDeSerCajaNegraNiSeElimina() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         crearEnvio(admin);
 
         enviar("PUT", ruta("pools/" + pasarela), """
@@ -315,15 +308,15 @@ class EnviosExternosIntegracionTest {
         prepararProceso();
         Long envioId = crearEnvio(iniciarSesion(ADMIN_ALPES));
         comparticionProcesoService.compartir(proceso.getId(), andesId, ADMIN_ALPES);
-        MockHttpSession andes = iniciarSesion(ADMIN_ANDES);
+        AccesoJwt andes = iniciarSesion(ADMIN_ANDES);
 
-        mockMvc.perform(get(ruta("envios-externos/" + envioId)).session(andes))
+        mockMvc.perform(get(ruta("envios-externos/" + envioId)).with(andes))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tipoDestino").value("SERVICIO_WEB"));
         enviar("PUT", ruta("envios-externos/" + envioId), jsonEdicion(pasarela, "CORREO", "FINALIZAR"), andes)
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
-        mockMvc.perform(get(ruta("envios-externos")).session(iniciarSesion(ADMIN_SIERRA)))
+        mockMvc.perform(get(ruta("envios-externos")).with(iniciarSesion(ADMIN_SIERRA)))
                 .andExpect(status().isForbidden());
     }
 }

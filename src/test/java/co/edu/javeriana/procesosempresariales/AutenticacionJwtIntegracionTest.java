@@ -116,12 +116,6 @@ class AutenticacionJwtIntegracionTest {
     @Autowired
     private JwtProperties jwtProperties;
 
-    private record Sesion(String acceso, Cookie refresco) {
-        String bearer() {
-            return "Bearer " + acceso;
-        }
-    }
-
     @BeforeEach
     void preparar() {
         empresaService.registrar(new RegistroEmpresaDto("Alpes JWT", "905000001-1", ADMIN_ALPES, PASSWORD));
@@ -130,47 +124,44 @@ class AutenticacionJwtIntegracionTest {
         empresaService.registrar(new RegistroEmpresaDto("Andes JWT", "905000002-2", ADMIN_ANDES, PASSWORD));
     }
 
+    private ClientePruebaJwt clienteJwt() {
+        return new ClientePruebaJwt(mockMvc);
+    }
+
     private Cookie tokenCsrf() throws Exception {
-        return mockMvc.perform(get(RUTA_CSRF)).andReturn().getResponse().getCookie(COOKIE_CSRF);
+        return clienteJwt().tokenCsrf();
     }
 
     private MockHttpServletRequestBuilder conCsrf(MockHttpServletRequestBuilder peticion, Cookie... cookies)
             throws Exception {
-        Cookie token = tokenCsrf();
-        peticion.cookie(token).header(CABECERA_CSRF, token.getValue());
-        return cookies.length == 0 ? peticion : peticion.cookie(cookies);
+        return clienteJwt().conCsrf(peticion, cookies);
     }
 
     private String credenciales(String correo, String password) {
-        return "{\"correo\":\"" + correo + "\",\"password\":\"" + password + "\"}";
+        return ClientePruebaJwt.credenciales(correo, password);
     }
 
     private MvcResult intentarLogin(String correo, String password) throws Exception {
-        return mockMvc.perform(conCsrf(post(RUTA_LOGIN))
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(credenciales(correo, password)))
-                .andReturn();
+        return clienteJwt().intentarLogin(correo, password);
     }
 
-    private Sesion sesion(MvcResult resultado) throws Exception {
-        assertThat(resultado.getResponse().getStatus()).isEqualTo(200);
-        String acceso = JsonPath.read(resultado.getResponse().getContentAsString(), "$.tokenAcceso");
-        return new Sesion(acceso, resultado.getResponse().getCookie(COOKIE_REFRESCO));
+    private AccesoJwt sesion(MvcResult resultado) throws Exception {
+        return clienteJwt().acceso(resultado);
     }
 
-    private Sesion login(String correo) throws Exception {
-        return sesion(intentarLogin(correo, PASSWORD));
+    private AccesoJwt login(String correo) throws Exception {
+        return clienteJwt().iniciarSesion(correo, PASSWORD);
     }
 
     private MvcResult intentarRefrescar(Cookie refresco) throws Exception {
-        return mockMvc.perform(conCsrf(post(RUTA_REFRESH), refresco)).andReturn();
+        return clienteJwt().intentarRefrescar(refresco);
     }
 
     private String proceso(String nombre) {
         return "{\"nombre\":\"" + nombre + "\",\"descripcion\":\"Proceso de prueba\",\"categoria\":\"General\"}";
     }
 
-    private long crearProceso(Sesion sesion, String nombre) throws Exception {
+    private long crearProceso(AccesoJwt sesion, String nombre) throws Exception {
         MvcResult resultado = mockMvc.perform(conCsrf(post(RUTA_PROCESOS))
                 .header(HttpHeaders.AUTHORIZATION, sesion.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -180,8 +171,8 @@ class AutenticacionJwtIntegracionTest {
         return ((Number) JsonPath.read(resultado.getResponse().getContentAsString(), "$.id")).longValue();
     }
 
-    private UUID familiaDe(Sesion sesion) {
-        return tokenAccesoService.familiaDe(tokenAccesoService.decodificar(sesion.acceso()));
+    private UUID familiaDe(AccesoJwt sesion) {
+        return tokenAccesoService.familiaDe(tokenAccesoService.decodificar(sesion.token()));
     }
 
     private FamiliaRefresco familia(UUID id) {
@@ -205,15 +196,7 @@ class AutenticacionJwtIntegracionTest {
     }
 
     private MockHttpSession sesionDeNavegador(String correo) throws Exception {
-        MockHttpSession sesion = new MockHttpSession();
-        Cookie token = tokenCsrf();
-        MvcResult resultado = mockMvc.perform(post("/api/sesion").session(sesion)
-                .cookie(token).header(CABECERA_CSRF, token.getValue())
-                .param("correo", correo)
-                .param("password", PASSWORD))
-                .andExpect(status().isNoContent())
-                .andReturn();
-        return (MockHttpSession) resultado.getRequest().getSession(false);
+        return clienteJwt().sesionDeNavegador(correo, PASSWORD);
     }
 
     private long idDe(String correo) {
@@ -259,13 +242,13 @@ class AutenticacionJwtIntegracionTest {
                 .andExpect(cookie().doesNotExist("JSESSIONID"))
                 .andReturn();
 
-        Sesion sesion = sesion(resultado);
+        AccesoJwt sesion = sesion(resultado);
         RefreshToken guardado = refreshTokenRepository
                 .buscarParaRotar(codigoRefresco.hash(sesion.refresco().getValue())).orElseThrow();
         assertThat(resultado.getRequest().getSession(false)).isNull();
         assertThat(guardado.getTokenHash()).isNotEqualTo(sesion.refresco().getValue());
         assertThat(guardado.getFamilia().getId()).isEqualTo(familiaDe(sesion));
-        assertThat(tokenAccesoService.decodificar(sesion.acceso()).getSubject()).isEqualTo(EDITOR_ALPES);
+        assertThat(tokenAccesoService.decodificar(sesion.token()).getSubject()).isEqualTo(EDITOR_ALPES);
     }
 
     @Test
@@ -310,7 +293,7 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void unBearerValidoAutenticaConElCorreoComoPrincipalSinCrearSesion() throws Exception {
-        Sesion editor = login(EDITOR_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
 
         MvcResult consulta = mockMvc.perform(get(RUTA_PROCESOS).header(HttpHeaders.AUTHORIZATION, editor.bearer()))
                 .andExpect(status().isOk())
@@ -327,7 +310,7 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void laEscrituraConBearerSigueExigiendoCsrf() throws Exception {
-        Sesion editor = login(EDITOR_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
 
         mockMvc.perform(post(RUTA_PROCESOS).header(HttpHeaders.AUTHORIZATION, editor.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -340,10 +323,10 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void unBearerExpiradoManipuladoOFirmadoConOtraClaveSeRechaza() throws Exception {
-        Sesion editor = login(EDITOR_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
         String expirado = firmar(claims(EDITOR_ALPES, familiaDe(editor), Instant.now().minus(Duration.ofHours(1)))
                 .build());
-        String[] partes = editor.acceso().split("\\.");
+        String[] partes = editor.token().split("\\.");
         String manipulado = partes[0] + "." + partes[1] + "x." + partes[2];
 
         for (String token : List.of(expirado, manipulado, "no-es-un-jwt")) {
@@ -359,7 +342,7 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void losClaimsAgregadosAlTokenNoOtorganEmpresaNiRol() throws Exception {
-        Sesion editor = login(EDITOR_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
         long empresaAndes = usuarioRepository.findByUsername(ADMIN_ANDES).orElseThrow().getEmpresa().getId();
         String forjado = firmar(claims(EDITOR_ALPES, familiaDe(editor), Instant.now())
                 .claim("rol", "ADMINISTRADOR")
@@ -378,7 +361,7 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void elRefreshRotaLaCookieYElTokenAnteriorQuedaUsado() throws Exception {
-        Sesion inicial = login(EDITOR_ALPES);
+        AccesoJwt inicial = login(EDITOR_ALPES);
 
         MvcResult resultado = mockMvc.perform(conCsrf(post(RUTA_REFRESH), inicial.refresco()))
                 .andExpect(status().isOk())
@@ -386,7 +369,7 @@ class AutenticacionJwtIntegracionTest {
                 .andExpect(cookie().httpOnly(COOKIE_REFRESCO, true))
                 .andExpect(cookie().path(COOKIE_REFRESCO, "/api/auth"))
                 .andReturn();
-        Sesion renovada = sesion(resultado);
+        AccesoJwt renovada = sesion(resultado);
 
         assertThat(renovada.refresco().getValue()).isNotEqualTo(inicial.refresco().getValue());
         assertThat(familiaDe(renovada)).isEqualTo(familiaDe(inicial));
@@ -398,7 +381,7 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void elRefreshExigeCsrfYUnaCookie() throws Exception {
-        Sesion inicial = login(EDITOR_ALPES);
+        AccesoJwt inicial = login(EDITOR_ALPES);
         Cookie token = tokenCsrf();
 
         mockMvc.perform(post(RUTA_REFRESH).cookie(inicial.refresco()))
@@ -416,8 +399,8 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void dentroDeLaGraciaElTokenAnteriorSoloObtieneUnAccesoSinNuevaCookie() throws Exception {
-        Sesion inicial = login(EDITOR_ALPES);
-        Sesion renovada = sesion(intentarRefrescar(inicial.refresco()));
+        AccesoJwt inicial = login(EDITOR_ALPES);
+        AccesoJwt renovada = sesion(intentarRefrescar(inicial.refresco()));
 
         MvcResult carrera = mockMvc.perform(conCsrf(post(RUTA_REFRESH), inicial.refresco()))
                 .andExpect(status().isOk())
@@ -435,8 +418,8 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void reutilizarUnRefreshRotadoFueraDeLaGraciaRevocaTodaLaSesion() throws Exception {
-        Sesion inicial = login(EDITOR_ALPES);
-        Sesion renovada = sesion(intentarRefrescar(inicial.refresco()));
+        AccesoJwt inicial = login(EDITOR_ALPES);
+        AccesoJwt renovada = sesion(intentarRefrescar(inicial.refresco()));
         RefreshToken anterior = refreshTokenRepository
                 .buscarParaRotar(codigoRefresco.hash(inicial.refresco().getValue())).orElseThrow();
         anterior.setUsadoEn(anterior.getUsadoEn().minusSeconds(30));
@@ -456,7 +439,7 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void elLogoutRevocaLaSesionDeInmediatoYEliminaLaCookie() throws Exception {
-        Sesion editor = login(EDITOR_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
 
         mockMvc.perform(conCsrf(post(RUTA_LOGOUT), editor.refresco()))
                 .andExpect(status().isNoContent())
@@ -474,7 +457,7 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void elLogoutFuncionaConUnAccesoExpiradoPeroExigeCsrf() throws Exception {
-        Sesion editor = login(EDITOR_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
         String expirado = firmar(claims(EDITOR_ALPES, familiaDe(editor), Instant.now().minus(Duration.ofHours(1)))
                 .build());
 
@@ -492,9 +475,9 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void desactivarAUnUsuarioBloqueaDeInmediatoSuAccesoYSuRefresh() throws Exception {
-        Sesion administrador = login(ADMIN_ALPES);
-        Sesion editor = login(EDITOR_ALPES);
-        Sesion otraPestana = login(EDITOR_ALPES);
+        AccesoJwt administrador = login(ADMIN_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
+        AccesoJwt otraPestana = login(EDITOR_ALPES);
 
         mockMvc.perform(conCsrf(post(RUTA_USUARIOS + "/" + idDe(EDITOR_ALPES) + "/desactivacion"))
                 .header(HttpHeaders.AUTHORIZATION, administrador.bearer()))
@@ -514,8 +497,8 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void unCambioDeRolSeAplicaEnLaSiguientePeticionDelMismoToken() throws Exception {
-        Sesion administrador = login(ADMIN_ALPES);
-        Sesion editor = login(EDITOR_ALPES);
+        AccesoJwt administrador = login(ADMIN_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
         crearProceso(editor, "Antes del cambio");
 
         mockMvc.perform(conCsrf(put(RUTA_USUARIOS + "/" + idDe(EDITOR_ALPES) + "/rol"))
@@ -539,8 +522,8 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void conJwtCadaEmpresaSoloVeYModificaSusRecursos() throws Exception {
-        Sesion alpes = login(EDITOR_ALPES);
-        Sesion andes = login(ADMIN_ANDES);
+        AccesoJwt alpes = login(EDITOR_ALPES);
+        AccesoJwt andes = login(ADMIN_ANDES);
         long deAndes = crearProceso(andes, "Exclusivo Andes");
 
         mockMvc.perform(get(RUTA_PROCESOS + "/" + deAndes).header(HttpHeaders.AUTHORIZATION, alpes.bearer()))
@@ -566,7 +549,7 @@ class AutenticacionJwtIntegracionTest {
     @Test
     void conSesionYBearerValidoPrevaleceElBearerSinModificarLaSesion() throws Exception {
         MockHttpSession navegador = sesionDeNavegador(ADMIN_ALPES);
-        Sesion editor = login(EDITOR_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
 
         mockMvc.perform(get(RUTA_USUARIOS).session(navegador).header(HttpHeaders.AUTHORIZATION, editor.bearer()))
                 .andExpect(status().isForbidden());
@@ -603,6 +586,75 @@ class AutenticacionJwtIntegracionTest {
     }
 
     @Test
+    void unBearerRevocadoOExpiradoTampocoRecurreALaSesionExistente() throws Exception {
+        MockHttpSession navegador = sesionDeNavegador(ADMIN_ALPES);
+        AccesoJwt revocado = login(ADMIN_ALPES);
+        String expirado = firmar(claims(ADMIN_ALPES, familiaDe(login(ADMIN_ALPES)),
+                Instant.now().minus(Duration.ofHours(1))).build());
+        mockMvc.perform(conCsrf(post(RUTA_LOGOUT), revocado.refresco()))
+                .andExpect(status().isNoContent());
+
+        for (String bearer : List.of(revocado.bearer(), "Bearer " + expirado)) {
+            mockMvc.perform(get(RUTA_USUARIOS).session(navegador).header(HttpHeaders.AUTHORIZATION, bearer))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath(CODIGO).value(NO_AUTORIZADO));
+            mockMvc.perform(conCsrf(post(RUTA_PROCESOS)).session(navegador)
+                    .header(HttpHeaders.AUTHORIZATION, bearer)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(proceso("Con bearer no vigente")))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        assertThat(procesoRepository.findAll()).noneMatch(p -> "Con bearer no vigente".equals(p.getNombre()));
+        mockMvc.perform(get(RUTA_USUARIOS).session(navegador))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void conSesionYBearerLaEscrituraSigueExigiendoCsrfYSeAtribuyeAlBearer() throws Exception {
+        MockHttpSession navegador = sesionDeNavegador(ADMIN_ALPES);
+        AccesoJwt lectura = login(LECTURA_ALPES);
+
+        mockMvc.perform(post(RUTA_PROCESOS).session(navegador).with(lectura)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Mixto sin CSRF")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
+        mockMvc.perform(conCsrf(post(RUTA_PROCESOS)).session(navegador).with(lectura)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Mixto con CSRF")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
+        mockMvc.perform(conCsrf(post(RUTA_PROCESOS)).session(navegador)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Solo sesion con CSRF")))
+                .andExpect(status().isCreated());
+
+        assertThat(procesoRepository.findAll()).extracting(p -> p.getNombre())
+                .contains("Solo sesion con CSRF")
+                .doesNotContain("Mixto sin CSRF", "Mixto con CSRF");
+    }
+
+    @Test
+    void unAscensoDeRolTambienSeAplicaAlMismoTokenSinEmitirUnoNuevo() throws Exception {
+        AccesoJwt administrador = login(ADMIN_ALPES);
+        AccesoJwt lectura = login(LECTURA_ALPES);
+        mockMvc.perform(get(RUTA_USUARIOS).with(lectura))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
+
+        mockMvc.perform(conCsrf(put(RUTA_USUARIOS + "/" + idDe(LECTURA_ALPES) + "/rol")).with(administrador)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rol\":\"ADMINISTRADOR\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get(RUTA_USUARIOS).with(lectura))
+                .andExpect(status().isOk());
+        mockMvc.perform(get(RUTA_ME).with(lectura))
+                .andExpect(jsonPath("$.rol").value("ADMINISTRADOR"));
+    }
+
+    @Test
     void laSesionDeNavegadorSigueFuncionandoSinBearer() throws Exception {
         MockHttpSession navegador = sesionDeNavegador(EDITOR_ALPES);
 
@@ -617,7 +669,7 @@ class AutenticacionJwtIntegracionTest {
 
     @Test
     void lasVistasThymeleafNoAceptanBearer() throws Exception {
-        Sesion editor = login(EDITOR_ALPES);
+        AccesoJwt editor = login(EDITOR_ALPES);
 
         mockMvc.perform(get("/procesos").header(HttpHeaders.AUTHORIZATION, editor.bearer()))
                 .andExpect(status().is3xxRedirection())

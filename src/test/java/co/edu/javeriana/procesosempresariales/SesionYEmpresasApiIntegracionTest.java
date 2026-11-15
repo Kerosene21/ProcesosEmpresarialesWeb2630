@@ -50,6 +50,10 @@ class SesionYEmpresasApiIntegracionTest {
     @Autowired
     private UsuarioRepository usuarioRepository;
 
+    private ClientePruebaJwt clienteJwt() {
+        return new ClientePruebaJwt(mockMvc);
+    }
+
     private Cookie tokenCsrf(MockHttpSession sesion) throws Exception {
         MvcResult resultado = mockMvc.perform(get(RUTA_SESION).session(sesion)).andReturn();
         return resultado.getResponse().getCookie(COOKIE_CSRF);
@@ -61,16 +65,18 @@ class SesionYEmpresasApiIntegracionTest {
     }
 
     private void registrar(String nombre, String nit, String correo) throws Exception {
-        MockHttpSession anonima = new MockHttpSession();
-        Cookie token = tokenCsrf(anonima);
-        mockMvc.perform(post(RUTA_EMPRESAS).session(anonima)
-                .cookie(token)
-                .header(CABECERA_CSRF, token.getValue())
+        MvcResult resultado = mockMvc.perform(clienteJwt().conCsrf(post(RUTA_EMPRESAS))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registro(nombre, nit, correo)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.nit").value(nit))
-                .andExpect(jsonPath("$.administradorUsername").value(correo));
+                .andExpect(jsonPath("$.administradorUsername").value(correo))
+                .andReturn();
+        assertThat(resultado.getRequest().getSession(false)).isNull();
+    }
+
+    private AccesoJwt iniciarSesionJwt(String correo) throws Exception {
+        return clienteJwt().iniciarSesion(correo, PASSWORD);
     }
 
     private MockHttpSession iniciarSesion(String correo, String password, int estadoEsperado) throws Exception {
@@ -87,7 +93,25 @@ class SesionYEmpresasApiIntegracionTest {
     }
 
     @Test
-    void laEmpresaRegistradaPorLaApiPermiteIniciarSesionYConsultarSuSesion() throws Exception {
+    void laEmpresaRegistradaPorLaApiPermiteIniciarSesionYConsultarSuEmpresaConBearer() throws Exception {
+        registrar("Alpes Api", "902000001-1", CORREO_ALPES);
+
+        AccesoJwt acceso = iniciarSesionJwt(CORREO_ALPES);
+
+        mockMvc.perform(get(ClientePruebaJwt.RUTA_ME).with(acceso))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.autenticado").value(true))
+                .andExpect(jsonPath("$.correo").value(CORREO_ALPES))
+                .andExpect(jsonPath("$.rol").value("ADMINISTRADOR"))
+                .andExpect(jsonPath("$.empresaNombre").value("Alpes Api"));
+        mockMvc.perform(get(RUTA_EMPRESAS + "/actual").with(acceso))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nit").value("902000001-1"))
+                .andExpect(jsonPath("$.administradorUsername").value(CORREO_ALPES));
+    }
+
+    @Test
+    void elLoginPorLaApiDeSesionSigueAbriendoUnaSesionDuranteLaTransicion() throws Exception {
         registrar("Alpes Api", "902000001-1", CORREO_ALPES);
 
         MockHttpSession sesion = iniciarSesion(CORREO_ALPES, PASSWORD, 204);
@@ -100,8 +124,7 @@ class SesionYEmpresasApiIntegracionTest {
                 .andExpect(jsonPath("$.empresaNombre").value("Alpes Api"));
         mockMvc.perform(get(RUTA_EMPRESAS + "/actual").session(sesion))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.nit").value("902000001-1"))
-                .andExpect(jsonPath("$.administradorUsername").value(CORREO_ALPES));
+                .andExpect(jsonPath("$.nit").value("902000001-1"));
     }
 
     @Test
@@ -116,12 +139,8 @@ class SesionYEmpresasApiIntegracionTest {
     @Test
     void unNitYaRegistradoSeRechazaConConflicto() throws Exception {
         registrar("Alpes Api", "902000001-1", CORREO_ALPES);
-        MockHttpSession anonima = new MockHttpSession();
-        Cookie token = tokenCsrf(anonima);
 
-        mockMvc.perform(post(RUTA_EMPRESAS).session(anonima)
-                .cookie(token)
-                .header(CABECERA_CSRF, token.getValue())
+        mockMvc.perform(clienteJwt().conCsrf(post(RUTA_EMPRESAS))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(registro("Otra Api", "902000001-1", CORREO_ANDES)))
                 .andExpect(status().isConflict())
@@ -129,13 +148,23 @@ class SesionYEmpresasApiIntegracionTest {
     }
 
     @Test
+    void elRegistroPorLaApiExigeUnTokenCsrf() throws Exception {
+        mockMvc.perform(post(RUTA_EMPRESAS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(registro("Alpes Api", "902000001-1", CORREO_ALPES)))
+                .andExpect(status().isForbidden());
+
+        assertThat(usuarioRepository.findByUsername(CORREO_ALPES)).isEmpty();
+    }
+
+    @Test
     void cadaUsuarioSoloConsultaSuPropiaEmpresa() throws Exception {
         registrar("Alpes Api", "902000001-1", CORREO_ALPES);
         registrar("Andes Api", "902000002-2", CORREO_ANDES);
 
-        mockMvc.perform(get(RUTA_EMPRESAS + "/actual").session(iniciarSesion(CORREO_ALPES, PASSWORD, 204)))
+        mockMvc.perform(get(RUTA_EMPRESAS + "/actual").with(iniciarSesionJwt(CORREO_ALPES)))
                 .andExpect(jsonPath("$.nombre").value("Alpes Api"));
-        mockMvc.perform(get(RUTA_EMPRESAS + "/actual").session(iniciarSesion(CORREO_ANDES, PASSWORD, 204)))
+        mockMvc.perform(get(RUTA_EMPRESAS + "/actual").with(iniciarSesionJwt(CORREO_ANDES)))
                 .andExpect(jsonPath("$.nombre").value("Andes Api"));
     }
 

@@ -4,9 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -22,10 +20,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
@@ -131,11 +127,8 @@ class EstructuraProcesoIntegracionTest {
                 .getId();
     }
 
-    private MockHttpSession iniciarSesion(String correo) throws Exception {
-        MvcResult resultado = mockMvc.perform(formLogin().user(correo).password(PASSWORD))
-                .andExpect(authenticated().withUsername(correo))
-                .andReturn();
-        return (MockHttpSession) resultado.getRequest().getSession(false);
+    private AccesoJwt iniciarSesion(String correo) throws Exception {
+        return new ClientePruebaJwt(mockMvc).iniciarSesion(correo, PASSWORD);
     }
 
     private ProcesoRespuestaDto crearProceso(String nombre) {
@@ -154,7 +147,7 @@ class EstructuraProcesoIntegracionTest {
         return "/api/procesos/" + proceso.getId() + "/permisos-estructura";
     }
 
-    private ResultActions enviar(String metodo, String ruta, String json, MockHttpSession sesion) throws Exception {
+    private ResultActions enviar(String metodo, String ruta, String json, AccesoJwt acceso) throws Exception {
         MockHttpServletRequestBuilder peticion = switch (metodo) {
             case "POST" -> post(ruta);
             case "PUT" -> put(ruta);
@@ -163,7 +156,7 @@ class EstructuraProcesoIntegracionTest {
         if (json != null) {
             peticion.contentType(MediaType.APPLICATION_JSON).content(json);
         }
-        return mockMvc.perform(peticion.session(sesion).with(csrf()));
+        return mockMvc.perform(peticion.with(acceso).with(csrf()));
     }
 
     private Long idCreado(ResultActions resultado) throws Exception {
@@ -171,8 +164,8 @@ class EstructuraProcesoIntegracionTest {
         return ((Number) JsonPath.read(cuerpo, "$.id")).longValue();
     }
 
-    private Long crearPool(ProcesoRespuestaDto proceso, String json, MockHttpSession sesion) throws Exception {
-        return idCreado(enviar("POST", rutaPools(proceso), json, sesion));
+    private Long crearPool(ProcesoRespuestaDto proceso, String json, AccesoJwt acceso) throws Exception {
+        return idCreado(enviar("POST", rutaPools(proceso), json, acceso));
     }
 
     private String jsonParticipante(String nombre, Long empresaId) {
@@ -188,9 +181,9 @@ class EstructuraProcesoIntegracionTest {
         return "{\"rolProcesoId\":" + rolId + (orden == null ? "" : ",\"orden\":" + orden) + "}";
     }
 
-    private Long crearLane(ProcesoRespuestaDto proceso, Long poolId, Long rolId, MockHttpSession sesion)
+    private Long crearLane(ProcesoRespuestaDto proceso, Long poolId, Long rolId, AccesoJwt acceso)
             throws Exception {
-        return idCreado(enviar("POST", rutaLanes(proceso, poolId), jsonLane(rolId, null), sesion));
+        return idCreado(enviar("POST", rutaLanes(proceso, poolId), jsonLane(rolId, null), acceso));
     }
 
     private Long laneGeneral(ProcesoRespuestaDto proceso) {
@@ -217,9 +210,9 @@ class EstructuraProcesoIntegracionTest {
     void unProcesoNuevoTieneSoloSuPoolPropietarioConLaLaneGeneral() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession lector = iniciarSesion(LECTOR_ALPES);
+        AccesoJwt lector = iniciarSesion(LECTOR_ALPES);
 
-        mockMvc.perform(get(rutaPools(proceso)).session(lector))
+        mockMvc.perform(get(rutaPools(proceso)).with(lector))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].id").value(proceso.getPoolId()))
@@ -227,7 +220,7 @@ class EstructuraProcesoIntegracionTest {
                 .andExpect(jsonPath("$[0].orden").value(1))
                 .andExpect(jsonPath("$[0].cajaNegra").value(false))
                 .andExpect(jsonPath("$[0].empresaNombre").value(ALPES));
-        mockMvc.perform(get(rutaLanes(proceso, proceso.getPoolId())).session(lector))
+        mockMvc.perform(get(rutaLanes(proceso, proceso.getPoolId())).with(lector))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].nombre", contains("General")));
     }
@@ -236,12 +229,12 @@ class EstructuraProcesoIntegracionTest {
     void elAdministradorAgregaPoolsExternoYParticipanteEnOrdenYConHistorial() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
         crearPool(proceso, JSON_EXTERNO_CAJA_NEGRA, admin);
         crearPool(proceso, jsonParticipante("Distribuidor", andesId), admin);
 
-        mockMvc.perform(get(rutaPools(proceso)).session(admin))
+        mockMvc.perform(get(rutaPools(proceso)).with(admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].tipo", contains("PROPIETARIO", "EXTERNO", "PARTICIPANTE")))
                 .andExpect(jsonPath("$[*].orden", contains(1, 2, 3)))
@@ -257,7 +250,7 @@ class EstructuraProcesoIntegracionTest {
     void lasReglasDeCadaTipoDePoolSeValidan() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long alpesId = proceso.getEmpresaPropietariaId();
 
         enviar("POST", rutaPools(proceso), "{\"nombre\":\"Otra\",\"tipo\":\"PROPIETARIO\"}", admin)
@@ -279,14 +272,14 @@ class EstructuraProcesoIntegracionTest {
     void unPoolDeCajaNegraNoAdmiteLanesNiGateways() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long cliente = crearPool(proceso, JSON_EXTERNO_CAJA_NEGRA, admin);
         Long rol = crearRol("Comprador");
 
         enviar("POST", rutaLanes(proceso, cliente), jsonLane(rol, null), admin)
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath(CODIGO).value("POOL_CAJA_NEGRA"));
-        mockMvc.perform(get(rutaPools(proceso) + "/" + cliente + "/roles-disponibles").session(admin))
+        mockMvc.perform(get(rutaPools(proceso) + "/" + cliente + "/roles-disponibles").with(admin))
                 .andExpect(status().isConflict());
         assertThatThrownBy(() -> gatewayService.crear(proceso.getId(),
                 new CrearGatewayDto(TipoGateway.EXCLUSIVO, 300, 100, cliente), ADMIN_ALPES))
@@ -298,7 +291,7 @@ class EstructuraProcesoIntegracionTest {
     void unPoolConContenidoNoSeEliminaYUnoVacioSeEliminaDeFormaLogica() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long distribuidor = crearPool(proceso, jsonParticipante("Distribuidor", andesId), admin);
         Long banco = crearPool(proceso, JSON_EXTERNO, admin);
         Long lane = crearLane(proceso, distribuidor, crearRol("Despachador"), admin);
@@ -318,9 +311,9 @@ class EstructuraProcesoIntegracionTest {
         Pool eliminado = poolRepository.findById(distribuidor).orElseThrow();
         assertThat(eliminado.isActivo()).isFalse();
         assertThat(poolRepository.findById(banco).orElseThrow().getOrden()).isEqualTo(2);
-        mockMvc.perform(get(rutaPools(proceso)).session(admin))
+        mockMvc.perform(get(rutaPools(proceso)).with(admin))
                 .andExpect(jsonPath("$[*].nombre", contains(ALPES, "Banco")));
-        mockMvc.perform(get(rutaPools(proceso) + "/" + distribuidor).session(admin))
+        mockMvc.perform(get(rutaPools(proceso) + "/" + distribuidor).with(admin))
                 .andExpect(status().isNotFound());
         assertThat(historial(proceso)).contains("pool eliminado: 'Distribuidor'");
     }
@@ -329,7 +322,7 @@ class EstructuraProcesoIntegracionTest {
     void elPoolPropietarioNoSeEliminaNiSeConvierteEnCajaNegra() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         String rutaPropietario = rutaPools(proceso) + "/" + proceso.getPoolId();
 
         enviar("DELETE", rutaPropietario, null, admin)
@@ -350,7 +343,7 @@ class EstructuraProcesoIntegracionTest {
     void lasLanesNuevasExigenRolDeProcesoYSeUbicanEnLaPosicionIndicada() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession editor = iniciarSesion(EDITOR_ALPES);
+        AccesoJwt editor = iniciarSesion(EDITOR_ALPES);
         Long analista = crearRol("Analista");
         Long tesorero = crearRol("Tesorero");
         String rutaLanes = rutaLanes(proceso, proceso.getPoolId());
@@ -365,7 +358,7 @@ class EstructuraProcesoIntegracionTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath(CODIGO).value("LANE_NO_VALIDA"));
 
-        mockMvc.perform(get(rutaLanes).session(editor))
+        mockMvc.perform(get(rutaLanes).with(editor))
                 .andExpect(jsonPath("$[*].nombre", contains("Tesorero", "General", "Analista")))
                 .andExpect(jsonPath("$[*].orden", contains(1, 2, 3)))
                 .andExpect(jsonPath("$[0].rolProcesoId").value(tesorero));
@@ -377,7 +370,7 @@ class EstructuraProcesoIntegracionTest {
     void renombrarUnaLaneEsAsignarleOtroRolDeProcesoYReordenarPersiste() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         String rutaLanes = rutaLanes(proceso, proceso.getPoolId());
         Long general = laneGeneral(proceso);
         Long cartera = crearLane(proceso, proceso.getPoolId(), crearRol("Cartera"), admin);
@@ -404,7 +397,7 @@ class EstructuraProcesoIntegracionTest {
     void unaLaneConActividadesNoSeEliminaYUnaVaciaSeEliminaDeFormaLogica() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         String rutaLanes = rutaLanes(proceso, proceso.getPoolId());
         Long general = laneGeneral(proceso);
         Long cartera = crearLane(proceso, proceso.getPoolId(), crearRol("Cartera"), admin);
@@ -427,14 +420,14 @@ class EstructuraProcesoIntegracionTest {
     void unRolDeProcesoUsadoEnUnaLaneDeUnPoolParticipanteNoSePuedeEliminar() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long distribuidor = crearPool(proceso, jsonParticipante("Distribuidor", andesId), admin);
         Long despachador = crearRol("Despachador");
         crearLane(proceso, distribuidor, despachador, admin);
 
         assertThatThrownBy(() -> rolProcesoService.eliminar(despachador, ADMIN_ALPES))
                 .isInstanceOf(RolProcesoEnUsoException.class);
-        mockMvc.perform(get(rutaPools(proceso) + "/" + distribuidor + "/roles-disponibles").session(admin))
+        mockMvc.perform(get(rutaPools(proceso) + "/" + distribuidor + "/roles-disponibles").with(admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].nombre", contains("Despachador")));
     }
@@ -443,7 +436,7 @@ class EstructuraProcesoIntegracionTest {
     void unFlujoDeSecuenciaUneLanesDelMismoPoolPeroNoCruzaPools() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long cartera = crearLane(proceso, proceso.getPoolId(), crearRol("Cartera"), admin);
         Long distribuidor = crearPool(proceso, jsonParticipante("Distribuidor", andesId), admin);
         Long despacho = crearLane(proceso, distribuidor, crearRol("Despachador"), admin);
@@ -459,7 +452,7 @@ class EstructuraProcesoIntegracionTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath(CODIGO).value("SECUENCIA_ENTRE_POOLS"));
 
-        mockMvc.perform(get(rutaArcos).session(admin))
+        mockMvc.perform(get(rutaArcos).with(admin))
                 .andExpect(jsonPath("$", hasSize(1)));
     }
 
@@ -467,7 +460,7 @@ class EstructuraProcesoIntegracionTest {
     void conVariosPoolsCadaGatewayIndicaSuPool() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
         GatewayRespuestaDto enPropietario = gatewayService.crear(proceso.getId(),
                 new CrearGatewayDto(TipoGateway.EXCLUSIVO, 200, 80), ADMIN_ALPES);
@@ -489,7 +482,7 @@ class EstructuraProcesoIntegracionTest {
     void porDefectoElEditorCreaYEditaEstructuraPeroNoLaElimina() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession editor = iniciarSesion(EDITOR_ALPES);
+        AccesoJwt editor = iniciarSesion(EDITOR_ALPES);
 
         Long banco = crearPool(proceso, JSON_EXTERNO, editor);
         enviar("PUT", rutaPools(proceso) + "/" + banco, "{\"nombre\":\"Banco central\"}", editor)
@@ -502,7 +495,7 @@ class EstructuraProcesoIntegracionTest {
         enviar("DELETE", rutaPools(proceso) + "/" + banco, null, editor)
                 .andExpect(status().isForbidden());
 
-        mockMvc.perform(get(rutaPermisos(proceso)).session(editor))
+        mockMvc.perform(get(rutaPermisos(proceso)).with(editor))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[1].rol").value("EDITOR"))
                 .andExpect(jsonPath("$[1].crearPool").value(true))
@@ -517,8 +510,8 @@ class EstructuraProcesoIntegracionTest {
         registrarEmpresas();
         ProcesoRespuestaDto ventas = crearProceso("Ventas");
         ProcesoRespuestaDto compras = crearProceso("Compras");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
-        MockHttpSession editor = iniciarSesion(EDITOR_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt editor = iniciarSesion(EDITOR_ALPES);
         Long bancoVentas = crearPool(ventas, JSON_EXTERNO, admin);
         Long bancoCompras = crearPool(compras, JSON_EXTERNO, admin);
 
@@ -545,7 +538,7 @@ class EstructuraProcesoIntegracionTest {
     void elLectorNuncaModificaLaEstructuraYSoloConsulta() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession lector = iniciarSesion(LECTOR_ALPES);
+        AccesoJwt lector = iniciarSesion(LECTOR_ALPES);
 
         enviar("POST", rutaPools(proceso), JSON_EXTERNO, lector).andExpect(status().isForbidden());
         enviar("POST", rutaLanes(proceso, proceso.getPoolId()), jsonLane(crearRol("Oficial"), null), lector)
@@ -555,7 +548,7 @@ class EstructuraProcesoIntegracionTest {
                 .andExpect(status().isForbidden());
         enviar("PUT", rutaPermisos(proceso) + "/EDITOR", JSON_EDITOR_PUEDE_TODO_MENOS_CREAR_POOLS, lector)
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get(rutaPermisos(proceso)).session(lector))
+        mockMvc.perform(get(rutaPermisos(proceso)).with(lector))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[2].rol").value("SOLO_LECTURA"))
                 .andExpect(jsonPath("$[2].crearPool").value(false));
@@ -566,7 +559,7 @@ class EstructuraProcesoIntegracionTest {
     void losPermisosFijosDelAdministradorYDelLectorNoSeCambianYElEditorNoConfigura() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
         enviar("PUT", rutaPermisos(proceso) + "/ADMINISTRADOR", JSON_EDITOR_PUEDE_TODO_MENOS_CREAR_POOLS, admin)
                 .andExpect(status().isBadRequest())
@@ -590,10 +583,10 @@ class EstructuraProcesoIntegracionTest {
     void otraEmpresaNoConsultaNiModificaLaEstructuraDeUnProcesoNoCompartido() throws Exception {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = crearProceso("Ventas");
-        MockHttpSession andes = iniciarSesion(ADMIN_ANDES);
+        AccesoJwt andes = iniciarSesion(ADMIN_ANDES);
 
-        mockMvc.perform(get(rutaPools(proceso)).session(andes)).andExpect(status().isForbidden());
-        mockMvc.perform(get(rutaPermisos(proceso)).session(andes)).andExpect(status().isForbidden());
+        mockMvc.perform(get(rutaPools(proceso)).with(andes)).andExpect(status().isForbidden());
+        mockMvc.perform(get(rutaPermisos(proceso)).with(andes)).andExpect(status().isForbidden());
         enviar("POST", rutaPools(proceso), JSON_EXTERNO, andes).andExpect(status().isForbidden());
     }
 

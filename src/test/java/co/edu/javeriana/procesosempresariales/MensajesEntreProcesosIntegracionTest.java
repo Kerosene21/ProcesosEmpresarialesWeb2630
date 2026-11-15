@@ -4,9 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -26,10 +24,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
@@ -115,18 +111,15 @@ class MensajesEntreProcesosIntegracionTest {
                 null), ADMIN_ALPES).getId();
     }
 
-    private MockHttpSession iniciarSesion(String correo) throws Exception {
-        MvcResult resultado = mockMvc.perform(formLogin().user(correo).password(PASSWORD))
-                .andExpect(authenticated().withUsername(correo))
-                .andReturn();
-        return (MockHttpSession) resultado.getRequest().getSession(false);
+    private AccesoJwt iniciarSesion(String correo) throws Exception {
+        return new ClientePruebaJwt(mockMvc).iniciarSesion(correo, PASSWORD);
     }
 
     private String ruta(String recurso) {
         return "/api/procesos/" + proceso.getId() + "/" + recurso;
     }
 
-    private ResultActions enviar(String metodo, String ruta, String json, MockHttpSession sesion) throws Exception {
+    private ResultActions enviar(String metodo, String ruta, String json, AccesoJwt acceso) throws Exception {
         MockHttpServletRequestBuilder peticion = switch (metodo) {
             case "POST" -> post(ruta);
             case "PUT" -> put(ruta);
@@ -135,7 +128,7 @@ class MensajesEntreProcesosIntegracionTest {
         if (json != null) {
             peticion.contentType(MediaType.APPLICATION_JSON).content(json);
         }
-        return mockMvc.perform(peticion.session(sesion).with(csrf()));
+        return mockMvc.perform(peticion.with(acceso).with(csrf()));
     }
 
     private Long idCreado(ResultActions resultado) throws Exception {
@@ -160,13 +153,13 @@ class MensajesEntreProcesosIntegracionTest {
                 comportamiento == null ? "" : "\"comportamientoSinCaso\":\"" + comportamiento + "\",");
     }
 
-    private Long crearThrow(String nombre, String clave, MockHttpSession sesion) throws Exception {
+    private Long crearThrow(String nombre, String clave, AccesoJwt acceso) throws Exception {
         return idCreado(enviar("POST", ruta("message-throws"), jsonThrow(nombre, poolAlpes, poolProveedor, clave),
-                sesion));
+                acceso));
     }
 
-    private Long crearCatch(String json, MockHttpSession sesion) throws Exception {
-        return idCreado(enviar("POST", ruta("message-catches"), json, sesion));
+    private Long crearCatch(String json, AccesoJwt acceso) throws Exception {
+        return idCreado(enviar("POST", ruta("message-catches"), json, acceso));
     }
 
     private List<String> historial() {
@@ -184,7 +177,7 @@ class MensajesEntreProcesosIntegracionTest {
     @Test
     void unThrowYSuCatchHomologoSePersistenYQuedanCorrelacionados() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
         String creado = enviar("POST", ruta("message-throws"), jsonThrow(PAGO, poolAlpes, poolProveedor, "factura"),
                 admin)
@@ -198,11 +191,11 @@ class MensajesEntreProcesosIntegracionTest {
         Long catchId = crearCatch(jsonCatch("PAGO  confirmado", "INTERMEDIO", poolProveedor, " Factura ", false,
                 "DESCARTAR"), iniciarSesion(EDITOR_ALPES));
 
-        mockMvc.perform(get(ruta("message-throws/" + throwId)).session(iniciarSesion(LECTOR_ALPES)))
+        mockMvc.perform(get(ruta("message-throws/" + throwId)).with(iniciarSesion(LECTOR_ALPES)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.catchHomologoId").value(catchId))
                 .andExpect(jsonPath(ADVERTENCIAS).isEmpty());
-        mockMvc.perform(get(ruta("message-catches/" + catchId)).session(admin))
+        mockMvc.perform(get(ruta("message-catches/" + catchId)).with(admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.throwHomologoId").value(throwId))
                 .andExpect(jsonPath("$.claveCorrelacion").value("Factura"))
@@ -248,7 +241,7 @@ class MensajesEntreProcesosIntegracionTest {
         prepararProceso();
         ProcesoRespuestaDto otro = procesoService.crear(new CrearProcesoDto("Ventas", "Proceso de ventas",
                 "Comercial"), ADMIN_ALPES);
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
         enviar("POST", ruta("message-throws"), jsonThrow(PAGO, poolAlpes, otro.getPoolId(), null), admin)
                 .andExpect(status().isBadRequest())
@@ -275,9 +268,9 @@ class MensajesEntreProcesosIntegracionTest {
     void elUsuarioDeSoloLecturaConsultaPeroNoModelaMensajes() throws Exception {
         prepararProceso();
         crearThrow(PAGO, null, iniciarSesion(ADMIN_ALPES));
-        MockHttpSession lector = iniciarSesion(LECTOR_ALPES);
+        AccesoJwt lector = iniciarSesion(LECTOR_ALPES);
 
-        mockMvc.perform(get(ruta("message-throws")).session(lector))
+        mockMvc.perform(get(ruta("message-throws")).with(lector))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)));
         enviar("POST", ruta("message-throws"), jsonThrow(PAGO, poolAlpes, poolProveedor, null), lector)
@@ -290,7 +283,7 @@ class MensajesEntreProcesosIntegracionTest {
     @Test
     void editarUnThrowSoloRegistraLosCambiosReales() throws Exception {
         prepararProceso();
-        MockHttpSession editor = iniciarSesion(EDITOR_ALPES);
+        AccesoJwt editor = iniciarSesion(EDITOR_ALPES);
         Long throwId = crearThrow(PAGO, "factura", editor);
         String edicion = """
                 {"nombreMensaje":"%s","contenido":"numeroFactura: texto; valor: decimal","poolDestinoId":%d,
@@ -310,13 +303,13 @@ class MensajesEntreProcesosIntegracionTest {
     @Test
     void eliminarUnThrowEsLogicoConConfirmacionYHistorial() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long throwId = crearThrow(PAGO, "factura", admin);
         crearCatch(jsonCatch(PAGO, "INTERMEDIO", poolProveedor, "factura", false, "DESCARTAR"), admin);
 
-        mockMvc.perform(get(ruta("message-throws/" + throwId + "/eliminacion")).session(iniciarSesion(EDITOR_ALPES)))
+        mockMvc.perform(get(ruta("message-throws/" + throwId + "/eliminacion")).with(iniciarSesion(EDITOR_ALPES)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get(ruta("message-throws/" + throwId + "/eliminacion")).session(admin))
+        mockMvc.perform(get(ruta("message-throws/" + throwId + "/eliminacion")).with(admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(ADVERTENCIAS, hasItem("El Message Catch '" + PAGO + "' del pool 'Proveedor'"
                         + " quedará sin Message Throw homólogo.")));
@@ -326,7 +319,7 @@ class MensajesEntreProcesosIntegracionTest {
 
         assertThat(filaDelEvento(throwId)).containsEntry("activo", false);
         assertThat(historial()).contains("message throw eliminado: '" + PAGO + "'");
-        mockMvc.perform(get(ruta("message-throws")).session(admin)).andExpect(jsonPath("$").isEmpty());
+        mockMvc.perform(get(ruta("message-throws")).with(admin)).andExpect(jsonPath("$").isEmpty());
         enviar("DELETE", ruta("message-throws/" + throwId), null, admin)
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath(CODIGO).value("RECURSO_NO_ENCONTRADO"));
@@ -335,7 +328,7 @@ class MensajesEntreProcesosIntegracionTest {
     @Test
     void clavesIncoherentesYCatchIntermedioSinClaveGeneranAdvertencias() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         crearThrow(PAGO, "factura", admin);
 
         enviar("POST", ruta("message-catches"), jsonCatch(PAGO, "INTERMEDIO", poolProveedor, "radicado", false,
@@ -352,7 +345,7 @@ class MensajesEntreProcesosIntegracionTest {
     @Test
     void dosMensajesConMismoNombreYClaveSonAmbiguos() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         crearThrow(PAGO, "factura", admin);
 
         enviar("POST", ruta("message-throws"), jsonThrow("pago CONFIRMADO", poolAlpes, poolProveedor, " FACTURA "),
@@ -365,7 +358,7 @@ class MensajesEntreProcesosIntegracionTest {
     @Test
     void losMensajesDeOtroProcesoNoGeneranAmbiguedad() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         ProcesoRespuestaDto ventas = procesoService.crear(new CrearProcesoDto("Ventas", "Proceso de ventas",
                 "Comercial"), ADMIN_ALPES);
         Long proveedorDeVentas = poolService.crear(ventas.getId(), new CrearPoolDto("Proveedor", TipoPool.EXTERNO,
@@ -383,10 +376,10 @@ class MensajesEntreProcesosIntegracionTest {
     @Test
     void unaEmpresaAjenaNoModificaLosMensajesDeOtraEmpresa() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long throwId = crearThrow(PAGO, "factura", admin);
         Long catchId = crearCatch(jsonCatch(PAGO, "INTERMEDIO", poolProveedor, "factura", false, "DESCARTAR"), admin);
-        MockHttpSession sierra = iniciarSesion(ADMIN_SIERRA);
+        AccesoJwt sierra = iniciarSesion(ADMIN_SIERRA);
 
         enviar("PUT", ruta("message-throws/" + throwId), """
                 {"nombreMensaje":"Orden alterada","contenido":"x","poolDestinoId":%d}
@@ -416,7 +409,7 @@ class MensajesEntreProcesosIntegracionTest {
     @Test
     void unCatchDeInicioNoAdmiteFlujosDeSecuenciaEntrantes() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long lane = actividadService.lanesDelProceso(proceso.getId(), ADMIN_ALPES).get(0).getId();
         Long registrar = actividadService.crear(proceso.getId(), new CrearActividadDto("Registrar pago",
                 TipoActividad.TAREA_USUARIO, lane, 200, 60), ADMIN_ALPES).getId();
@@ -449,16 +442,16 @@ class MensajesEntreProcesosIntegracionTest {
     @Test
     void unaEmpresaInvitadaConsultaLosMensajesPeroNoLosModifica() throws Exception {
         prepararProceso();
-        MockHttpSession admin = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         Long throwId = crearThrow(PAGO, "factura", admin);
         Long catchId = crearCatch(jsonCatch(PAGO, "INTERMEDIO", poolProveedor, "factura", false, "DESCARTAR"), admin);
         comparticionProcesoService.compartir(proceso.getId(), andesId, ADMIN_ALPES);
-        MockHttpSession andes = iniciarSesion(ADMIN_ANDES);
+        AccesoJwt andes = iniciarSesion(ADMIN_ANDES);
 
-        mockMvc.perform(get(ruta("message-throws/" + throwId)).session(andes))
+        mockMvc.perform(get(ruta("message-throws/" + throwId)).with(andes))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.catchHomologoId").value(catchId));
-        mockMvc.perform(get(ruta("message-catches")).session(andes))
+        mockMvc.perform(get(ruta("message-catches")).with(andes))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)));
         enviar("POST", ruta("message-throws"), jsonThrow(PAGO, poolAlpes, poolProveedor, null), andes)
@@ -472,11 +465,11 @@ class MensajesEntreProcesosIntegracionTest {
     void unaEmpresaNoInvitadaNoConsultaLosMensajes() throws Exception {
         prepararProceso();
         crearThrow(PAGO, null, iniciarSesion(ADMIN_ALPES));
-        MockHttpSession sierra = iniciarSesion(ADMIN_SIERRA);
+        AccesoJwt sierra = iniciarSesion(ADMIN_SIERRA);
 
-        mockMvc.perform(get(ruta("message-throws")).session(sierra))
+        mockMvc.perform(get(ruta("message-throws")).with(sierra))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
-        mockMvc.perform(get(ruta("message-catches")).session(sierra)).andExpect(status().isForbidden());
+        mockMvc.perform(get(ruta("message-catches")).with(sierra)).andExpect(status().isForbidden());
     }
 }
