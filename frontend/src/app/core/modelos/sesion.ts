@@ -15,6 +15,13 @@ export interface Credenciales {
   password: string;
 }
 
+export interface RespuestaToken {
+  tokenAcceso: string;
+  tipoToken: string;
+  expiraEnSegundos: number;
+  usuario: Sesion;
+}
+
 export const SESION_ANONIMA: Sesion = {
   autenticado: false,
   correo: null,

@@ -1,4 +1,9 @@
-import { provideHttpClient, withFetch, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
+import {
+  provideHttpClient,
+  withFetch,
+  withInterceptors,
+  withXsrfConfiguration,
+} from '@angular/common/http';
 import {
   ApplicationConfig,
   inject,
@@ -9,6 +14,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { catchError, of } from 'rxjs';
 
 import { routes } from './app.routes';
+import { autorizacionInterceptor } from './core/http/autorizacion-interceptor';
 import { sesionExpiradaInterceptor } from './core/http/sesion-expirada-interceptor';
 import { SesionService } from './core/servicios/sesion-service';
 
@@ -19,7 +25,7 @@ export const appConfig: ApplicationConfig = {
     provideHttpClient(
       withFetch(),
       withXsrfConfiguration({ cookieName: 'XSRF-TOKEN', headerName: 'X-XSRF-TOKEN' }),
-      withInterceptors([sesionExpiradaInterceptor]),
+      withInterceptors([sesionExpiradaInterceptor, autorizacionInterceptor]),
     ),
     provideAppInitializer(() =>
       inject(SesionService)
