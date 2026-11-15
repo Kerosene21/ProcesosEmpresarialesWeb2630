@@ -6,7 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -24,8 +23,7 @@ import org.springframework.security.web.access.AccessDeniedHandlerImpl;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.AuthenticationEntryPointFailureHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
-import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.util.function.SingletonSupplier;
 
 @Configuration
@@ -34,8 +32,8 @@ public class SecurityConfig {
 
     private static final String RUTA_LOGIN = "/login";
     private static final String RUTA_API = "/api/**";
-    private static final String RUTA_API_AUTH = "/api/auth/**";
-    private static final String RUTA_API_AUTH_ME = "/api/auth/me";
+    private static final String[] RUTAS_API_AUTH_CON_COOKIES = { "/api/auth/csrf", "/api/auth/login",
+            "/api/auth/refresh", "/api/auth/logout" };
     private static final String RUTA_REGISTRO_EMPRESA = "/empresas/nueva";
     private static final String RUTA_USUARIOS = "/usuarios/**";
     private static final String RUTA_API_USUARIOS = "/api/usuarios/**";
@@ -56,11 +54,7 @@ public class SecurityConfig {
             "/api/procesos/*/message-catches/*/posicion", "/api/procesos/*/envios-externos/*/posicion" };
     private static final String[] RUTAS_API_ELIMINACION_EVENTO = { "/api/procesos/*/message-throws/*/eliminacion",
             "/api/procesos/*/message-catches/*/eliminacion", "/api/procesos/*/envios-externos/*/eliminacion" };
-    private static final String RUTA_API_SESION = "/api/sesion";
     private static final String RUTA_API_EMPRESAS = "/api/empresas";
-    private static final String PARAMETRO_CORREO = "correo";
-    private static final String PARAMETRO_PASSWORD = "password";
-    private static final String COOKIE_SESION = "JSESSIONID";
     private static final String DESAFIO_BEARER = "Bearer";
     private static final String DESAFIO_TOKEN_NO_VALIDO = "Bearer error=\"invalid_token\"";
 
@@ -71,76 +65,33 @@ public class SecurityConfig {
 
     @Bean
     @Order(0)
-    SecurityFilterChain usuarioJwtFilterChain(HttpSecurity http, ObjectProvider<JwtDecoder> decodificadores,
-            ObjectProvider<AutenticadorJwt> autenticadores) throws Exception {
+    SecurityFilterChain autenticacionJwtFilterChain(HttpSecurity http) throws Exception {
         return http
-                .securityMatcher(RUTA_API_AUTH_ME)
-                .addFilter(filtroBearer(decodificadores, autenticadores))
+                .securityMatcher(RUTAS_API_AUTH_CON_COOKIES)
                 .csrf(csrf -> csrf.spa())
                 .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(peticiones -> peticiones.anyRequest().authenticated())
+                .securityContext(contexto -> contexto
+                        .securityContextRepository(new RequestAttributeSecurityContextRepository()))
+                .authorizeHttpRequests(peticiones -> peticiones.anyRequest().permitAll())
                 .logout(logout -> logout.disable())
                 .exceptionHandling(errores -> errores
-                        .authenticationEntryPoint(entradaBearer())
+                        .authenticationEntryPoint(new ApiNoAutorizadoEntryPoint())
                         .accessDeniedHandler(new ApiAccesoDenegadoHandler()))
                 .build();
     }
 
     @Bean
     @Order(1)
-    SecurityFilterChain autenticacionJwtFilterChain(HttpSecurity http) throws Exception {
-        return http
-                .securityMatcher(RUTA_API_AUTH)
-                .csrf(csrf -> csrf.spa())
-                .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(peticiones -> peticiones.anyRequest().permitAll())
-                .logout(logout -> logout.disable())
-                .exceptionHandling(errores -> errores
-                        .authenticationEntryPoint(new ApiNoAutorizadoEntryPoint())
-                        .accessDeniedHandler(new ApiAccesoDenegadoHandler()))
-                .build();
-    }
-
-    @Bean
-    @Order(2)
-    SecurityFilterChain sesionApiFilterChain(HttpSecurity http, UserDetailsService userDetailsService)
-            throws Exception {
-        return http
-                .securityMatcher(RUTA_API_SESION)
-                .addFilterBefore(new UsuarioActivoFilter(userDetailsService), AnonymousAuthenticationFilter.class)
-                .csrf(csrf -> csrf.spa())
-                .authorizeHttpRequests(peticiones -> peticiones.anyRequest().permitAll())
-                .formLogin(login -> login
-                        .loginPage(RUTA_API_SESION)
-                        .loginProcessingUrl(RUTA_API_SESION)
-                        .usernameParameter(PARAMETRO_CORREO)
-                        .passwordParameter(PARAMETRO_PASSWORD)
-                        .successHandler((peticion, respuesta, autenticacion) ->
-                                respuesta.setStatus(HttpStatus.NO_CONTENT.value()))
-                        .failureHandler(new ApiCredencialesInvalidasHandler()))
-                .logout(logout -> logout
-                        .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults()
-                                .matcher(HttpMethod.DELETE, RUTA_API_SESION))
-                        .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT))
-                        .invalidateHttpSession(true)
-                        .clearAuthentication(true)
-                        .deleteCookies(COOKIE_SESION))
-                .exceptionHandling(errores -> errores
-                        .authenticationEntryPoint(new ApiNoAutorizadoEntryPoint())
-                        .accessDeniedHandler(new ApiAccesoDenegadoHandler()))
-                .build();
-    }
-
-    @Bean
-    @Order(3)
-    SecurityFilterChain apiFilterChain(HttpSecurity http, UserDetailsService userDetailsService,
-            ObjectProvider<JwtDecoder> decodificadores, ObjectProvider<AutenticadorJwt> autenticadores)
-            throws Exception {
+    SecurityFilterChain apiFilterChain(HttpSecurity http, ObjectProvider<JwtDecoder> decodificadores,
+            ObjectProvider<AutenticadorJwt> autenticadores) throws Exception {
         return http
                 .securityMatcher(RUTA_API)
                 .addFilter(filtroBearer(decodificadores, autenticadores))
-                .addFilterBefore(new UsuarioActivoFilter(userDetailsService), AnonymousAuthenticationFilter.class)
-                .csrf(csrf -> csrf.spa())
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .securityContext(contexto -> contexto
+                        .securityContextRepository(new RequestAttributeSecurityContextRepository()))
+                .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(peticiones -> peticiones
                         .requestMatchers(HttpMethod.POST, RUTA_API_EMPRESAS).permitAll()
                         .requestMatchers(RUTA_API_USUARIOS).hasRole(ROL_ADMINISTRADOR)
@@ -153,13 +104,13 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .logout(logout -> logout.disable())
                 .exceptionHandling(errores -> errores
-                        .authenticationEntryPoint(new ApiNoAutorizadoEntryPoint())
+                        .authenticationEntryPoint(entradaBearer())
                         .accessDeniedHandler(new ApiAccesoDenegadoHandler()))
                 .build();
     }
 
     @Bean
-    @Order(4)
+    @Order(2)
     SecurityFilterChain securityFilterChain(HttpSecurity http, UserDetailsService userDetailsService)
             throws Exception {
         AccessDeniedHandlerImpl accesoDenegado = new AccessDeniedHandlerImpl();

@@ -3,7 +3,6 @@ package co.edu.javeriana.procesosempresariales;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -126,7 +125,7 @@ class ComparticionProcesosIntegracionTest {
     }
 
     private void compartirConAndes(ProcesoRespuestaDto proceso) throws Exception {
-        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(iniciarSesion(ADMIN_ALPES)).with(csrf()))
+        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(iniciarSesion(ADMIN_ALPES)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.empresaId").value(andesId))
                 .andExpect(jsonPath("$.nombre").value(ANDES));
@@ -177,9 +176,9 @@ class ComparticionProcesosIntegracionTest {
         registrarEmpresas();
         ProcesoRespuestaDto proceso = procesoConModelo();
 
-        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(iniciarSesion(EDITOR_ALPES)).with(csrf()))
+        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(iniciarSesion(EDITOR_ALPES)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(iniciarSesion(LECTOR_ALPES)).with(csrf()))
+        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(iniciarSesion(LECTOR_ALPES)))
                 .andExpect(status().isForbidden());
 
         assertThat(procesoCompartidoEmpresaRepository.findByProcesoIdAndEmpresaInvitadaId(proceso.getId(), andesId))
@@ -227,33 +226,33 @@ class ComparticionProcesosIntegracionTest {
         AccesoJwt andes = iniciarSesion(ADMIN_ANDES);
         Long lane = actividadService.lanesDelProceso(proceso.getId(), ADMIN_ALPES).get(0).getId();
 
-        mockMvc.perform(put(ruta(proceso)).with(andes).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(ruta(proceso)).with(andes).contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"nombre":"Ventas Andes","descripcion":"x","categoria":"Comercial","estado":"BORRADOR"}
                         """))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(post(ruta(proceso) + "/actividades").with(andes).with(csrf())
+        mockMvc.perform(post(ruta(proceso) + "/actividades").with(andes)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nombre\":\"Intrusa\",\"tipo\":\"TAREA_USUARIO\",\"laneId\":" + lane
                         + ",\"posicionX\":10,\"posicionY\":10}"))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(post(ruta(proceso) + "/pools").with(andes).with(csrf())
+        mockMvc.perform(post(ruta(proceso) + "/pools").with(andes)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"nombre\":\"Andes\",\"tipo\":\"EXTERNO\"}"))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(post(ruta(proceso) + "/gateways").with(andes).with(csrf())
+        mockMvc.perform(post(ruta(proceso) + "/gateways").with(andes)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"tipo\":\"PARALELO\",\"posicionX\":10,\"posicionY\":10}"))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(put(ruta(proceso) + "/permisos-estructura/EDITOR").with(andes).with(csrf())
+        mockMvc.perform(put(ruta(proceso) + "/permisos-estructura/EDITOR").with(andes)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {"crearPool":true,"editarPool":true,"eliminarPool":true,
                          "crearLane":true,"editarLane":true,"eliminarLane":true}
                         """))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(andes).with(csrf()))
+        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(andes))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(delete(ruta(proceso)).with(andes).with(csrf())).andExpect(status().isForbidden());
+        mockMvc.perform(delete(ruta(proceso)).with(andes)).andExpect(status().isForbidden());
         mockMvc.perform(get(ruta(proceso) + "/historial").with(andes)).andExpect(status().isForbidden());
 
         assertThat(procesoService.obtener(proceso.getId(), ADMIN_ALPES).getNombre()).isEqualTo("Ventas");
@@ -289,13 +288,13 @@ class ComparticionProcesosIntegracionTest {
         AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
         AccesoJwt andes = iniciarSesion(LECTOR_ANDES);
 
-        mockMvc.perform(delete(rutaCompartir(proceso, andesId)).with(admin).with(csrf()))
+        mockMvc.perform(delete(rutaCompartir(proceso, andesId)).with(admin))
                 .andExpect(status().isNoContent());
 
         mockMvc.perform(get(ruta(proceso)).with(andes)).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/procesos").with(andes).param("alcance", "COMPARTIDOS"))
                 .andExpect(jsonPath("$.content").isEmpty());
-        mockMvc.perform(delete(rutaCompartir(proceso, andesId)).with(admin).with(csrf()))
+        mockMvc.perform(delete(rutaCompartir(proceso, andesId)).with(admin))
                 .andExpect(status().isNotFound());
         assertThat(procesoCompartidoEmpresaRepository.findByProcesoIdAndEmpresaInvitadaId(proceso.getId(), andesId)
                 .orElseThrow().isActivo()).isFalse();
@@ -314,13 +313,13 @@ class ComparticionProcesosIntegracionTest {
         compartirConAndes(proceso);
         AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
-        mockMvc.perform(post(rutaCompartir(proceso, alpesId)).with(admin).with(csrf()))
+        mockMvc.perform(post(rutaCompartir(proceso, alpesId)).with(admin))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath(CODIGO).value("COMPARTICION_NO_VALIDA"));
-        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(admin).with(csrf()))
+        mockMvc.perform(post(rutaCompartir(proceso, andesId)).with(admin))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath(CODIGO).value("PROCESO_YA_COMPARTIDO"));
-        mockMvc.perform(post(rutaCompartir(proceso, 987654L)).with(admin).with(csrf()))
+        mockMvc.perform(post(rutaCompartir(proceso, 987654L)).with(admin))
                 .andExpect(status().isNotFound());
 
         assertThat(procesoCompartidoEmpresaRepository.findByProcesoIdAndActivoTrueOrderByEmpresaInvitadaNombreAsc(

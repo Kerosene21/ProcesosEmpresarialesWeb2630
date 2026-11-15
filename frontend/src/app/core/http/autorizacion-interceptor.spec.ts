@@ -42,12 +42,11 @@ describe('autorizacionInterceptor', () => {
     expect(cabecera('/api/auth/me')).toBe('Bearer jwt-actual');
   });
 
-  it('no envía el Bearer a csrf, login, refresh, logout ni a la sesión anterior', () => {
+  it('no envía el Bearer a csrf, login, refresh ni logout', () => {
     expect(cabecera('/api/auth/csrf')).toBeNull();
     expect(cabecera('/api/auth/login', 'POST')).toBeNull();
     expect(cabecera('/api/auth/refresh', 'POST')).toBeNull();
     expect(cabecera('/api/auth/logout', 'POST')).toBeNull();
-    expect(cabecera('/api/sesion')).toBeNull();
   });
 
   it('no envía el token a dominios externos ni a recursos que no son de la API', () => {

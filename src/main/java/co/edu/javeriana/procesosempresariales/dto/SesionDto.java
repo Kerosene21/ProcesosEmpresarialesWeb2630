@@ -6,7 +6,7 @@ import lombok.Setter;
 
 import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 
-@Schema(description = "Estado de la sesión del navegador. Si `autenticado` es false, el resto de campos es null.")
+@Schema(description = "Usuario autenticado según la base de datos: correo, rol de acceso y empresa actuales.")
 @Getter @Setter
 public class SesionDto {
     private boolean autenticado;

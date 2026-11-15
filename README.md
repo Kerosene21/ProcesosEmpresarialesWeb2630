@@ -190,17 +190,16 @@ Con la aplicación en ejecución:
 
 - Swagger UI sirve para explorar y probar la API REST (`/api/**`).
 - Las rutas de documentación son públicas, pero **la API conserva la seguridad real** del sistema.
-- La autenticación usa la **sesión** del sistema: se inicia sesión en `/login` en el mismo
-  navegador y Swagger UI reutiliza la cookie `JSESSIONID`.
-- Las operaciones `POST`, `PUT` y `DELETE` exigen el token **CSRF** en el encabezado
-  `X-XSRF-TOKEN` (botón *Authorize*, esquema `csrf`), con el valor de la cookie `XSRF-TOKEN` que
-  emite `GET /api/sesion`.
-- Los clientes SPA inician sesión con `POST /api/sesion` y la cierran con `DELETE /api/sesion`.
+- La API es **stateless** y solo acepta JWT: el token se obtiene con `POST /api/auth/login` y se
+  escribe en *Authorize* (esquema `bearerAuth`, sin el prefijo `Bearer`).
+- La cookie `JSESSIONID` de las vistas Thymeleaf **no** autentica la API.
+- Solo login, refresh y logout exigen el token **CSRF** en el encabezado `X-XSRF-TOKEN` (esquema
+  `csrf`), con el valor de la cookie `XSRF-TOKEN` que emite `GET /api/auth/csrf`.
 
-### Autenticación JWT (en convivencia con la sesión)
+### Autenticación JWT de la API REST
 
-La API REST acepta también un token de acceso JWT en `Authorization: Bearer`, mientras la sesión
-anterior sigue funcionando para Angular y Thymeleaf:
+La API REST (`/api/**`) es stateless: cada operación protegida exige `Authorization: Bearer <token>`.
+Las vistas Thymeleaf conservan su sesión con el formulario de `/login`, que no da acceso a la API.
 
 | Endpoint | Uso |
 |---|---|
@@ -212,12 +211,15 @@ anterior sigue funcionando para Angular y Thymeleaf:
 
 - `PE_REFRESH` es `HttpOnly`, limitada a `/api/auth`, `SameSite=Strict` y `Secure` (configurable con
   `COOKIE_SEGURA` solo para desarrollo local). En la base de datos solo se guarda su hash SHA-256.
-- Login, refresh, logout y toda escritura de la API exigen `X-XSRF-TOKEN`, también con Bearer.
+- Login, refresh y logout exigen `X-XSRF-TOKEN` porque dependen de cookies. El resto de la API no
+  usa CSRF, ya que no se autentica con cookies; los formularios Thymeleaf siguen protegidos con CSRF.
+- Son públicos `GET /api/auth/csrf` y el registro de empresas `POST /api/empresas`.
 - El token no contiene roles ni empresa: en cada petición se consultan en PostgreSQL el usuario, su
   estado activo, su rol y la sesión (`sid`). Desactivar al usuario o cerrar sesión invalida sus tokens
   de inmediato.
-- Si una petición trae Bearer y sesión, manda el Bearer; un Bearer inválido responde 401 y nunca
-  recurre a la sesión.
+- Un Bearer ausente, inválido, expirado o revocado responde 401 con `WWW-Authenticate: Bearer`; una
+  sesión `JSESSIONID` nunca lo sustituye y las peticiones con Bearer no crean sesiones HTTP.
+- La antigua API de sesión `/api/sesion` se retiró.
 
 ## Pruebas y calidad
 
@@ -263,6 +265,9 @@ consultando la API:
 - Cada usuario se autentica una sola vez: `GET /login`, extracción del token CSRF y `POST /login`.
 - La cookie `JSESSIONID` se mantiene durante toda la prueba.
 - En cada iteración consulta `GET /api/procesos`.
+
+> Desde que la API es stateless, la sesión de `/login` ya no da acceso a `/api/**`: el plan está
+> pendiente de adaptarse al login JWT y al encabezado `Authorization: Bearer`.
 
 El plan apunta a `localhost:8085`, por lo que la aplicación debe levantarse en ese puerto (por
 ejemplo, `./mvnw spring-boot:run -Dspring-boot.run.arguments=--server.port=8085`). El usuario y la

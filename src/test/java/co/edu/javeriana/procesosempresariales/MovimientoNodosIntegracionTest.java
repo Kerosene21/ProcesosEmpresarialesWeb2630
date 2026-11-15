@@ -1,7 +1,6 @@
 package co.edu.javeriana.procesosempresariales;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -160,7 +159,7 @@ class MovimientoNodosIntegracionTest {
 
     private ResultActions moverActividad(Modelo modelo, ActividadRespuestaDto actividad, Long laneId, int x, int y,
             AccesoJwt acceso) throws Exception {
-        return mockMvc.perform(put(rutaActividad(modelo, actividad) + "/posicion").with(acceso).with(csrf())
+        return mockMvc.perform(put(rutaActividad(modelo, actividad) + "/posicion").with(acceso)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"laneId\":" + laneId + ",\"posicionX\":" + x + ",\"posicionY\":" + y + "}"));
     }
@@ -183,7 +182,7 @@ class MovimientoNodosIntegracionTest {
         Modelo modelo = modeloConDosLanes();
         AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
-        mockMvc.perform(put(rutaActividad(modelo, modelo.registrar())).with(admin).with(csrf())
+        mockMvc.perform(put(rutaActividad(modelo, modelo.registrar())).with(admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nombre\":\"Registrar solicitud\",\"tipo\":\"TAREA_USUARIO\",\"laneId\":" + modelo.analista()
                         + ",\"posicionX\":100,\"posicionY\":200}"))
@@ -239,7 +238,7 @@ class MovimientoNodosIntegracionTest {
         AccesoJwt admin = iniciarSesion(ADMIN_ALPES);
 
         mockMvc.perform(put(ruta(modelo) + "/gateways/" + modelo.gateway().getId() + "/posicion").with(admin)
-                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":560,\"posicionY\":190}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":560,\"posicionY\":190}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.posicionX").value(560));
 
@@ -268,7 +267,7 @@ class MovimientoNodosIntegracionTest {
         moverActividad(modelo, modelo.registrar(), despacho, 100, 420, admin)
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath(CODIGO).value("SECUENCIA_ENTRE_POOLS"));
-        mockMvc.perform(put(rutaActividad(modelo, modelo.evaluar())).with(admin).with(csrf())
+        mockMvc.perform(put(rutaActividad(modelo, modelo.evaluar())).with(admin)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nombre\":\"Evaluar solicitud\",\"tipo\":\"TAREA_USUARIO\",\"laneId\":" + despacho
                         + ",\"posicionX\":300,\"posicionY\":420}"))
@@ -281,7 +280,7 @@ class MovimientoNodosIntegracionTest {
     }
 
     @Test
-    void elLectorLaEmpresaInvitadaYUnaPeticionSinCsrfNoMuevenNodos() throws Exception {
+    void elLectorLaEmpresaInvitadaYUnaPeticionSinBearerNoMuevenNodos() throws Exception {
         registrarEmpresas();
         Modelo modelo = modeloConDosLanes();
         comparticionProcesoService.compartir(modelo.proceso().getId(), andesId, ADMIN_ALPES);
@@ -294,13 +293,13 @@ class MovimientoNodosIntegracionTest {
                 .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
         moverActividad(modelo, modelo.registrar(), modelo.general(), 200, 70, andes)
                 .andExpect(status().isForbidden());
-        mockMvc.perform(put(rutaGateway).with(andes).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(rutaGateway).with(andes).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"posicionX\":600,\"posicionY\":60}"))
                 .andExpect(status().isForbidden());
         mockMvc.perform(put(rutaActividad(modelo, modelo.registrar()) + "/posicion")
-                .with(iniciarSesion(ADMIN_ALPES)).contentType(MediaType.APPLICATION_JSON)
+                .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"laneId\":" + modelo.general() + ",\"posicionX\":200,\"posicionY\":70}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         assertThat(filaGuardada("actividad", modelo.registrar().getId()).get("posicion_x")).isEqualTo(100);
         assertThat(filaGuardada("gateway", modelo.gateway().getId()).get("posicion_x")).isEqualTo(500);
@@ -329,7 +328,7 @@ class MovimientoNodosIntegracionTest {
         moverActividad(modelo, modelo.registrar(), modelo.general(), 200, 70, admin)
                 .andExpect(status().isNotFound());
         mockMvc.perform(put(ruta(modelo) + "/gateways/" + modelo.gateway().getId() + "/posicion").with(admin)
-                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":600,\"posicionY\":60}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":600,\"posicionY\":60}"))
                 .andExpect(status().isNotFound());
         assertThat(filaGuardada("actividad", modelo.registrar().getId()).get("posicion_x")).isEqualTo(100);
     }
@@ -346,7 +345,7 @@ class MovimientoNodosIntegracionTest {
         AccesoJwt editor = iniciarSesion(EDITOR_ALPES);
 
         mockMvc.perform(put(ruta(modelo) + "/message-throws/" + solicitud.getId() + "/posicion").with(editor)
-                .with(csrf()).contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":760,\"posicionY\":80}"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"posicionX\":760,\"posicionY\":80}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.poolOrigenId").value(modelo.proceso().getPoolId()))
                 .andExpect(jsonPath("$.poolDestinoId").value(banco));
@@ -371,17 +370,17 @@ class MovimientoNodosIntegracionTest {
         String gateway = "{\"tipo\":\"GATEWAY\",\"id\":" + modelo.gateway().getId()
                 + ",\"posicionX\":500,\"posicionY\":210}";
 
-        mockMvc.perform(put(ruta).with(editor).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(ruta).with(editor).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nodos\":[" + registrar + ",{\"tipo\":\"GATEWAY\",\"id\":987654,"
                         + "\"posicionX\":10,\"posicionY\":10}]}"))
                 .andExpect(status().isNotFound());
         assertThat(filaGuardada("actividad", modelo.registrar().getId()).get("posicion_y")).isEqualTo(60);
 
-        mockMvc.perform(put(ruta).with(iniciarSesion(LECTOR_ALPES)).with(csrf())
+        mockMvc.perform(put(ruta).with(iniciarSesion(LECTOR_ALPES))
                 .contentType(MediaType.APPLICATION_JSON).content("{\"nodos\":[" + registrar + "]}"))
                 .andExpect(status().isForbidden());
 
-        mockMvc.perform(put(ruta).with(editor).with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(put(ruta).with(editor).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nodos\":[" + registrar + "," + gateway + "]}"))
                 .andExpect(status().isNoContent());
 

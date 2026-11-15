@@ -94,12 +94,13 @@ class EmpresaRestControllerTest {
     }
 
     @Test
-    void elRegistroConservaLaProteccionCsrf() throws Exception {
-        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(JSON_VALIDO))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
+    void elRegistroEsPublicoYNoExigeTokenCsrf() throws Exception {
+        when(empresaService.registrar(any(RegistroEmpresaDto.class))).thenReturn(empresa());
 
-        verify(empresaService, never()).registrar(any(RegistroEmpresaDto.class));
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(JSON_VALIDO))
+                .andExpect(status().isCreated());
+
+        verify(empresaService).registrar(any(RegistroEmpresaDto.class));
     }
 
     @Test

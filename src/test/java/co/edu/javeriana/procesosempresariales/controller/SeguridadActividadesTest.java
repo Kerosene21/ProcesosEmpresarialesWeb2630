@@ -373,13 +373,16 @@ class SeguridadActividadesTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "EDITOR")
-    void laApiDeMovimientoSinTokenCsrfSeRechaza() throws Exception {
+    void laApiDeMovimientoYaNoExigeTokenCsrf() throws Exception {
+        when(actividadService.mover(anyLong(), anyLong(), any(MoverActividadDto.class), eq(USERNAME)))
+                .thenReturn(actividad());
+
         mockMvc.perform(put(RUTA_API_ACTIVIDAD + "/posicion")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"laneId\":12,\"posicionX\":120,\"posicionY\":180}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
 
-        verify(actividadService, never()).mover(anyLong(), anyLong(), any(MoverActividadDto.class), anyString());
+        verify(actividadService).mover(anyLong(), anyLong(), any(MoverActividadDto.class), eq(USERNAME));
     }
 
     @Test

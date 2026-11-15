@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -140,7 +139,7 @@ class RolesProcesoIntegracionTest {
     void elAdministradorCreaUnRolQueQuedaPersistidoYActivoEnSuEmpresa() throws Exception {
         registrarEmpresas();
 
-        MvcResult resultado = mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(ADMIN_ALPES)).with(csrf())
+        MvcResult resultado = mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(ADMIN_ALPES))
                 .contentType(MediaType.APPLICATION_JSON).content(json(" " + ANALISTA + " ", DESCRIPCION)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.nombre").value(ANALISTA))
@@ -165,11 +164,11 @@ class RolesProcesoIntegracionTest {
         registrarEmpresas();
         long rolesAntes = rolProcesoRepository.count();
 
-        mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(EDITOR_ALPES)).with(csrf())
+        mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(EDITOR_ALPES))
                 .contentType(MediaType.APPLICATION_JSON).content(json(ANALISTA, DESCRIPCION)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.codigo").value("USUARIO_SIN_PERMISO"));
-        mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(LECTOR_ALPES)).with(csrf())
+        mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(LECTOR_ALPES))
                 .contentType(MediaType.APPLICATION_JSON).content(json(ANALISTA, DESCRIPCION)))
                 .andExpect(status().isForbidden());
 
@@ -181,10 +180,10 @@ class RolesProcesoIntegracionTest {
         registrarEmpresas();
         AccesoJwt acceso = iniciarSesion(ADMIN_ALPES);
 
-        mockMvc.perform(post(RUTA_ROLES).with(acceso).with(csrf())
+        mockMvc.perform(post(RUTA_ROLES).with(acceso)
                 .contentType(MediaType.APPLICATION_JSON).content(json("   ", DESCRIPCION)))
                 .andExpect(status().isBadRequest());
-        mockMvc.perform(post(RUTA_ROLES).with(acceso).with(csrf())
+        mockMvc.perform(post(RUTA_ROLES).with(acceso)
                 .contentType(MediaType.APPLICATION_JSON).content(json(ANALISTA, " ")))
                 .andExpect(status().isBadRequest());
 
@@ -196,7 +195,7 @@ class RolesProcesoIntegracionTest {
         registrarEmpresas();
         crearRol(ANALISTA, ADMIN_ALPES);
 
-        mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(ADMIN_ALPES)).with(csrf())
+        mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(ADMIN_ALPES))
                 .contentType(MediaType.APPLICATION_JSON).content(json("ANALISTA DE CREDITO", DESCRIPCION)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.codigo").value("ROL_PROCESO_NOMBRE_DUPLICADO"));
@@ -209,7 +208,7 @@ class RolesProcesoIntegracionTest {
         registrarEmpresas();
         RolProcesoRespuestaDto deAlpes = crearRol(ANALISTA, ADMIN_ALPES);
 
-        mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(ADMIN_ANDES)).with(csrf())
+        mockMvc.perform(post(RUTA_ROLES).with(iniciarSesion(ADMIN_ANDES))
                 .contentType(MediaType.APPLICATION_JSON).content(json(ANALISTA, DESCRIPCION)))
                 .andExpect(status().isCreated());
 
@@ -238,7 +237,7 @@ class RolesProcesoIntegracionTest {
                 new CrearActividadDto("Evaluar riesgo", TipoActividad.TAREA_USUARIO, laneId, 100, 40), ADMIN_ALPES);
         assertThat(actividad.getLaneNombre()).isEqualTo(ANALISTA);
 
-        mockMvc.perform(put(rutaRol(rol.getId())).with(iniciarSesion(EDITOR_ALPES)).with(csrf())
+        mockMvc.perform(put(rutaRol(rol.getId())).with(iniciarSesion(EDITOR_ALPES))
                 .contentType(MediaType.APPLICATION_JSON).content(json("Analista senior", DESCRIPCION)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(rol.getId()))
@@ -262,7 +261,7 @@ class RolesProcesoIntegracionTest {
         registrarEmpresas();
         RolProcesoRespuestaDto rol = crearRol(ANALISTA, ADMIN_ALPES);
 
-        mockMvc.perform(put(rutaRol(rol.getId())).with(iniciarSesion(ADMIN_ALPES)).with(csrf())
+        mockMvc.perform(put(rutaRol(rol.getId())).with(iniciarSesion(ADMIN_ALPES))
                 .contentType(MediaType.APPLICATION_JSON).content(json(" " + ANALISTA, DESCRIPCION + " ")))
                 .andExpect(status().isOk());
 
@@ -275,11 +274,11 @@ class RolesProcesoIntegracionTest {
         RolProcesoRespuestaDto rol = crearRol(ANALISTA, ADMIN_ALPES);
         crearRol("Supervisor", ADMIN_ALPES);
 
-        mockMvc.perform(put(rutaRol(rol.getId())).with(iniciarSesion(ADMIN_ALPES)).with(csrf())
+        mockMvc.perform(put(rutaRol(rol.getId())).with(iniciarSesion(ADMIN_ALPES))
                 .contentType(MediaType.APPLICATION_JSON).content(json("supervisor", DESCRIPCION)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.codigo").value("ROL_PROCESO_NOMBRE_DUPLICADO"));
-        mockMvc.perform(put(rutaRol(rol.getId())).with(iniciarSesion(LECTOR_ALPES)).with(csrf())
+        mockMvc.perform(put(rutaRol(rol.getId())).with(iniciarSesion(LECTOR_ALPES))
                 .contentType(MediaType.APPLICATION_JSON).content(json("Otro", DESCRIPCION)))
                 .andExpect(status().isForbidden());
 
@@ -294,11 +293,11 @@ class RolesProcesoIntegracionTest {
 
         mockMvc.perform(get(rutaRol(rol.getId())).with(andes)).andExpect(status().isForbidden());
         mockMvc.perform(get(rutaRol(rol.getId()) + "/historial").with(andes)).andExpect(status().isForbidden());
-        mockMvc.perform(put(rutaRol(rol.getId())).with(andes).with(csrf())
+        mockMvc.perform(put(rutaRol(rol.getId())).with(andes)
                 .contentType(MediaType.APPLICATION_JSON).content(json("Robado", DESCRIPCION)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.mensaje").value("El rol de proceso no pertenece a la empresa del usuario"));
-        mockMvc.perform(delete(rutaRol(rol.getId())).with(andes).with(csrf())).andExpect(status().isForbidden());
+        mockMvc.perform(delete(rutaRol(rol.getId())).with(andes)).andExpect(status().isForbidden());
 
         RolProceso intacto = persistido(rol.getId());
         assertThat(intacto.getNombre()).isEqualTo(ANALISTA);
@@ -330,7 +329,7 @@ class RolesProcesoIntegracionTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.enUso").value(false))
                 .andExpect(jsonPath("$.puedeEliminar").value(true));
-        mockMvc.perform(delete(rutaRol(rol.getId())).with(acceso).with(csrf()))
+        mockMvc.perform(delete(rutaRol(rol.getId())).with(acceso))
                 .andExpect(status().isNoContent());
 
         assertThat(rolProcesoRepository.count()).isEqualTo(rolesAntes);
@@ -338,7 +337,7 @@ class RolesProcesoIntegracionTest {
         assertThat(rolProcesoService.consultarHistorial(rol.getId(), ADMIN_ALPES))
                 .extracting(HistorialRolProcesoRespuestaDto::getAccion)
                 .containsExactly(AccionRolProceso.ELIMINACION, AccionRolProceso.CREACION);
-        mockMvc.perform(delete(rutaRol(rol.getId())).with(acceso).with(csrf()))
+        mockMvc.perform(delete(rutaRol(rol.getId())).with(acceso))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.mensaje").value("El rol de proceso ya fue eliminado"));
     }
@@ -348,9 +347,9 @@ class RolesProcesoIntegracionTest {
         registrarEmpresas();
         RolProcesoRespuestaDto rol = crearRol(ANALISTA, ADMIN_ALPES);
 
-        mockMvc.perform(delete(rutaRol(rol.getId())).with(iniciarSesion(EDITOR_ALPES)).with(csrf()))
+        mockMvc.perform(delete(rutaRol(rol.getId())).with(iniciarSesion(EDITOR_ALPES)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(delete(rutaRol(rol.getId())).with(iniciarSesion(LECTOR_ALPES)).with(csrf()))
+        mockMvc.perform(delete(rutaRol(rol.getId())).with(iniciarSesion(LECTOR_ALPES)))
                 .andExpect(status().isForbidden());
 
         assertThat(persistido(rol.getId()).isActivo()).isTrue();
@@ -369,7 +368,7 @@ class RolesProcesoIntegracionTest {
                 .andExpect(jsonPath("$.enUso").value(true))
                 .andExpect(jsonPath("$.puedeEliminar").value(false))
                 .andExpect(jsonPath("$.procesos[*].nombre", contains("Compras", "Ventas")));
-        mockMvc.perform(delete(rutaRol(rol.getId())).with(acceso).with(csrf()))
+        mockMvc.perform(delete(rutaRol(rol.getId())).with(acceso))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.codigo").value("ROL_PROCESO_EN_USO"))
                 .andExpect(jsonPath("$.procesos", contains("Compras", "Ventas")))
@@ -387,7 +386,7 @@ class RolesProcesoIntegracionTest {
         Long laneId = usarEnLaneGeneral(proceso, rol.getId(), ADMIN_ALPES);
         procesoService.eliminar(proceso.getId(), ADMIN_ALPES);
 
-        mockMvc.perform(delete(rutaRol(rol.getId())).with(iniciarSesion(ADMIN_ALPES)).with(csrf()))
+        mockMvc.perform(delete(rutaRol(rol.getId())).with(iniciarSesion(ADMIN_ALPES)))
                 .andExpect(status().isNoContent());
 
         assertThat(persistido(rol.getId()).isActivo()).isFalse();

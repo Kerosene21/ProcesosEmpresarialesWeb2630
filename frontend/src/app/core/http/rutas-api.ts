@@ -6,8 +6,6 @@ export const RUTAS_AUTENTICACION = {
   me: '/api/auth/me',
 } as const;
 
-export const RUTA_SESION_ANTERIOR = '/api/sesion';
-
 const PREFIJO_API = '/api/';
 
 const RUTAS_DE_CREDENCIALES: ReadonlySet<string> = new Set([
@@ -15,7 +13,6 @@ const RUTAS_DE_CREDENCIALES: ReadonlySet<string> = new Set([
   RUTAS_AUTENTICACION.login,
   RUTAS_AUTENTICACION.refresh,
   RUTAS_AUTENTICACION.logout,
-  RUTA_SESION_ANTERIOR,
 ]);
 
 const ORIGEN_RELATIVO = 'http://relativo.invalid';

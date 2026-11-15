@@ -262,10 +262,10 @@ class SeguridadGatewaysTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laEliminacionPorApiSinTokenCsrfSeRechaza() throws Exception {
-        mockMvc.perform(delete(RUTA_API_GATEWAY)).andExpect(status().isForbidden());
+    void laEliminacionPorApiYaNoExigeTokenCsrf() throws Exception {
+        mockMvc.perform(delete(RUTA_API_GATEWAY)).andExpect(status().isNoContent());
 
-        verify(gatewayService, never()).eliminar(anyLong(), anyLong(), anyString());
+        verify(gatewayService).eliminar(anyLong(), anyLong(), eq(USERNAME));
     }
 
     @Test
@@ -300,11 +300,13 @@ class SeguridadGatewaysTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laApiDeMovimientoDeGatewaysSinTokenCsrfSeRechaza() throws Exception {
+    void laApiDeMovimientoDeGatewaysYaNoExigeTokenCsrf() throws Exception {
+        when(gatewayService.mover(anyLong(), anyLong(), any(MoverNodoDto.class), eq(USERNAME))).thenReturn(gateway());
+
         mockMvc.perform(put(RUTA_API_GATEWAY + "/posicion").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"posicionX\":420,\"posicionY\":120}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
 
-        verify(gatewayService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
+        verify(gatewayService).mover(anyLong(), anyLong(), any(MoverNodoDto.class), eq(USERNAME));
     }
 }

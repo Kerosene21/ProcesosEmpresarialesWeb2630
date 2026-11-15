@@ -214,25 +214,10 @@ describe('SesionService', () => {
     expect(cierre.request.headers.has('Authorization')).toBe(false);
     expect(cierre.request.headers.get('X-XSRF-TOKEN')).toBe('token-csrf');
     cierre.flush(null, SIN_CONTENIDO);
-    const anterior = http.expectOne('/api/sesion');
-    expect(anterior.request.method).toBe('DELETE');
-    anterior.flush(null, SIN_CONTENIDO);
+    http.expectNone('/api/sesion');
 
     expect(terminado).toBe(true);
     expect(servicio.sesion()).toEqual(SESION_ANONIMA);
-  });
-
-  it('no falla el cierre si la sesión anterior por cookie ya no existe', () => {
-    iniciarSesion();
-    let terminado = false;
-
-    servicio.cerrar().subscribe(() => (terminado = true));
-    http.expectOne('/api/auth/logout').flush(null, SIN_CONTENIDO);
-    http
-      .expectOne('/api/sesion')
-      .error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
-
-    expect(terminado).toBe(true);
   });
 
   it('si el servidor rechaza el cierre informa el error sin conservar el token', () => {
@@ -260,7 +245,6 @@ describe('SesionService', () => {
     const refresco = http.expectOne('/api/auth/refresh');
     servicio.cerrar().subscribe();
     http.expectOne('/api/auth/logout').flush(null, SIN_CONTENIDO);
-    http.expectOne('/api/sesion').flush(null, SIN_CONTENIDO);
     refresco.flush(respuesta('jwt-tardio'));
 
     expect(fallo?.codigo).toBe('SESION_DESCARTADA');

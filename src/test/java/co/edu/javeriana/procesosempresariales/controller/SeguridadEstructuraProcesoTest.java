@@ -33,6 +33,7 @@ import co.edu.javeriana.procesosempresariales.domain.RolUsuario;
 import co.edu.javeriana.procesosempresariales.dto.ConfigurarPermisoEstructuraDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearLaneDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearPoolDto;
+import co.edu.javeriana.procesosempresariales.dto.PoolRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.EmpresaInvitadaDto;
 import co.edu.javeriana.procesosempresariales.dto.ReordenarLanesDto;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;
@@ -165,27 +166,34 @@ class SeguridadEstructuraProcesoTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laCreacionDePoolsSinTokenCsrfSeRechaza() throws Exception {
+    void laCreacionDePoolsYaNoExigeTokenCsrf() throws Exception {
+        PoolRespuestaDto creado = new PoolRespuestaDto();
+        creado.setId(40L);
+        when(poolService.crear(anyLong(), any(CrearPoolDto.class), eq(USERNAME))).thenReturn(creado);
+
         mockMvc.perform(post(RUTA_POOLS).contentType(MediaType.APPLICATION_JSON).content(JSON_POOL))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isCreated());
 
-        verify(poolService, never()).crear(anyLong(), any(CrearPoolDto.class), anyString());
+        verify(poolService).crear(anyLong(), any(CrearPoolDto.class), eq(USERNAME));
     }
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laEliminacionDeLanesSinTokenCsrfSeRechaza() throws Exception {
-        mockMvc.perform(delete(RUTA_LANES + "/12")).andExpect(status().isForbidden());
+    void laEliminacionDeLanesYaNoExigeTokenCsrf() throws Exception {
+        mockMvc.perform(delete(RUTA_LANES + "/12")).andExpect(status().isNoContent());
 
-        verify(laneService, never()).eliminar(anyLong(), anyLong(), anyLong(), anyString());
+        verify(laneService).eliminar(anyLong(), anyLong(), eq(12L), eq(USERNAME));
     }
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void compartirSinTokenCsrfSeRechaza() throws Exception {
-        mockMvc.perform(post(RUTA_COMPARTIR)).andExpect(status().isForbidden());
+    void compartirYaNoExigeTokenCsrf() throws Exception {
+        when(comparticionProcesoService.compartir(5L, 99L, USERNAME))
+                .thenReturn(new EmpresaInvitadaDto(99L, "Andes Distribucion"));
 
-        verify(comparticionProcesoService, never()).compartir(anyLong(), anyLong(), anyString());
+        mockMvc.perform(post(RUTA_COMPARTIR)).andExpect(status().isCreated());
+
+        verify(comparticionProcesoService).compartir(5L, 99L, USERNAME);
     }
 
     @Test
@@ -201,13 +209,13 @@ class SeguridadEstructuraProcesoTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laConfiguracionDePermisosSinTokenCsrfSeRechaza() throws Exception {
+    void laConfiguracionDePermisosYaNoExigeTokenCsrf() throws Exception {
         mockMvc.perform(put(RUTA_PERMISOS + "/EDITOR").contentType(MediaType.APPLICATION_JSON)
                 .content(JSON_PERMISOS))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
 
-        verify(permisoEstructuraService, never()).configurar(anyLong(), any(RolUsuario.class),
-                any(ConfigurarPermisoEstructuraDto.class), anyString());
+        verify(permisoEstructuraService).configurar(anyLong(), eq(RolUsuario.EDITOR),
+                any(ConfigurarPermisoEstructuraDto.class), eq(USERNAME));
     }
 
     @Test

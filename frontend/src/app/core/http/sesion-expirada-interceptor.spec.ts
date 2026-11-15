@@ -188,10 +188,10 @@ describe('sesionExpiradaInterceptor', () => {
     expect(navegar).not.toHaveBeenCalled();
   });
 
-  it('un 401 del propio refresh, del logout o de la sesión anterior nunca provoca otro refresh', () => {
+  it('un 401 del propio refresh o del logout nunca provoca otro refresh', () => {
     iniciarSesion();
 
-    for (const url of ['/api/auth/refresh', '/api/auth/logout', '/api/sesion']) {
+    for (const url of ['/api/auth/refresh', '/api/auth/logout']) {
       cliente.post(url, null).subscribe({ error: () => undefined });
       rechazar(url);
     }
@@ -222,7 +222,6 @@ describe('sesionExpiradaInterceptor', () => {
     const refresco = http.expectOne('/api/auth/refresh');
     sesion.cerrar().subscribe();
     http.expectOne('/api/auth/logout').flush(null, SIN_CONTENIDO);
-    http.expectOne('/api/sesion').flush(null, SIN_CONTENIDO);
     refresco.flush(respuesta('jwt-tardio'));
 
     http.expectNone('/api/procesos');

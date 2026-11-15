@@ -201,21 +201,23 @@ class SeguridadMensajesTest {
     }
 
     @Test
-    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
+    @WithMockUser(username = USERNAME, roles = "EDITOR")
     void lasDemasApisTambienRespondenJsonAnteElAccesoDenegado() throws Exception {
-        mockMvc.perform(post("/api/procesos/5/gateways").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(get("/api/usuarios"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
     }
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laCreacionSinTokenCsrfSeRechazaConCuerpoJson() throws Exception {
-        mockMvc.perform(post(RUTA_THROWS).contentType(MediaType.APPLICATION_JSON).content(JSON_THROW))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
+    void laCreacionYaNoExigeTokenCsrf() throws Exception {
+        when(messageThrowService.crear(eq(5L), any(CrearMessageThrowDto.class), eq(USERNAME)))
+                .thenReturn(messageThrow());
 
-        verify(messageThrowService, never()).crear(anyLong(), any(CrearMessageThrowDto.class), anyString());
+        mockMvc.perform(post(RUTA_THROWS).contentType(MediaType.APPLICATION_JSON).content(JSON_THROW))
+                .andExpect(status().isCreated());
+
+        verify(messageThrowService).crear(eq(5L), any(CrearMessageThrowDto.class), eq(USERNAME));
     }
 
     @Test
@@ -249,12 +251,12 @@ class SeguridadMensajesTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "EDITOR")
-    void elMovimientoDeEventosSinTokenCsrfSeRechaza() throws Exception {
+    void elMovimientoDeEventosYaNoExigeTokenCsrf() throws Exception {
         mockMvc.perform(put(RUTA_CATCH + "/posicion").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"posicionX\":520,\"posicionY\":90}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk());
 
-        verify(messageCatchService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
+        verify(messageCatchService).mover(anyLong(), anyLong(), any(MoverNodoDto.class), eq(USERNAME));
     }
 
     @Test
@@ -271,16 +273,12 @@ class SeguridadMensajesTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "EDITOR")
-    void laRecolocacionSinTokenCsrfSeRechazaYConElTokenLlegaAlServicio() throws Exception {
+    void laRecolocacionLlegaAlServicioSinTokenCsrf() throws Exception {
         String json = "{\"nodos\":[{\"tipo\":\"ACTIVIDAD\",\"id\":30,\"posicionX\":100,\"posicionY\":200}]}";
 
         mockMvc.perform(put(RUTA_DIAGRAMA + "/posiciones").contentType(MediaType.APPLICATION_JSON).content(json))
-                .andExpect(status().isForbidden());
-        verify(recolocacionNodosService, never()).recolocar(anyLong(), any(RecolocarNodosDto.class), anyString());
-
-        mockMvc.perform(put(RUTA_DIAGRAMA + "/posiciones").with(csrf()).contentType(MediaType.APPLICATION_JSON)
-                .content(json))
                 .andExpect(status().isNoContent());
+
         verify(recolocacionNodosService).recolocar(eq(5L), any(RecolocarNodosDto.class), eq(USERNAME));
     }
 }

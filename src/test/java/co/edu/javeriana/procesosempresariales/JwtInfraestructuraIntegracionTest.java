@@ -73,11 +73,15 @@ class JwtInfraestructuraIntegracionTest {
 
     @Test
     void laCookieCsrfSigueSiendoLegibleParaLaSpaYDistintaDeLaDeRefresco() throws Exception {
-        mockMvc.perform(get("/api/sesion"))
-                .andExpect(status().isOk())
+        mockMvc.perform(get("/api/auth/csrf"))
+                .andExpect(status().isNoContent())
                 .andExpect(cookie().exists(COOKIE_CSRF))
                 .andExpect(cookie().path(COOKIE_CSRF, "/"))
                 .andExpect(cookie().httpOnly(COOKIE_CSRF, false))
                 .andExpect(cookie().doesNotExist(refrescoProperties.cookie().nombre()));
+        mockMvc.perform(get("/api/procesos"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(cookie().doesNotExist(COOKIE_CSRF))
+                .andExpect(cookie().doesNotExist("JSESSIONID"));
     }
 }

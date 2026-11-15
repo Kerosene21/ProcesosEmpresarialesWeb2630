@@ -3,6 +3,8 @@ package co.edu.javeriana.procesosempresariales;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -162,12 +164,15 @@ class AutenticacionJwtIntegracionTest {
     }
 
     private long crearProceso(AccesoJwt sesion, String nombre) throws Exception {
-        MvcResult resultado = mockMvc.perform(conCsrf(post(RUTA_PROCESOS))
+        return idDe(mockMvc.perform(post(RUTA_PROCESOS)
                 .header(HttpHeaders.AUTHORIZATION, sesion.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(proceso(nombre)))
                 .andExpect(status().isCreated())
-                .andReturn();
+                .andReturn());
+    }
+
+    private long idDe(MvcResult resultado) throws Exception {
         return ((Number) JsonPath.read(resultado.getResponse().getContentAsString(), "$.id")).longValue();
     }
 
@@ -287,6 +292,10 @@ class AutenticacionJwtIntegracionTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(credenciales(EDITOR_ALPES, PASSWORD)))
                 .andExpect(status().isForbidden());
+        mockMvc.perform(post(RUTA_LOGIN).with(login(ADMIN_ALPES))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(credenciales(EDITOR_ALPES, PASSWORD)))
+                .andExpect(status().isForbidden());
 
         assertThat(familiasDe(EDITOR_ALPES)).isZero();
     }
@@ -309,16 +318,36 @@ class AutenticacionJwtIntegracionTest {
     }
 
     @Test
-    void laEscrituraConBearerSigueExigiendoCsrf() throws Exception {
+    void lasEscriturasConBearerYaNoExigenCsrfNiCreanSesion() throws Exception {
         AccesoJwt editor = login(EDITOR_ALPES);
 
-        mockMvc.perform(post(RUTA_PROCESOS).header(HttpHeaders.AUTHORIZATION, editor.bearer())
+        MvcResult creacion = mockMvc.perform(post(RUTA_PROCESOS).with(editor)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(proceso("Sin CSRF")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
+                .andExpect(status().isCreated())
+                .andReturn();
+        mockMvc.perform(post(RUTA_PROCESOS).with(editor).header(CABECERA_CSRF, "token-falso")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Con CSRF falso")))
+                .andExpect(status().isCreated());
+        long id = idDe(creacion);
+        MvcResult edicion = mockMvc.perform(put(RUTA_PROCESOS + "/" + id).with(editor)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nombre\":\"Sin CSRF editado\",\"descripcion\":\"Cambio\",\"categoria\":\"General\","
+                        + "\"estado\":\"BORRADOR\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        MvcResult eliminacion = mockMvc.perform(delete(RUTA_PROCESOS + "/" + id).with(login(ADMIN_ALPES)))
+                .andExpect(status().isNoContent())
+                .andReturn();
 
-        assertThat(procesoRepository.findAll()).noneMatch(p -> "Sin CSRF".equals(p.getNombre()));
+        for (MvcResult resultado : List.of(creacion, edicion, eliminacion)) {
+            assertThat(resultado.getRequest().getSession(false)).isNull();
+            assertThat(resultado.getResponse().getCookie("JSESSIONID")).isNull();
+            assertThat(resultado.getResponse().getCookie(COOKIE_CSRF)).isNull();
+        }
+        assertThat(procesoRepository.findById(id).orElseThrow().isEliminado()).isTrue();
+        assertThat(procesoRepository.findAll()).extracting(p -> p.getNombre()).contains("Con CSRF falso");
     }
 
     @Test
@@ -385,6 +414,8 @@ class AutenticacionJwtIntegracionTest {
         Cookie token = tokenCsrf();
 
         mockMvc.perform(post(RUTA_REFRESH).cookie(inicial.refresco()))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post(RUTA_REFRESH).cookie(inicial.refresco()).with(inicial))
                 .andExpect(status().isForbidden());
         mockMvc.perform(post(RUTA_REFRESH).cookie(inicial.refresco(), token).header(CABECERA_CSRF, "falso"))
                 .andExpect(status().isForbidden());
@@ -479,7 +510,7 @@ class AutenticacionJwtIntegracionTest {
         AccesoJwt editor = login(EDITOR_ALPES);
         AccesoJwt otraPestana = login(EDITOR_ALPES);
 
-        mockMvc.perform(conCsrf(post(RUTA_USUARIOS + "/" + idDe(EDITOR_ALPES) + "/desactivacion"))
+        mockMvc.perform(post(RUTA_USUARIOS + "/" + idDe(EDITOR_ALPES) + "/desactivacion")
                 .header(HttpHeaders.AUTHORIZATION, administrador.bearer()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.activo").value(false));
@@ -501,13 +532,13 @@ class AutenticacionJwtIntegracionTest {
         AccesoJwt editor = login(EDITOR_ALPES);
         crearProceso(editor, "Antes del cambio");
 
-        mockMvc.perform(conCsrf(put(RUTA_USUARIOS + "/" + idDe(EDITOR_ALPES) + "/rol"))
+        mockMvc.perform(put(RUTA_USUARIOS + "/" + idDe(EDITOR_ALPES) + "/rol")
                 .header(HttpHeaders.AUTHORIZATION, administrador.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"rol\":\"SOLO_LECTURA\"}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(conCsrf(post(RUTA_PROCESOS))
+        mockMvc.perform(post(RUTA_PROCESOS)
                 .header(HttpHeaders.AUTHORIZATION, editor.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(proceso("Despues del cambio")))
@@ -529,7 +560,7 @@ class AutenticacionJwtIntegracionTest {
         mockMvc.perform(get(RUTA_PROCESOS + "/" + deAndes).header(HttpHeaders.AUTHORIZATION, alpes.bearer()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
-        mockMvc.perform(conCsrf(put(RUTA_PROCESOS + "/" + deAndes))
+        mockMvc.perform(put(RUTA_PROCESOS + "/" + deAndes)
                 .header(HttpHeaders.AUTHORIZATION, alpes.bearer())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"nombre\":\"Intento ajeno\",\"descripcion\":\"Cambio\",\"categoria\":\"General\","
@@ -547,18 +578,83 @@ class AutenticacionJwtIntegracionTest {
     }
 
     @Test
-    void conSesionYBearerValidoPrevaleceElBearerSinModificarLaSesion() throws Exception {
-        MockHttpSession navegador = sesionDeNavegador(ADMIN_ALPES);
+    void conBearerValidoYLaSesionWebDeOtroUsuarioSoloCuentaElUsuarioDelBearer() throws Exception {
+        MockHttpSession navegadorAndes = sesionDeNavegador(ADMIN_ANDES);
+        AccesoJwt lectura = login(LECTURA_ALPES);
         AccesoJwt editor = login(EDITOR_ALPES);
 
-        mockMvc.perform(get(RUTA_USUARIOS).session(navegador).header(HttpHeaders.AUTHORIZATION, editor.bearer()))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(get(RUTA_USUARIOS).session(navegador))
-                .andExpect(status().isOk());
+        mockMvc.perform(get(RUTA_USUARIOS).session(navegadorAndes).with(lectura))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
+        mockMvc.perform(get(RUTA_ME).session(navegadorAndes).with(lectura))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.correo").value(LECTURA_ALPES))
+                .andExpect(jsonPath("$.empresaNombre").value("Alpes JWT"));
+        mockMvc.perform(post(RUTA_PROCESOS).session(navegadorAndes).with(lectura)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Escrito por lectura")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
+        long id = idDe(mockMvc.perform(post(RUTA_PROCESOS).session(navegadorAndes).with(editor)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Escrito por editor")))
+                .andExpect(status().isCreated())
+                .andReturn());
 
-        SecurityContext guardado = (SecurityContext) navegador
+        assertThat(procesoRepository.findById(id).orElseThrow().getEmpresa().getNombre()).isEqualTo("Alpes JWT");
+        assertThat(procesoRepository.findAll()).noneMatch(p -> "Escrito por lectura".equals(p.getNombre()));
+        SecurityContext guardado = (SecurityContext) navegadorAndes
                 .getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
-        assertThat(guardado.getAuthentication().getName()).isEqualTo(ADMIN_ALPES);
+        assertThat(guardado.getAuthentication().getName()).isEqualTo(ADMIN_ANDES);
+    }
+
+    @Test
+    void unaSesionWebValidaSinBearerNoAutenticaLaApi() throws Exception {
+        MockHttpSession navegador = sesionDeNavegador(ADMIN_ALPES);
+
+        for (String ruta : List.of(RUTA_PROCESOS, RUTA_USUARIOS, RUTA_ME, "/api/empresas/actual")) {
+            mockMvc.perform(get(ruta).session(navegador))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath(CODIGO).value(NO_AUTORIZADO))
+                    .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"));
+        }
+        mockMvc.perform(post(RUTA_PROCESOS).session(navegador).with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(proceso("Con sesion web")))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(conCsrf(put(RUTA_USUARIOS + "/" + idDe(EDITOR_ALPES) + "/rol")).session(navegador)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"rol\":\"ADMINISTRADOR\"}"))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(procesoRepository.findAll()).noneMatch(p -> "Con sesion web".equals(p.getNombre()));
+        assertThat(usuarioRepository.findByUsername(EDITOR_ALPES).orElseThrow().getRol())
+                .isEqualTo(RolUsuario.EDITOR);
+        assertThat(navegador.isInvalid()).isFalse();
+        mockMvc.perform(get("/procesos").session(navegador))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void laRutaAntiguaDeSesionYaNoExisteNiAbreSesiones() throws Exception {
+        MockHttpSession navegador = sesionDeNavegador(ADMIN_ALPES);
+
+        mockMvc.perform(get("/api/sesion"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/sesion").session(navegador))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/sesion").with(login(ADMIN_ALPES)))
+                .andExpect(status().isNotFound());
+        MvcResult intento = mockMvc.perform(conCsrf(post("/api/sesion"))
+                .param("correo", ADMIN_ALPES)
+                .param("password", PASSWORD))
+                .andExpect(status().isUnauthorized())
+                .andReturn();
+        mockMvc.perform(conCsrf(delete("/api/sesion")).session(navegador))
+                .andExpect(status().isUnauthorized());
+
+        assertThat(intento.getRequest().getSession(false)).isNull();
+        assertThat(navegador.isInvalid()).isFalse();
     }
 
     @Test
@@ -567,26 +663,21 @@ class AutenticacionJwtIntegracionTest {
 
         mockMvc.perform(get(RUTA_USUARIOS).session(navegador).header(HttpHeaders.AUTHORIZATION, "Bearer invalido"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath(CODIGO).value(NO_AUTORIZADO));
-        mockMvc.perform(conCsrf(post(RUTA_PROCESOS)).session(navegador)
+                .andExpect(jsonPath(CODIGO).value(NO_AUTORIZADO))
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, containsString("invalid_token")));
+        mockMvc.perform(post(RUTA_PROCESOS).session(navegador)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer invalido")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(proceso("Con bearer invalido")))
                 .andExpect(status().isUnauthorized());
-        mockMvc.perform(post(RUTA_PROCESOS).session(navegador)
-                .header(HttpHeaders.AUTHORIZATION, "Bearer invalido")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(proceso("Sin CSRF y bearer invalido")))
-                .andExpect(status().isForbidden());
 
-        assertThat(procesoRepository.findAll()).noneMatch(p -> p.getNombre().startsWith("Con bearer")
-                || p.getNombre().startsWith("Sin CSRF y"));
-        mockMvc.perform(get(RUTA_USUARIOS).session(navegador))
+        assertThat(procesoRepository.findAll()).noneMatch(p -> p.getNombre().startsWith("Con bearer"));
+        mockMvc.perform(get("/procesos").session(navegador))
                 .andExpect(status().isOk());
     }
 
     @Test
-    void unBearerRevocadoOExpiradoTampocoRecurreALaSesionExistente() throws Exception {
+    void unBearerRevocadoOExpiradoRecibe401AunqueExistaUnaSesionWeb() throws Exception {
         MockHttpSession navegador = sesionDeNavegador(ADMIN_ALPES);
         AccesoJwt revocado = login(ADMIN_ALPES);
         String expirado = firmar(claims(ADMIN_ALPES, familiaDe(login(ADMIN_ALPES)),
@@ -598,7 +689,7 @@ class AutenticacionJwtIntegracionTest {
             mockMvc.perform(get(RUTA_USUARIOS).session(navegador).header(HttpHeaders.AUTHORIZATION, bearer))
                     .andExpect(status().isUnauthorized())
                     .andExpect(jsonPath(CODIGO).value(NO_AUTORIZADO));
-            mockMvc.perform(conCsrf(post(RUTA_PROCESOS)).session(navegador)
+            mockMvc.perform(post(RUTA_PROCESOS).session(navegador)
                     .header(HttpHeaders.AUTHORIZATION, bearer)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(proceso("Con bearer no vigente")))
@@ -606,33 +697,6 @@ class AutenticacionJwtIntegracionTest {
         }
 
         assertThat(procesoRepository.findAll()).noneMatch(p -> "Con bearer no vigente".equals(p.getNombre()));
-        mockMvc.perform(get(RUTA_USUARIOS).session(navegador))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void conSesionYBearerLaEscrituraSigueExigiendoCsrfYSeAtribuyeAlBearer() throws Exception {
-        MockHttpSession navegador = sesionDeNavegador(ADMIN_ALPES);
-        AccesoJwt lectura = login(LECTURA_ALPES);
-
-        mockMvc.perform(post(RUTA_PROCESOS).session(navegador).with(lectura)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(proceso("Mixto sin CSRF")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
-        mockMvc.perform(conCsrf(post(RUTA_PROCESOS)).session(navegador).with(lectura)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(proceso("Mixto con CSRF")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
-        mockMvc.perform(conCsrf(post(RUTA_PROCESOS)).session(navegador)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(proceso("Solo sesion con CSRF")))
-                .andExpect(status().isCreated());
-
-        assertThat(procesoRepository.findAll()).extracting(p -> p.getNombre())
-                .contains("Solo sesion con CSRF")
-                .doesNotContain("Mixto sin CSRF", "Mixto con CSRF");
     }
 
     @Test
@@ -643,7 +707,7 @@ class AutenticacionJwtIntegracionTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath(CODIGO).value(SIN_PERMISO));
 
-        mockMvc.perform(conCsrf(put(RUTA_USUARIOS + "/" + idDe(LECTURA_ALPES) + "/rol")).with(administrador)
+        mockMvc.perform(put(RUTA_USUARIOS + "/" + idDe(LECTURA_ALPES) + "/rol").with(administrador)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"rol\":\"ADMINISTRADOR\"}"))
                 .andExpect(status().isOk());
@@ -652,19 +716,6 @@ class AutenticacionJwtIntegracionTest {
                 .andExpect(status().isOk());
         mockMvc.perform(get(RUTA_ME).with(lectura))
                 .andExpect(jsonPath("$.rol").value("ADMINISTRADOR"));
-    }
-
-    @Test
-    void laSesionDeNavegadorSigueFuncionandoSinBearer() throws Exception {
-        MockHttpSession navegador = sesionDeNavegador(EDITOR_ALPES);
-
-        mockMvc.perform(get("/api/sesion").session(navegador))
-                .andExpect(jsonPath("$.autenticado").value(true))
-                .andExpect(jsonPath("$.correo").value(EDITOR_ALPES));
-        mockMvc.perform(get(RUTA_PROCESOS).session(navegador))
-                .andExpect(status().isOk());
-        mockMvc.perform(get(RUTA_ME).session(navegador))
-                .andExpect(status().isUnauthorized());
     }
 
     @Test

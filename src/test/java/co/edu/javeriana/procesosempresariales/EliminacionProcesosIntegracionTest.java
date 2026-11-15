@@ -257,7 +257,7 @@ class EliminacionProcesosIntegracionTest {
         long procesosAntes = procesoRepository.count();
         AccesoJwt acceso = iniciarSesionJwt(ADMIN_ALPES);
 
-        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).with(acceso).with(csrf()))
+        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).with(acceso))
                 .andExpect(status().isNoContent());
 
         assertThat(procesoRepository.count()).isEqualTo(procesosAntes);
@@ -270,7 +270,7 @@ class EliminacionProcesosIntegracionTest {
         ProcesoRespuestaDto proceso = crearProceso("Ventas", EDITOR_ALPES);
         AccesoJwt acceso = iniciarSesionJwt(EDITOR_ALPES);
 
-        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).with(acceso).with(csrf()))
+        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).with(acceso))
                 .andExpect(status().isForbidden());
 
         assertThat(procesoRepository.findById(proceso.getId()).orElseThrow().isEliminado()).isFalse();
@@ -282,7 +282,7 @@ class EliminacionProcesosIntegracionTest {
         ProcesoRespuestaDto proceso = crearProceso("Ventas", EDITOR_ALPES);
         AccesoJwt acceso = iniciarSesionJwt(LECTOR_ALPES);
 
-        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).with(acceso).with(csrf()))
+        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).with(acceso))
                 .andExpect(status().isForbidden());
 
         assertThat(procesoRepository.findById(proceso.getId()).orElseThrow().isEliminado()).isFalse();
@@ -309,8 +309,7 @@ class EliminacionProcesosIntegracionTest {
         registrarAndes();
         ProcesoRespuestaDto procesoDeAndes = crearProceso("Compras", ADMIN_ANDES);
 
-        mockMvc.perform(delete("/api/procesos/" + procesoDeAndes.getId()).with(iniciarSesionJwt(ADMIN_ALPES))
-                .with(csrf()))
+        mockMvc.perform(delete("/api/procesos/" + procesoDeAndes.getId()).with(iniciarSesionJwt(ADMIN_ALPES)))
                 .andExpect(status().isForbidden());
 
         assertThat(procesoRepository.findById(procesoDeAndes.getId()).orElseThrow().isEliminado()).isFalse();

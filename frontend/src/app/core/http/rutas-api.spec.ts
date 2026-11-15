@@ -29,7 +29,6 @@ describe('rutas de la API', () => {
       '/api/auth/login',
       '/api/auth/refresh',
       '/api/auth/logout',
-      '/api/sesion',
     ]) {
       expect(esRutaDeCredenciales(ruta)).toBe(true);
       expect(requiereBearer(ruta)).toBe(false);

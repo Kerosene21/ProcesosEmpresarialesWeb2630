@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -128,7 +127,7 @@ class MensajesEntreProcesosIntegracionTest {
         if (json != null) {
             peticion.contentType(MediaType.APPLICATION_JSON).content(json);
         }
-        return mockMvc.perform(peticion.with(acceso).with(csrf()));
+        return mockMvc.perform(peticion.with(acceso));
     }
 
     private Long idCreado(ResultActions resultado) throws Exception {

@@ -1,6 +1,8 @@
 package co.edu.javeriana.procesosempresariales;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
+import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
@@ -24,7 +26,6 @@ final class ClientePruebaJwt {
     static final String RUTA_REFRESH = "/api/auth/refresh";
     static final String RUTA_LOGOUT = "/api/auth/logout";
     static final String RUTA_ME = "/api/auth/me";
-    static final String RUTA_SESION_ANTERIOR = "/api/sesion";
     static final String COOKIE_CSRF = "XSRF-TOKEN";
     static final String CABECERA_CSRF = "X-XSRF-TOKEN";
     static final String COOKIE_REFRESCO = "PE_REFRESH";
@@ -63,12 +64,12 @@ final class ClientePruebaJwt {
     }
 
     MockHttpSession sesionDeNavegador(String correo, String password) throws Exception {
-        MvcResult resultado = mockMvc.perform(conCsrf(post(RUTA_SESION_ANTERIOR)).session(new MockHttpSession())
-                .param("correo", correo)
-                .param("password", password))
+        MvcResult resultado = mockMvc.perform(formLogin().user(correo).password(password))
+                .andExpect(authenticated().withUsername(correo))
                 .andReturn();
-        assertThat(resultado.getResponse().getStatus()).as("login por %s", RUTA_SESION_ANTERIOR).isEqualTo(204);
-        return (MockHttpSession) resultado.getRequest().getSession(false);
+        MockHttpSession sesion = (MockHttpSession) resultado.getRequest().getSession(false);
+        assertThat(sesion).as("sesión del formulario /login").isNotNull();
+        return sesion;
     }
 
     MvcResult intentarRefrescar(Cookie refresco) throws Exception {

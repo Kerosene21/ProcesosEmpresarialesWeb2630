@@ -12,7 +12,7 @@ import {
   throwError,
 } from 'rxjs';
 
-import { RUTAS_AUTENTICACION, RUTA_SESION_ANTERIOR } from '../http/rutas-api';
+import { RUTAS_AUTENTICACION } from '../http/rutas-api';
 import { lanzarFallo } from '../http/traducir-fallo';
 import { FalloHttp } from '../modelos/fallo-http';
 import {
@@ -97,9 +97,6 @@ export class SesionService {
   cerrar(): Observable<void> {
     this.olvidar();
     return this.conCsrf(this.http.post<void>(RUTAS_AUTENTICACION.logout, null)).pipe(
-      switchMap(() =>
-        this.http.delete<void>(RUTA_SESION_ANTERIOR).pipe(catchError(() => of(undefined))),
-      ),
       map(() => undefined),
       catchError(lanzarFallo),
     );

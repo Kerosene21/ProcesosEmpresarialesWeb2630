@@ -45,7 +45,7 @@ class UsuarioActivoFilterTest {
     void preparar() {
         filtro = new UsuarioActivoFilter(userDetailsService);
         sesion = new MockHttpSession();
-        peticion = new MockHttpServletRequest("GET", "/api/procesos");
+        peticion = new MockHttpServletRequest("GET", "/procesos");
         peticion.setSession(sesion);
         cadena = new MockFilterChain();
     }
