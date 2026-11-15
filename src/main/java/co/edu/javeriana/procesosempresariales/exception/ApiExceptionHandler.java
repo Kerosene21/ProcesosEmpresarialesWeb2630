@@ -163,6 +163,11 @@ public class ApiExceptionHandler {
                 .body(Map.of("codigo", "RECURSO_NO_ENCONTRADO", "mensaje", exception.getMessage()));
     }
 
+    @ExceptionHandler(CredencialesInvalidasException.class)
+    ResponseEntity<Map<String, String>> credencialesInvalidas(CredencialesInvalidasException exception) {
+        return respuesta(HttpStatus.UNAUTHORIZED, "CREDENCIALES_INVALIDAS", exception);
+    }
+
     @ExceptionHandler(UsuarioNoAutorizadoException.class)
     ResponseEntity<Map<String, String>> noAutorizado(UsuarioNoAutorizadoException exception) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)

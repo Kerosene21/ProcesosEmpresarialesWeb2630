@@ -86,7 +86,7 @@ public class UsuarioService {
         Usuario administrador = exigirAdministrador(administradorUsername);
         Usuario objetivo = usuarioDeLaEmpresa(usuarioId, administrador);
         exigirQueNoSeaSuPropiaCuenta(administrador, objetivo);
-        objetivo.setActivo(false);
+        objetivo.desactivar();
         return toDto(usuarioRepository.save(objetivo));
     }
 

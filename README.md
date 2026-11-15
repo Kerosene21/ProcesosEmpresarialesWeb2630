@@ -124,6 +124,10 @@ cp .env.example .env
 pruebas es fija y no se puede redirigir por variables de entorno, porque `create-drop` destruye el
 esquema al terminar.
 
+`JWT_SECRET` también es obligatoria para arrancar la aplicación: es la clave HS256 de los tokens de
+acceso, en Base64 y de al menos 32 bytes (por ejemplo, `openssl rand -base64 48`). Las pruebas no la
+necesitan, porque cada contexto de pruebas genera una clave aleatoria propia.
+
 ### Ejecutar
 
 ```bash
@@ -192,7 +196,28 @@ Con la aplicación en ejecución:
   `X-XSRF-TOKEN` (botón *Authorize*, esquema `csrf`), con el valor de la cookie `XSRF-TOKEN` que
   emite `GET /api/sesion`.
 - Los clientes SPA inician sesión con `POST /api/sesion` y la cierran con `DELETE /api/sesion`.
-- No existe un JWT ni un esquema Bearer ficticio solo para Swagger.
+
+### Autenticación JWT (en convivencia con la sesión)
+
+La API REST acepta también un token de acceso JWT en `Authorization: Bearer`, mientras la sesión
+anterior sigue funcionando para Angular y Thymeleaf:
+
+| Endpoint | Uso |
+|---|---|
+| `GET /api/auth/csrf` | Emite la cookie `XSRF-TOKEN` (legible por la SPA, `Path=/`). |
+| `POST /api/auth/login` | `{"correo","password"}` → token de acceso (15 min) y cookie `PE_REFRESH`. |
+| `POST /api/auth/refresh` | Rota la cookie `PE_REFRESH` y entrega un token de acceso nuevo. |
+| `POST /api/auth/logout` | Revoca la sesión de la cookie y la elimina; no necesita un token vigente. |
+| `GET /api/auth/me` | Datos actuales del usuario del token (requiere Bearer). |
+
+- `PE_REFRESH` es `HttpOnly`, limitada a `/api/auth`, `SameSite=Strict` y `Secure` (configurable con
+  `COOKIE_SEGURA` solo para desarrollo local). En la base de datos solo se guarda su hash SHA-256.
+- Login, refresh, logout y toda escritura de la API exigen `X-XSRF-TOKEN`, también con Bearer.
+- El token no contiene roles ni empresa: en cada petición se consultan en PostgreSQL el usuario, su
+  estado activo, su rol y la sesión (`sid`). Desactivar al usuario o cerrar sesión invalida sus tokens
+  de inmediato.
+- Si una petición trae Bearer y sesión, manda el Bearer; un Bearer inválido responde 401 y nunca
+  recurre a la sesión.
 
 ## Pruebas y calidad
 

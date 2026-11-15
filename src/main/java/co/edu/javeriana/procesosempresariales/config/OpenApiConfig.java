@@ -36,6 +36,7 @@ public class OpenApiConfig {
     private static final String GRUPO_API = "api-rest";
     private static final String ESQUEMA_SESION = "sesion";
     private static final String ESQUEMA_CSRF = "csrf";
+    private static final String RUTA_AUTENTICACION_JWT = "/api/auth/";
     private static final String ERROR_API = "ErrorApi";
     private static final String ERROR_VALIDACION = "ErrorValidacion";
 
@@ -144,6 +145,10 @@ public class OpenApiConfig {
                 respuesta.setContent(contenidoDeError(codigo));
             }
         });
+        if (ruta.startsWith(RUTA_AUTENTICACION_JWT)) {
+            operacion.setSecurity(escritura ? List.of(new SecurityRequirement().addList(ESQUEMA_CSRF)) : List.of());
+            return;
+        }
         SecurityRequirement requisito = new SecurityRequirement().addList(ESQUEMA_SESION);
         operacion.setSecurity(List.of(escritura ? requisito.addList(ESQUEMA_CSRF) : requisito));
     }

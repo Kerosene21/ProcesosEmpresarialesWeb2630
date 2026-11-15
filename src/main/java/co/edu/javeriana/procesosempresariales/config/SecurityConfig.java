@@ -1,28 +1,32 @@
 package co.edu.javeriana.procesosempresariales.config;
 
-import java.util.LinkedHashMap;
-
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.access.AccessDeniedHandlerImpl;
-import org.springframework.security.web.access.RequestMatcherDelegatingAccessDeniedHandler;
 import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
-import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.AuthenticationEntryPointFailureHandler;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
-import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.util.function.SingletonSupplier;
 
 @Configuration
 @EnableWebSecurity
@@ -30,6 +34,8 @@ public class SecurityConfig {
 
     private static final String RUTA_LOGIN = "/login";
     private static final String RUTA_API = "/api/**";
+    private static final String RUTA_API_AUTH = "/api/auth/**";
+    private static final String RUTA_API_AUTH_ME = "/api/auth/me";
     private static final String RUTA_REGISTRO_EMPRESA = "/empresas/nueva";
     private static final String RUTA_USUARIOS = "/usuarios/**";
     private static final String RUTA_API_USUARIOS = "/api/usuarios/**";
@@ -55,6 +61,8 @@ public class SecurityConfig {
     private static final String PARAMETRO_CORREO = "correo";
     private static final String PARAMETRO_PASSWORD = "password";
     private static final String COOKIE_SESION = "JSESSIONID";
+    private static final String DESAFIO_BEARER = "Bearer";
+    private static final String DESAFIO_TOKEN_NO_VALIDO = "Bearer error=\"invalid_token\"";
 
     @Bean
     PasswordEncoder passwordEncoder() {
@@ -62,7 +70,39 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(0)
+    SecurityFilterChain usuarioJwtFilterChain(HttpSecurity http, ObjectProvider<JwtDecoder> decodificadores,
+            ObjectProvider<AutenticadorJwt> autenticadores) throws Exception {
+        return http
+                .securityMatcher(RUTA_API_AUTH_ME)
+                .addFilter(filtroBearer(decodificadores, autenticadores))
+                .csrf(csrf -> csrf.spa())
+                .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(peticiones -> peticiones.anyRequest().authenticated())
+                .logout(logout -> logout.disable())
+                .exceptionHandling(errores -> errores
+                        .authenticationEntryPoint(entradaBearer())
+                        .accessDeniedHandler(new ApiAccesoDenegadoHandler()))
+                .build();
+    }
+
+    @Bean
     @Order(1)
+    SecurityFilterChain autenticacionJwtFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .securityMatcher(RUTA_API_AUTH)
+                .csrf(csrf -> csrf.spa())
+                .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(peticiones -> peticiones.anyRequest().permitAll())
+                .logout(logout -> logout.disable())
+                .exceptionHandling(errores -> errores
+                        .authenticationEntryPoint(new ApiNoAutorizadoEntryPoint())
+                        .accessDeniedHandler(new ApiAccesoDenegadoHandler()))
+                .build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain sesionApiFilterChain(HttpSecurity http, UserDetailsService userDetailsService)
             throws Exception {
         return http
@@ -92,9 +132,38 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Order(2)
+    @Order(3)
+    SecurityFilterChain apiFilterChain(HttpSecurity http, UserDetailsService userDetailsService,
+            ObjectProvider<JwtDecoder> decodificadores, ObjectProvider<AutenticadorJwt> autenticadores)
+            throws Exception {
+        return http
+                .securityMatcher(RUTA_API)
+                .addFilter(filtroBearer(decodificadores, autenticadores))
+                .addFilterBefore(new UsuarioActivoFilter(userDetailsService), AnonymousAuthenticationFilter.class)
+                .csrf(csrf -> csrf.spa())
+                .authorizeHttpRequests(peticiones -> peticiones
+                        .requestMatchers(HttpMethod.POST, RUTA_API_EMPRESAS).permitAll()
+                        .requestMatchers(RUTA_API_USUARIOS).hasRole(ROL_ADMINISTRADOR)
+                        .requestMatchers(HttpMethod.GET, RUTAS_API_ELIMINACION_EVENTO).hasRole(ROL_ADMINISTRADOR)
+                        .requestMatchers(HttpMethod.DELETE, RUTAS_API_EVENTO).hasRole(ROL_ADMINISTRADOR)
+                        .requestMatchers(HttpMethod.POST, RUTAS_API_EVENTOS).hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .requestMatchers(HttpMethod.PUT, RUTAS_API_EVENTO).hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .requestMatchers(HttpMethod.PUT, RUTAS_API_POSICION_EVENTO)
+                        .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
+                        .anyRequest().authenticated())
+                .logout(logout -> logout.disable())
+                .exceptionHandling(errores -> errores
+                        .authenticationEntryPoint(new ApiNoAutorizadoEntryPoint())
+                        .accessDeniedHandler(new ApiAccesoDenegadoHandler()))
+                .build();
+    }
+
+    @Bean
+    @Order(4)
     SecurityFilterChain securityFilterChain(HttpSecurity http, UserDetailsService userDetailsService)
             throws Exception {
+        AccessDeniedHandlerImpl accesoDenegado = new AccessDeniedHandlerImpl();
+        accesoDenegado.setErrorPage(RUTA_ACCESO_DENEGADO);
         return http
                 .addFilterBefore(new UsuarioActivoFilter(userDetailsService), AnonymousAuthenticationFilter.class)
                 .csrf(csrf -> csrf.spa())
@@ -103,9 +172,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, RUTAS_DOCUMENTACION_API).permitAll()
                         .requestMatchers(RUTA_REGISTRO_EMPRESA).permitAll()
                         .requestMatchers(HttpMethod.POST, "/empresas").permitAll()
-                        .requestMatchers(HttpMethod.POST, RUTA_API_EMPRESAS).permitAll()
                         .requestMatchers(RUTA_USUARIOS).hasRole(ROL_ADMINISTRADOR)
-                        .requestMatchers(RUTA_API_USUARIOS).hasRole(ROL_ADMINISTRADOR)
                         .requestMatchers(HttpMethod.GET, RUTA_ELIMINAR_PROCESO).hasRole(ROL_ADMINISTRADOR)
                         .requestMatchers(HttpMethod.POST, RUTA_ELIMINAR_PROCESO).hasRole(ROL_ADMINISTRADOR)
                         .requestMatchers(HttpMethod.GET, "/procesos/nuevo", "/procesos/*/editar")
@@ -131,12 +198,6 @@ public class SecurityConfig {
                         .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
                         .requestMatchers(HttpMethod.POST, "/procesos/*/gateways", "/procesos/*/gateways/*")
                         .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
-                        .requestMatchers(HttpMethod.GET, RUTAS_API_ELIMINACION_EVENTO).hasRole(ROL_ADMINISTRADOR)
-                        .requestMatchers(HttpMethod.DELETE, RUTAS_API_EVENTO).hasRole(ROL_ADMINISTRADOR)
-                        .requestMatchers(HttpMethod.POST, RUTAS_API_EVENTOS).hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
-                        .requestMatchers(HttpMethod.PUT, RUTAS_API_EVENTO).hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
-                        .requestMatchers(HttpMethod.PUT, RUTAS_API_POSICION_EVENTO)
-                        .hasAnyRole(ROL_ADMINISTRADOR, ROL_EDITOR)
                         .anyRequest().authenticated())
                 .formLogin(login -> login
                         .loginPage(RUTA_LOGIN)
@@ -149,24 +210,33 @@ public class SecurityConfig {
                         .clearAuthentication(true)
                         .permitAll())
                 .exceptionHandling(errores -> errores
-                        .authenticationEntryPoint(puntoDeEntrada())
-                        .accessDeniedHandler(accesoDenegado()))
+                        .authenticationEntryPoint(new LoginUrlAuthenticationEntryPoint(RUTA_LOGIN))
+                        .accessDeniedHandler(accesoDenegado))
                 .build();
     }
 
-    private AccessDeniedHandler accesoDenegado() {
-        AccessDeniedHandlerImpl pagina = new AccessDeniedHandlerImpl();
-        pagina.setErrorPage(RUTA_ACCESO_DENEGADO);
-        LinkedHashMap<RequestMatcher, AccessDeniedHandler> manejadores = new LinkedHashMap<>();
-        manejadores.put(PathPatternRequestMatcher.withDefaults().matcher(RUTA_API), new ApiAccesoDenegadoHandler());
-        return new RequestMatcherDelegatingAccessDeniedHandler(manejadores, pagina);
+    private BearerTokenAuthenticationFilter filtroBearer(ObjectProvider<JwtDecoder> decodificadores,
+            ObjectProvider<AutenticadorJwt> autenticadores) {
+        SingletonSupplier<JwtAuthenticationProvider> proveedor = SingletonSupplier.of(() -> {
+            JwtAuthenticationProvider jwt = new JwtAuthenticationProvider(decodificadores.getObject());
+            AutenticadorJwt autenticador = autenticadores.getObject();
+            jwt.setJwtAuthenticationConverter(autenticador::autenticar);
+            return jwt;
+        });
+        AuthenticationManager gestor = autenticacion -> proveedor.obtain().authenticate(autenticacion);
+        BearerTokenAuthenticationFilter filtro = new BearerTokenAuthenticationFilter(gestor);
+        AuthenticationEntryPoint entrada = entradaBearer();
+        filtro.setAuthenticationEntryPoint(entrada);
+        filtro.setAuthenticationFailureHandler(new AuthenticationEntryPointFailureHandler(entrada));
+        return filtro;
     }
 
-    private AuthenticationEntryPoint puntoDeEntrada() {
-        return DelegatingAuthenticationEntryPoint.builder()
-                .addEntryPointFor(new ApiNoAutorizadoEntryPoint(),
-                        PathPatternRequestMatcher.withDefaults().matcher(RUTA_API))
-                .defaultEntryPoint(new LoginUrlAuthenticationEntryPoint(RUTA_LOGIN))
-                .build();
+    private AuthenticationEntryPoint entradaBearer() {
+        ApiNoAutorizadoEntryPoint cuerpo = new ApiNoAutorizadoEntryPoint();
+        return (peticion, respuesta, error) -> {
+            respuesta.setHeader(HttpHeaders.WWW_AUTHENTICATE,
+                    error instanceof OAuth2AuthenticationException ? DESAFIO_TOKEN_NO_VALIDO : DESAFIO_BEARER);
+            cuerpo.commence(peticion, respuesta, error);
+        };
     }
 }

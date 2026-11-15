@@ -185,11 +185,11 @@ class DocumentacionApiIntegracionTest {
         List<String> etiquetas = JsonPath.read(json, "$.paths.*.*.tags[0]");
         List<Map<String, Object>> respuestas = JsonPath.read(json, "$.paths.*.*.responses");
 
-        assertThat(identificadores).hasSize(78).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
-        assertThat(resumenes).hasSize(78).allMatch(resumen -> !resumen.isBlank());
-        assertThat(etiquetas).hasSize(78);
+        assertThat(identificadores).hasSize(83).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
+        assertThat(resumenes).hasSize(83).allMatch(resumen -> !resumen.isBlank());
+        assertThat(etiquetas).hasSize(83);
         assertThat(respuestas)
-                .hasSize(78)
+                .hasSize(83)
                 .allSatisfy(respuesta -> assertThat(respuesta).containsKey("401"));
     }
 

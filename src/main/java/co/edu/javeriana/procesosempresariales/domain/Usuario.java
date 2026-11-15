@@ -16,11 +16,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.springframework.data.domain.AbstractAggregateRoot;
 
 @Entity
 @Table(name = "usuario", uniqueConstraints = @UniqueConstraint(name = "uk_usuario_username", columnNames = "username"))
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor
-public class Usuario {
+public class Usuario extends AbstractAggregateRoot<Usuario> {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -41,4 +42,9 @@ public class Usuario {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "empresa_id", nullable = false)
     private Empresa empresa;
+
+    public void desactivar() {
+        this.activo = false;
+        registerEvent(new UsuarioDesactivado(id));
+    }
 }
