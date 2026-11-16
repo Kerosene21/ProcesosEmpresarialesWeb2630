@@ -1,7 +1,8 @@
 # Construye las imagenes del backend y del frontend y las publica en GitHub Container Registry.
 # - Pull requests: pruebas y construccion de ambas imagenes, sin iniciar sesion ni publicar.
-# - Push a main, etiquetas vX.Y.Z y ejecucion manual desde main: pruebas y publicacion en GHCR.
-# - Ejecucion manual desde otra rama: solo pruebas y construccion, sin publicar.
+# - Push a main y ejecucion manual desde main: pruebas y publicacion en GHCR.
+# - Push de etiquetas vX.Y.Z: publicacion solo si el commit etiquetado pertenece al historial de main.
+# - Ejecucion manual desde otra rama o desde una etiqueta: solo pruebas y construccion, sin publicar.
 # No despliega en Kubernetes: el despliegue usa los digests que este workflow muestra en el resumen.
 # Las acciones estan fijadas por commit; el comentario indica la version publicada.
 name: Imagenes de contenedor
@@ -101,10 +102,11 @@ jobs:
 
   verificar-imagenes:
     name: Construir sin publicar (${{ matrix.componente }})
-    # Todo lo que no es publicable: pull requests y ejecuciones manuales fuera de main.
+    # Exactamente lo contrario de la condicion de publicar: todo evento ejecuta uno de los dos trabajos.
     if: >-
-      github.event_name == 'pull_request' ||
-      !(github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+      !(github.repository == 'Kerosene21/ProcesosEmpresarialesWeb2630' &&
+      ((github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')))
     needs:
       - backend
       - frontend
@@ -160,11 +162,11 @@ jobs:
 
   publicar:
     name: Publicar en GHCR (${{ matrix.componente }})
-    # Solo main y etiquetas de version de este repositorio; nunca un pull request.
+    # Solo en este repositorio: push a main o a una etiqueta de version, o ejecucion manual desde main.
     if: >-
       github.repository == 'Kerosene21/ProcesosEmpresarialesWeb2630' &&
-      github.event_name != 'pull_request' &&
-      (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+      ((github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'))
     needs:
       - backend
       - frontend
@@ -191,6 +193,22 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
+
+      # Antes de iniciar sesion: una etiqueta solo se publica si su commit ya esta integrado en main.
+      - name: Comprobar que la etiqueta pertenece a main
+        if: github.ref_type == 'tag'
+        env:
+          ETIQUETA: ${{ github.ref_name }}
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          commit=$(git rev-parse --verify "${GITHUB_SHA}^{commit}")
+          if git merge-base --is-ancestor "$commit" refs/remotes/origin/main; then
+            echo "La etiqueta ${ETIQUETA} (${commit}) pertenece al historial de main."
+          else
+            echo "::error::La etiqueta ${ETIQUETA} apunta a ${commit}, que no esta en origin/main; no se publica."
+            exit 1
+          fi
 
       - name: Preparar Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
