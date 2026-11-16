@@ -1,0 +1,14 @@
+# Almacenamiento de PostgreSQL en la VM: recursos de ambito de cluster, fuera del overlay vm.
+# Se aplican aparte, una sola vez y solo con autorizacion, despues de crear el directorio del PV:
+#   sudo install -d -m 0755 /var/lib/procesos-empresariales
+#   sudo install -d -m 0700 -o 70 -g 70 /var/lib/procesos-empresariales/postgres
+#   microk8s kubectl apply -k k8s/overlays/vm/almacenamiento
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: procesos-empresariales
+    includeSelectors: false
+resources:
+  - storageclass.yaml
+  - persistentvolume.yaml

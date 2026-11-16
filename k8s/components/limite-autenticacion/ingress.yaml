@@ -1,0 +1,36 @@
+# Las rutas exactas /api/auth/login y /api/empresas pasan por el Middleware limite-autenticacion.
+# Un Ingress no filtra por metodo: el limite cuenta cualquier metodo sobre esas dos rutas exactas. El backend
+# solo implementa POST en ambas (el resto recibe 405), asi que en la practica limita el login y el registro.
+# No cubre otras rutas: /api/empresas/actual o /api/auth/refresh siguen por el Ingress procesos. Las variantes
+# /api/auth/login/ y /api/empresas/ tampoco, pero no llegan al login ni al registro (Spring responde 401).
+# Sin prioridad explicita: Traefik ordena por longitud de regla y Path(`/api/auth/login`) y Path(`/api/empresas`)
+# ya superan a PathPrefix(`/api/`). Una prioridad alta en una regla sin host se impondria tambien a las rutas
+# de otras aplicaciones del mismo Traefik.
+# El Middleware se referencia como <namespace>-<nombre>@kubernetescrd.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: procesos-autenticacion
+  labels:
+    app.kubernetes.io/part-of: procesos-empresariales
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: procesos-empresariales-limite-autenticacion@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /api/auth/login
+            pathType: Exact
+            backend:
+              service:
+                name: procesos-backend
+                port:
+                  name: http
+          - path: /api/empresas
+            pathType: Exact
+            backend:
+              service:
+                name: procesos-backend
+                port:
+                  name: http

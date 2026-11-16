@@ -257,7 +257,12 @@ Los manifiestos viven en [`k8s/`](k8s) y se combinan con Kustomize (`kubectl app
 |---|---|
 | `k8s/base` | Namespace con Pod Security `restricted`, PostgreSQL (StatefulSet, Service *headless* y PVC), backend y frontend (Deployment y Service), Ingress, NetworkPolicies y ConfigMaps |
 | `k8s/overlays/local` | Clúster local de pruebas con k3d: etiquetas `:local`, entrada HTTP `web` y `COOKIE_SEGURA=false` |
+| `k8s/overlays/vm` | VM universitaria con MicroK8s: imágenes de GHCR, solo HTTPS (`websecure`), Traefik del namespace `ingress`, red de pods de Calico, PVC de 5 Gi con `Retain` y límite de peticiones |
+| `k8s/overlays/vm-http` | Validación temporal de `vm` por HTTP mediante VPN o túnel SSH (`COOKIE_SEGURA=false`) |
+| `k8s/overlays/vm/almacenamiento` | StorageClass y PV local de ámbito de clúster; se aplican aparte y con autorización |
+| `k8s/components/limite-autenticacion` | Middleware de Traefik con límite de peticiones para `POST /api/auth/login` y `POST /api/empresas` |
 | `k8s/scripts/crear-secretos.sh` | Crea los Secrets con valores aleatorios si no existen; nunca los escribe en disco |
+| `k8s/scripts/revisar-vm.sh` | Comprobaciones de solo lectura del MicroK8s de la VM antes de desplegar |
 
 - **Ingress (Traefik)**: `/api/` va al backend y `/` a nginx. Actuator, Swagger y las vistas Thymeleaf no
   viven bajo `/api/`, así que no se publican. La ruta lleva barra final porque Traefik trata `Prefix` como
@@ -311,6 +316,24 @@ comando, y tras reconstruir una imagen `:local` hay que reiniciar su Deployment 
 `kubectl -n procesos-empresariales rollout restart deploy/procesos-backend`. PostgreSQL se descarga del
 registro por *digest*. Si un antivirus intercepta TLS en `127.0.0.1:6550`, `kubectl` puede ejecutarse dentro
 del nodo con `docker exec -i k3d-procesos-server-0 kubectl` (el script de Secrets lo admite en `KUBECTL`).
+
+### VM universitaria con MicroK8s
+
+El overlay `vm` usa el MicroK8s existente sin crear otro clúster ni cambiar Traefik, Calico o CoreDNS. No hace
+falta el código fuente en la VM: el manifiesto se genera en local y solo se copian el resultado y los scripts.
+
+```bash
+kubectl kustomize k8s/overlays/vm > procesos-vm.yaml
+```
+
+- `sha-pendiente` no existe a propósito: antes del primer despliegue se sustituye por el *digest* que publique
+  GitHub Actions en `ghcr.io/kerosene21/procesos-empresariales-{backend,frontend}`.
+- La VM no tiene StorageClass: PostgreSQL usa el PV local de `k8s/overlays/vm/almacenamiento`
+  (`/var/lib/procesos-empresariales/postgres`, `Retain`), que exige crear el directorio con `sudo`.
+- Valores confirmados en la VM: red de pods de Calico `10.1.0.0/16`, nodo `nbig132`, Traefik en el namespace
+  `ingress` (etiquetas `app.kubernetes.io/name=traefik` y `app.kubernetes.io/instance=traefik-ingress`) y
+  entrypoints `web` y `websecure`. Las NetworkPolicies solo admiten esos pods de Traefik.
+- `k8s/scripts/revisar-vm.sh` repite esas comprobaciones en solo lectura antes de cada despliegue.
 
 ## Documentación de la API (Swagger / OpenAPI)
 

@@ -1,0 +1,31 @@
+# Datos de PostgreSQL del proyecto en un directorio propio del nodo. Retain: borrar el PVC, el StatefulSet o
+# el namespace no borra los datos. claimRef reserva el volumen para el PVC del pod procesos-postgres-0.
+# El directorio debe existir con propietario 70:70 (usuario postgres de la imagen Alpine) y permisos 0700.
+# Comprobar el nombre del nodo con k8s/scripts/revisar-vm.sh antes de aplicarlo.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: procesos-postgres-datos
+spec:
+  capacity:
+    storage: 5Gi
+  volumeMode: Filesystem
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: procesos-postgres-local
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    namespace: procesos-empresariales
+    name: datos-procesos-postgres-0
+  local:
+    path: /var/lib/procesos-empresariales/postgres
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - nbig132

@@ -1,0 +1,15 @@
+# Cubeta de 10 peticiones que se repone a 20 por minuto (una cada 3 s); el exceso recibe 429.
+# La cuota se lleva por la IP de origen que ve Traefik (RemoteAddr), no por X-Forwarded-For, asi que un cliente
+# no puede saltarsela cambiando esa cabecera. Con externalTrafficPolicy=Cluster, el NodePort aplica SNAT y
+# todas las peticiones llegan con la IP del nodo: la cuota pasa a ser comun a todos los usuarios.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: limite-autenticacion
+  labels:
+    app.kubernetes.io/part-of: procesos-empresariales
+spec:
+  rateLimit:
+    average: 20
+    period: 1m
+    burst: 10

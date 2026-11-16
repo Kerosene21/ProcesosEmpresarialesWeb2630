@@ -1,5 +1,6 @@
 # Todo el trafico del namespace queda denegado salvo los flujos declarados:
 #   Traefik -> frontend:8080, Traefik -> backend:8080, backend -> postgres:5432 y backend -> DNS.
+# El origen de Traefik corresponde a K3s (kube-system); el overlay vm lo cambia por el namespace ingress de MicroK8s.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

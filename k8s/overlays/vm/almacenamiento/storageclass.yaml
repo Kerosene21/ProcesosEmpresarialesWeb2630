@@ -1,0 +1,9 @@
+# Clase sin aprovisionador para el PV local del proyecto. No es la clase por defecto del cluster.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: procesos-postgres-local
+provisioner: kubernetes.io/no-provisioner
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: false

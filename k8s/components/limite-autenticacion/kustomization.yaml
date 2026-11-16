@@ -1,0 +1,7 @@
+# Limite de peticiones de Traefik para las rutas exactas del login y del registro publico de empresas.
+# Necesita el proveedor kubernetescrd de Traefik y la CRD middlewares.traefik.io.
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+resources:
+  - middleware.yaml
+  - ingress.yaml
