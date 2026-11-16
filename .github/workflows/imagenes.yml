@@ -91,14 +91,15 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # Sin scripts de instalacion de terceros y con el Angular CLI fijado en package-lock.json (sin npx).
       - name: Instalar dependencias
-        run: npm ci --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Ejecutar las pruebas
-        run: npx ng test --watch=false
+        run: npm test -- --watch=false
 
       - name: Compilar para produccion
-        run: npx ng build --configuration production
+        run: npm run build -- --configuration production
 
   verificar-imagenes:
     name: Construir sin publicar (${{ matrix.componente }})

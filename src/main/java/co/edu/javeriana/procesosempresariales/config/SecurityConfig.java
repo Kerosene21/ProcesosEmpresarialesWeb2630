@@ -90,6 +90,9 @@ public class SecurityConfig {
         return http
                 .securityMatcher(RUTA_API)
                 .addFilter(filtroBearer(decodificadores, autenticadores))
+                // Sin CSRF a proposito: esta cadena solo autentica con la cabecera Authorization: Bearer, que el
+                // navegador nunca adjunta por su cuenta, y no lee la sesion HTTP ni cookies. La cookie de refresco
+                // solo viaja a /api/auth, cuya cadena (orden 0) si exige el token CSRF.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(contexto -> contexto
@@ -117,6 +120,8 @@ public class SecurityConfig {
     SecurityFilterChain actuatorFilterChain(HttpSecurity http) throws Exception {
         return http
                 .securityMatcher(RUTA_ACTUATOR)
+                // Sin CSRF a proposito: solo se permiten los GET de las sondas de salud y todo lo demas se deniega;
+                // la cadena no tiene sesion ni ningun mecanismo de autenticacion que otro sitio pueda aprovechar.
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .securityContext(contexto -> contexto

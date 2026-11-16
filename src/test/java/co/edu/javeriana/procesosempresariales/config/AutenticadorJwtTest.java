@@ -98,12 +98,4 @@ class AutenticadorJwtTest {
 
         assertThatThrownBy(() -> autenticador.autenticar(jwt())).isInstanceOf(InvalidBearerTokenException.class);
     }
-
-    @Test
-    void siElServicioNoDevuelveUsuarioElTokenSeInvalida() {
-        when(familiaRefrescoService.estaActivaPara(familia, CORREO)).thenReturn(true);
-        when(userDetailsService.loadUserByUsername(CORREO)).thenReturn(null);
-
-        assertThatThrownBy(() -> autenticador.autenticar(jwt())).isInstanceOf(InvalidBearerTokenException.class);
-    }
 }

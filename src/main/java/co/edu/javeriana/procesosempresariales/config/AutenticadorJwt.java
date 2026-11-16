@@ -43,11 +43,7 @@ public class AutenticadorJwt {
 
     private UserDetails cargar(String correo) {
         try {
-            UserDetails usuario = userDetailsService.loadUserByUsername(correo);
-            if (usuario == null) {
-                throw new InvalidBearerTokenException(SESION_NO_VALIDA);
-            }
-            return usuario;
+            return userDetailsService.loadUserByUsername(correo);
         } catch (UsernameNotFoundException e) {
             throw new InvalidBearerTokenException(SESION_NO_VALIDA);
         }
