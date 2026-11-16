@@ -1,0 +1,222 @@
+COL actividad.activo boolean NOT NULL
+COL actividad.id bigint NOT NULL IDENTITY BY DEFAULT
+COL actividad.lane_id bigint NOT NULL
+COL actividad.nombre character varying(150) NOT NULL
+COL actividad.posicion_x integer NOT NULL
+COL actividad.posicion_y integer NOT NULL
+COL actividad.proceso_id bigint NOT NULL
+COL actividad.tipo character varying(20) NOT NULL
+COL arco.activo boolean NOT NULL
+COL arco.condicion character varying(200)
+COL arco.destino_id bigint NOT NULL
+COL arco.destino_tipo character varying(20) NOT NULL
+COL arco.etiqueta character varying(150)
+COL arco.id bigint NOT NULL IDENTITY BY DEFAULT
+COL arco.origen_id bigint NOT NULL
+COL arco.origen_tipo character varying(20) NOT NULL
+COL arco.proceso_id bigint NOT NULL
+COL empresa.correo_contacto character varying(180) NOT NULL
+COL empresa.id bigint NOT NULL IDENTITY BY DEFAULT
+COL empresa.nit character varying(20) NOT NULL
+COL empresa.nombre character varying(150) NOT NULL
+COL evento.actividades_uso character varying(1000)
+COL evento.activo boolean NOT NULL
+COL evento.clave_correlacion character varying(100)
+COL evento.comportamiento_fallo character varying(20)
+COL evento.comportamiento_sin_caso character varying(20)
+COL evento.contenido character varying(2000)
+COL evento.datos_enviados character varying(2000)
+COL evento.datos_esperados character varying(2000)
+COL evento.id bigint NOT NULL IDENTITY BY DEFAULT
+COL evento.momento_proceso character varying(300)
+COL evento.nombre_mensaje character varying(150) NOT NULL
+COL evento.origen_externo boolean
+COL evento.pool_destino_id bigint
+COL evento.pool_id bigint NOT NULL
+COL evento.posicion_x integer NOT NULL
+COL evento.posicion_y integer NOT NULL
+COL evento.proceso_id bigint NOT NULL
+COL evento.tipo character varying(20) NOT NULL
+COL evento.tipo_destino character varying(20)
+COL evento.variante character varying(20)
+COL familia_refresco.creada_en timestamp with time zone NOT NULL
+COL familia_refresco.expira_en timestamp with time zone NOT NULL
+COL familia_refresco.id uuid NOT NULL
+COL familia_refresco.motivo_revocacion character varying(30)
+COL familia_refresco.revocada_en timestamp with time zone
+COL familia_refresco.usuario_id bigint NOT NULL
+COL gateway.activo boolean NOT NULL
+COL gateway.id bigint NOT NULL IDENTITY BY DEFAULT
+COL gateway.pool_id bigint NOT NULL
+COL gateway.posicion_x integer NOT NULL
+COL gateway.posicion_y integer NOT NULL
+COL gateway.proceso_id bigint NOT NULL
+COL gateway.tipo character varying(20) NOT NULL
+COL historial_proceso.cambios_realizados text NOT NULL
+COL historial_proceso.estado_anterior character varying(20) NOT NULL
+COL historial_proceso.fecha timestamp without time zone NOT NULL
+COL historial_proceso.id bigint NOT NULL IDENTITY BY DEFAULT
+COL historial_proceso.proceso_id bigint NOT NULL
+COL historial_proceso.usuario_id bigint NOT NULL
+COL historial_rol_proceso.accion character varying(20) NOT NULL
+COL historial_rol_proceso.cambios_realizados text NOT NULL
+COL historial_rol_proceso.fecha timestamp without time zone NOT NULL
+COL historial_rol_proceso.id bigint NOT NULL IDENTITY BY DEFAULT
+COL historial_rol_proceso.rol_proceso_id bigint NOT NULL
+COL historial_rol_proceso.usuario_id bigint NOT NULL
+COL lane.activo boolean NOT NULL DEFAULT true
+COL lane.id bigint NOT NULL IDENTITY BY DEFAULT
+COL lane.nombre character varying(150)
+COL lane.orden integer NOT NULL DEFAULT 1
+COL lane.pool_id bigint NOT NULL
+COL lane.rol_proceso_id bigint
+COL permiso_estructura_proceso.crear_lane boolean NOT NULL
+COL permiso_estructura_proceso.crear_pool boolean NOT NULL
+COL permiso_estructura_proceso.editar_lane boolean NOT NULL
+COL permiso_estructura_proceso.editar_pool boolean NOT NULL
+COL permiso_estructura_proceso.eliminar_lane boolean NOT NULL
+COL permiso_estructura_proceso.eliminar_pool boolean NOT NULL
+COL permiso_estructura_proceso.id bigint NOT NULL IDENTITY BY DEFAULT
+COL permiso_estructura_proceso.proceso_id bigint NOT NULL
+COL permiso_estructura_proceso.rol character varying(20) NOT NULL
+COL pool.activo boolean NOT NULL DEFAULT true
+COL pool.caja_negra boolean NOT NULL DEFAULT false
+COL pool.empresa_participante_id bigint
+COL pool.id bigint NOT NULL IDENTITY BY DEFAULT
+COL pool.nombre character varying(150) NOT NULL
+COL pool.orden integer NOT NULL DEFAULT 1
+COL pool.proceso_id bigint NOT NULL
+COL pool.tipo character varying(20) NOT NULL DEFAULT 'PROPIETARIO'::character varying
+COL proceso.categoria character varying(100) NOT NULL
+COL proceso.descripcion text NOT NULL
+COL proceso.eliminado boolean NOT NULL DEFAULT false
+COL proceso.empresa_id bigint NOT NULL
+COL proceso.estado character varying(20) NOT NULL
+COL proceso.id bigint NOT NULL IDENTITY BY DEFAULT
+COL proceso.nombre character varying(150) NOT NULL
+COL proceso_compartido_empresa.activo boolean NOT NULL
+COL proceso_compartido_empresa.empresa_invitada_id bigint NOT NULL
+COL proceso_compartido_empresa.id bigint NOT NULL IDENTITY BY DEFAULT
+COL proceso_compartido_empresa.proceso_id bigint NOT NULL
+COL refresh_token.emitido_en timestamp with time zone NOT NULL
+COL refresh_token.expira_en timestamp with time zone NOT NULL
+COL refresh_token.familia_id uuid NOT NULL
+COL refresh_token.id bigint NOT NULL IDENTITY BY DEFAULT
+COL refresh_token.token_hash character varying(64) NOT NULL
+COL refresh_token.usado_en timestamp with time zone
+COL rol_proceso.activo boolean NOT NULL
+COL rol_proceso.descripcion character varying(500) NOT NULL
+COL rol_proceso.empresa_id bigint NOT NULL
+COL rol_proceso.id bigint NOT NULL IDENTITY BY DEFAULT
+COL rol_proceso.nombre character varying(100) NOT NULL
+COL usuario.activo boolean NOT NULL
+COL usuario.empresa_id bigint NOT NULL
+COL usuario.id bigint NOT NULL IDENTITY BY DEFAULT
+COL usuario.password_hash character varying(100) NOT NULL
+COL usuario.rol character varying(20) NOT NULL
+COL usuario.username character varying(180) NOT NULL
+CON actividad actividad_pkey PRIMARY KEY (id)
+CON actividad actividad_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['TAREA_USUARIO'::character varying, 'TAREA_SISTEMA'::character varying, 'TAREA_MANUAL'::character varying, 'TAREA_SERVICIO'::character varying])::text[])))
+CON actividad fk5fxoqxluogaj3o2jhk2ot26n7 FOREIGN KEY (lane_id) REFERENCES lane(id)
+CON actividad fkhuwic0pswk91usdfe77lkbqyh FOREIGN KEY (proceso_id) REFERENCES proceso(id)
+CON actividad uk_actividad_proceso_nombre UNIQUE (proceso_id, nombre)
+CON arco arco_destino_tipo_check CHECK (((destino_tipo)::text = ANY ((ARRAY['ACTIVIDAD'::character varying, 'GATEWAY'::character varying, 'EVENTO'::character varying])::text[])))
+CON arco arco_origen_tipo_check CHECK (((origen_tipo)::text = ANY ((ARRAY['ACTIVIDAD'::character varying, 'GATEWAY'::character varying, 'EVENTO'::character varying])::text[])))
+CON arco arco_pkey PRIMARY KEY (id)
+CON arco fk42s3hw8omopl6swfuumqqego6 FOREIGN KEY (proceso_id) REFERENCES proceso(id)
+CON empresa empresa_pkey PRIMARY KEY (id)
+CON empresa uk_empresa_nit UNIQUE (nit)
+CON evento evento_comportamiento_fallo_check CHECK (((comportamiento_fallo)::text = ANY ((ARRAY['CONTINUAR'::character varying, 'RUTA_ERROR'::character varying, 'FINALIZAR'::character varying])::text[])))
+CON evento evento_comportamiento_sin_caso_check CHECK (((comportamiento_sin_caso)::text = ANY ((ARRAY['DESCARTAR'::character varying, 'INICIAR_NUEVO_CASO'::character varying])::text[])))
+CON evento evento_pkey PRIMARY KEY (id)
+CON evento evento_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['ENVIO_EXTERNO'::character varying, 'MESSAGE_THROW'::character varying, 'MESSAGE_CATCH'::character varying])::text[])))
+CON evento evento_tipo_destino_check CHECK (((tipo_destino)::text = ANY ((ARRAY['CORREO'::character varying, 'SERVICIO_WEB'::character varying, 'COLA'::character varying])::text[])))
+CON evento evento_variante_check CHECK (((variante)::text = ANY ((ARRAY['INICIO'::character varying, 'INTERMEDIO'::character varying])::text[])))
+CON evento fk1llqywlrxj8d5vrnkeyntddc5 FOREIGN KEY (pool_destino_id) REFERENCES pool(id)
+CON evento fk35h69piml3bwxcytocsqhww9s FOREIGN KEY (proceso_id) REFERENCES proceso(id)
+CON evento fkg2wggrtkvm4lcie31hse4s9ig FOREIGN KEY (pool_id) REFERENCES pool(id)
+CON familia_refresco familia_refresco_motivo_revocacion_check CHECK (((motivo_revocacion)::text = ANY ((ARRAY['CIERRE_SESION'::character varying, 'REUTILIZACION_DETECTADA'::character varying, 'USUARIO_DESACTIVADO'::character varying])::text[])))
+CON familia_refresco familia_refresco_pkey PRIMARY KEY (id)
+CON familia_refresco fk_familia_refresco_usuario FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+CON gateway fk1jt9vxkuly50fcck9hge1fhun FOREIGN KEY (proceso_id) REFERENCES proceso(id)
+CON gateway fk57guu6824ktdeo1x129tcy893 FOREIGN KEY (pool_id) REFERENCES pool(id)
+CON gateway gateway_pkey PRIMARY KEY (id)
+CON gateway gateway_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['EXCLUSIVO'::character varying, 'PARALELO'::character varying, 'INCLUSIVO'::character varying])::text[])))
+CON historial_proceso fkge8dhunokk1kq6sd1xcrvmgdj FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+CON historial_proceso fkt5w31xpgjqis5afq6w6vfi6kp FOREIGN KEY (proceso_id) REFERENCES proceso(id)
+CON historial_proceso historial_proceso_pkey PRIMARY KEY (id)
+CON historial_rol_proceso fk24gips7d873cybpt5rti8smg4 FOREIGN KEY (rol_proceso_id) REFERENCES rol_proceso(id)
+CON historial_rol_proceso fkhpuwsagq1i9j81asugmmm8qw6 FOREIGN KEY (usuario_id) REFERENCES usuario(id)
+CON historial_rol_proceso historial_rol_proceso_accion_check CHECK (((accion)::text = ANY ((ARRAY['CREACION'::character varying, 'EDICION'::character varying, 'ELIMINACION'::character varying])::text[])))
+CON historial_rol_proceso historial_rol_proceso_pkey PRIMARY KEY (id)
+CON lane ck_lane_nombre_o_rol_proceso CHECK (((nombre IS NOT NULL) OR (rol_proceso_id IS NOT NULL)))
+CON lane fk5efu4u85p9r2hffn84tr249og FOREIGN KEY (rol_proceso_id) REFERENCES rol_proceso(id)
+CON lane fkmkb176e4i9uxx7wl1qaavhx3 FOREIGN KEY (pool_id) REFERENCES pool(id)
+CON lane lane_pkey PRIMARY KEY (id)
+CON permiso_estructura_proceso fkm0e6y9rxihaexpeohmyb5gs33 FOREIGN KEY (proceso_id) REFERENCES proceso(id)
+CON permiso_estructura_proceso permiso_estructura_proceso_pkey PRIMARY KEY (id)
+CON permiso_estructura_proceso permiso_estructura_proceso_rol_check CHECK (((rol)::text = ANY ((ARRAY['ADMINISTRADOR'::character varying, 'EDITOR'::character varying, 'SOLO_LECTURA'::character varying])::text[])))
+CON permiso_estructura_proceso uk_permiso_estructura_proceso_rol UNIQUE (proceso_id, rol)
+CON pool fk5lf0t7v3cagwlo702kmu3qang FOREIGN KEY (proceso_id) REFERENCES proceso(id)
+CON pool fk9citywefgip95fq4f7p1plp9v FOREIGN KEY (empresa_participante_id) REFERENCES empresa(id)
+CON pool pool_pkey PRIMARY KEY (id)
+CON pool pool_tipo_check CHECK (((tipo)::text = ANY ((ARRAY['PROPIETARIO'::character varying, 'PARTICIPANTE'::character varying, 'EXTERNO'::character varying])::text[])))
+CON proceso fkooyvtll68mdynvl869c9wpwjb FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+CON proceso proceso_estado_check CHECK (((estado)::text = ANY ((ARRAY['BORRADOR'::character varying, 'PUBLICADO'::character varying])::text[])))
+CON proceso proceso_pkey PRIMARY KEY (id)
+CON proceso uk_proceso_empresa_nombre UNIQUE (empresa_id, nombre)
+CON proceso_compartido_empresa fk9gkx4mj5i2jx3yax3hhm7gf0h FOREIGN KEY (empresa_invitada_id) REFERENCES empresa(id)
+CON proceso_compartido_empresa fkooxba5u9ra7ayub5ad9h6856v FOREIGN KEY (proceso_id) REFERENCES proceso(id)
+CON proceso_compartido_empresa proceso_compartido_empresa_pkey PRIMARY KEY (id)
+CON proceso_compartido_empresa uk_proceso_compartido_empresa UNIQUE (proceso_id, empresa_invitada_id)
+CON refresh_token fk_refresh_token_familia FOREIGN KEY (familia_id) REFERENCES familia_refresco(id) ON DELETE CASCADE
+CON refresh_token refresh_token_pkey PRIMARY KEY (id)
+CON refresh_token uk_refresh_token_hash UNIQUE (token_hash)
+CON rol_proceso fk4mnqat4ytd019f4ncisgg9kci FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+CON rol_proceso rol_proceso_pkey PRIMARY KEY (id)
+CON rol_proceso uk_rol_proceso_empresa_nombre UNIQUE (empresa_id, nombre)
+CON usuario fk87ckfs30l64gnivnfk7ywp8l6 FOREIGN KEY (empresa_id) REFERENCES empresa(id)
+CON usuario uk_usuario_username UNIQUE (username)
+CON usuario usuario_pkey PRIMARY KEY (id)
+CON usuario usuario_rol_check CHECK (((rol)::text = ANY ((ARRAY['ADMINISTRADOR'::character varying, 'EDITOR'::character varying, 'SOLO_LECTURA'::character varying])::text[])))
+IDX CREATE INDEX ix_arco_destino ON public.arco USING btree (proceso_id, destino_tipo, destino_id, activo)
+IDX CREATE INDEX ix_arco_origen ON public.arco USING btree (proceso_id, origen_tipo, origen_id, activo)
+IDX CREATE INDEX ix_arco_proceso_activo ON public.arco USING btree (proceso_id, activo)
+IDX CREATE INDEX ix_evento_pool ON public.evento USING btree (pool_id, activo)
+IDX CREATE INDEX ix_evento_pool_destino ON public.evento USING btree (pool_destino_id, activo)
+IDX CREATE INDEX ix_evento_proceso ON public.evento USING btree (proceso_id, activo)
+IDX CREATE INDEX ix_familia_refresco_expira ON public.familia_refresco USING btree (expira_en)
+IDX CREATE INDEX ix_familia_refresco_usuario ON public.familia_refresco USING btree (usuario_id)
+IDX CREATE INDEX ix_gateway_pool ON public.gateway USING btree (pool_id, activo)
+IDX CREATE INDEX ix_gateway_proceso ON public.gateway USING btree (proceso_id, activo)
+IDX CREATE INDEX ix_historial_rol_proceso_rol ON public.historial_rol_proceso USING btree (rol_proceso_id, fecha)
+IDX CREATE INDEX ix_lane_pool ON public.lane USING btree (pool_id, activo, orden)
+IDX CREATE INDEX ix_lane_rol_proceso ON public.lane USING btree (rol_proceso_id)
+IDX CREATE INDEX ix_pool_proceso ON public.pool USING btree (proceso_id, activo, orden)
+IDX CREATE INDEX ix_proceso_compartido_invitada ON public.proceso_compartido_empresa USING btree (empresa_invitada_id, activo)
+IDX CREATE INDEX ix_refresh_token_expira ON public.refresh_token USING btree (expira_en)
+IDX CREATE INDEX ix_refresh_token_familia ON public.refresh_token USING btree (familia_id)
+IDX CREATE UNIQUE INDEX actividad_pkey ON public.actividad USING btree (id)
+IDX CREATE UNIQUE INDEX arco_pkey ON public.arco USING btree (id)
+IDX CREATE UNIQUE INDEX empresa_pkey ON public.empresa USING btree (id)
+IDX CREATE UNIQUE INDEX evento_pkey ON public.evento USING btree (id)
+IDX CREATE UNIQUE INDEX familia_refresco_pkey ON public.familia_refresco USING btree (id)
+IDX CREATE UNIQUE INDEX gateway_pkey ON public.gateway USING btree (id)
+IDX CREATE UNIQUE INDEX historial_proceso_pkey ON public.historial_proceso USING btree (id)
+IDX CREATE UNIQUE INDEX historial_rol_proceso_pkey ON public.historial_rol_proceso USING btree (id)
+IDX CREATE UNIQUE INDEX lane_pkey ON public.lane USING btree (id)
+IDX CREATE UNIQUE INDEX permiso_estructura_proceso_pkey ON public.permiso_estructura_proceso USING btree (id)
+IDX CREATE UNIQUE INDEX pool_pkey ON public.pool USING btree (id)
+IDX CREATE UNIQUE INDEX proceso_compartido_empresa_pkey ON public.proceso_compartido_empresa USING btree (id)
+IDX CREATE UNIQUE INDEX proceso_pkey ON public.proceso USING btree (id)
+IDX CREATE UNIQUE INDEX refresh_token_pkey ON public.refresh_token USING btree (id)
+IDX CREATE UNIQUE INDEX rol_proceso_pkey ON public.rol_proceso USING btree (id)
+IDX CREATE UNIQUE INDEX uk_actividad_proceso_nombre ON public.actividad USING btree (proceso_id, nombre)
+IDX CREATE UNIQUE INDEX uk_empresa_nit ON public.empresa USING btree (nit)
+IDX CREATE UNIQUE INDEX uk_permiso_estructura_proceso_rol ON public.permiso_estructura_proceso USING btree (proceso_id, rol)
+IDX CREATE UNIQUE INDEX uk_proceso_compartido_empresa ON public.proceso_compartido_empresa USING btree (proceso_id, empresa_invitada_id)
+IDX CREATE UNIQUE INDEX uk_proceso_empresa_nombre ON public.proceso USING btree (empresa_id, nombre)
+IDX CREATE UNIQUE INDEX uk_refresh_token_hash ON public.refresh_token USING btree (token_hash)
+IDX CREATE UNIQUE INDEX uk_rol_proceso_empresa_nombre ON public.rol_proceso USING btree (empresa_id, nombre)
+IDX CREATE UNIQUE INDEX uk_usuario_username ON public.usuario USING btree (username)
+IDX CREATE UNIQUE INDEX usuario_pkey ON public.usuario USING btree (id)

@@ -178,6 +178,41 @@ desarrollo que ya existía requiere pasos manuales, según desde qué versión v
 
 El perfil de pruebas y CI usan `create-drop` sobre una base limpia, así que no necesitan migración.
 
+## Migraciones de base de datos
+
+El esquema de producción lo crea y versiona **Flyway** con las migraciones de
+[`src/main/resources/db/migration`](src/main/resources/db/migration). `V1__esquema_inicial.sql` crea las
+16 tablas con sus llaves, restricciones `CHECK`, claves únicas e índices, con los mismos nombres que genera
+Hibernate.
+
+| Perfil | Esquema | Flyway |
+|---|---|---|
+| `prod` (imagen Docker) | `ddl-auto=validate` | Activo, sin `baseline-on-migrate` |
+| Por defecto (desarrollo local) | `ddl-auto=update` | Desactivado |
+| `test` | `ddl-auto=create-drop` | Desactivado; `FlywayMigracionIntegracionTest` prueba V1 en un esquema temporal |
+
+El perfil `prod` exige `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` y `JWT_SECRET` como variables de entorno.
+
+- **Base nueva y vacía**: Flyway aplica V1 al arrancar con el perfil `prod`.
+- **Base existente con tablas y sin historial de Flyway**: el perfil `prod` se niega a arrancar y no la
+  modifica. Antes hay que comparar su esquema con V1 (solo lectura) y, si coincide, marcarla una única vez
+  con un *baseline* manual en la versión 1, con respaldo previo:
+
+```bash
+psql -tA -d BASE -f docs/migrations/describir-esquema.sql > esquema-base.txt
+```
+
+```bash
+diff docs/migrations/esquema-v1.txt esquema-base.txt
+```
+
+  Si no hay diferencias, se arranca una sola vez con `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true` y
+  `SPRING_FLYWAY_BASELINE_VERSION=1`; los arranques siguientes no llevan esas variables. Si hay
+  diferencias, se corrigen con un script revisado antes del *baseline*.
+
+Los scripts de [`docs/migrations`](docs/migrations) (`hu21-hu24-migracion.sql` y
+`jwt-fase0-refresh-tokens.sql`) son históricos: quedan incluidos en V1 y Flyway no los ejecuta.
+
 ## Imágenes Docker
 
 Las imágenes se preparan para el despliegue en Kubernetes con Ingress. No hay `compose.yaml`: Docker se
@@ -205,7 +240,8 @@ docker build -t procesos-empresariales-frontend:local frontend
 - La configuración del backend llega por variables de entorno en tiempo de ejecución: `DB_URL`,
   `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `COOKIE_SEGURA`, `PURGA_REFRESCO_CRON`,
   `SERVER_FORWARD_HEADERS_STRATEGY` (`native` detrás de un proxy HTTPS) y cualquier propiedad de Spring
-  en formato `SPRING_*` o `MANAGEMENT_*`. La imagen fija `SERVER_PORT=8080` y `SPRING_JPA_SHOW_SQL=false`.
+  en formato `SPRING_*` o `MANAGEMENT_*`. La imagen fija `SERVER_PORT=8080` y `SPRING_PROFILES_ACTIVE=prod`
+  (Flyway y `ddl-auto=validate`, ver [Migraciones de base de datos](#migraciones-de-base-de-datos)).
   Ningún secreto se incluye en las imágenes; para probar en local, pasarlos con un archivo fuera del
   repositorio:
 

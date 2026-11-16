@@ -27,8 +27,7 @@ COPY --from=compilacion /fuente/extraido/spring-boot-loader/ ./
 COPY --from=compilacion /fuente/extraido/snapshot-dependencies/ ./
 COPY --from=compilacion /fuente/extraido/application/ ./
 ENV SERVER_PORT=8080 \
-    SPRING_JPA_SHOW_SQL=false \
-    SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=false \
+    SPRING_PROFILES_ACTIVE=prod \
     JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 USER 10001:10001
 EXPOSE 8080
