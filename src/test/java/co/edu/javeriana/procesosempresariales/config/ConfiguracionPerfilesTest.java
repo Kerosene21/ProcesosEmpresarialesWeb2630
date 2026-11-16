@@ -50,6 +50,14 @@ class ConfiguracionPerfilesTest {
     }
 
     @Test
+    void elPerfilProdApagaSwaggerSalvoQueSeHabiliteExplicitamente() throws IOException {
+        Properties prod = cargar("application-prod.properties", false);
+
+        assertThat(prod.getProperty("springdoc.api-docs.enabled")).isEqualTo("${SWAGGER_HABILITADO:false}");
+        assertThat(prod.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("${SWAGGER_HABILITADO:false}");
+    }
+
+    @Test
     void elPerfilPorDefectoYElDePruebasNoEjecutanFlyway() throws IOException {
         Properties principal = cargar("application.properties", false);
         Properties pruebas = cargar("application-test.properties", true);

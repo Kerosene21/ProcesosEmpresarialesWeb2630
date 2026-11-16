@@ -249,6 +249,69 @@ docker build -t procesos-empresariales-frontend:local frontend
 docker run --rm --env-file /ruta/fuera/del/repo/backend.env -p 127.0.0.1:18081:8080 procesos-empresariales-backend:local
 ```
 
+## Despliegue en Kubernetes
+
+Los manifiestos viven en [`k8s/`](k8s) y se combinan con Kustomize (`kubectl apply -k`):
+
+| Ruta | Contenido |
+|---|---|
+| `k8s/base` | Namespace con Pod Security `restricted`, PostgreSQL (StatefulSet, Service *headless* y PVC), backend y frontend (Deployment y Service), Ingress, NetworkPolicies y ConfigMaps |
+| `k8s/overlays/local` | Clúster local de pruebas con k3d: etiquetas `:local`, entrada HTTP `web` y `COOKIE_SEGURA=false` |
+| `k8s/scripts/crear-secretos.sh` | Crea los Secrets con valores aleatorios si no existen; nunca los escribe en disco |
+
+- **Ingress (Traefik)**: `/api/` va al backend y `/` a nginx. Actuator, Swagger y las vistas Thymeleaf no
+  viven bajo `/api/`, así que no se publican. La ruta lleva barra final porque Traefik trata `Prefix` como
+  un prefijo literal: con `/api` también enviaría `/apix` al backend.
+- **Secrets** (no versionados): `procesos-postgres-admin` (`POSTGRES_PASSWORD`) y `procesos-backend`
+  (`DB_PASSWORD` y `JWT_SECRET`). Se conservan si ya existen, porque PostgreSQL guarda la clave del rol
+  `procesos_app` al inicializar el volumen; cambiar `DB_PASSWORD` después exige un `ALTER ROLE`.
+- **PostgreSQL**: el script de inicio crea el rol `procesos_app` sin privilegios y la base
+  `procesos_empresariales`, de la que es propietario. Solo es accesible desde los pods del backend.
+- **Flyway con varias réplicas**: el backend tiene 2 réplicas y cada una ejecuta Flyway al arrancar. Flyway
+  toma un bloqueo consultivo de PostgreSQL durante la migración, así que una réplica aplica V1 y la otra
+  espera y encuentra el esquema al día. Las actualizaciones usan `maxUnavailable: 0`.
+- **Seguridad de los pods**: usuarios sin privilegios (10001, 101 y 70), sistema de archivos raíz de solo
+  lectura con `emptyDir` en `/tmp`, sin capacidades, `seccomp` `RuntimeDefault` y sin token de
+  ServiceAccount. Swagger queda apagado en el perfil `prod` salvo que se defina `SWAGGER_HABILITADO=true`.
+- **HTTPS**: la base mantiene `COOKIE_SEGURA=true`, `SERVER_FORWARD_HEADERS_STRATEGY=native` y confía en
+  las cabeceras `X-Forwarded-*` solo desde la red de pods de K3s (`10.42.0.0/16`).
+
+### Clúster local con k3d
+
+El overlay `local` sirve para probar en Windows con Docker Desktop; no es el clúster de la VM. Requiere
+[k3d](https://k3d.io/) 5.9 (`winget install k3d.k3d`) y crea K3s v1.36.6 con Traefik y `local-path`. La
+API y el Ingress solo escuchan en `127.0.0.1`.
+
+```bash
+k3d cluster create --config k8s/overlays/local/k3d-cluster.yaml
+```
+
+```bash
+k3d image import --cluster procesos procesos-empresariales-backend:local
+```
+
+```bash
+k3d image import --cluster procesos procesos-empresariales-frontend:local
+```
+
+```bash
+kubectl apply -f k8s/base/namespace.yaml
+```
+
+```bash
+k8s/scripts/crear-secretos.sh
+```
+
+```bash
+kubectl apply -k k8s/overlays/local
+```
+
+La aplicación queda en `http://localhost:8088`. `k3d image import` debe ejecutarse con una imagen por
+comando, y tras reconstruir una imagen `:local` hay que reiniciar su Deployment con
+`kubectl -n procesos-empresariales rollout restart deploy/procesos-backend`. PostgreSQL se descarga del
+registro por *digest*. Si un antivirus intercepta TLS en `127.0.0.1:6550`, `kubectl` puede ejecutarse dentro
+del nodo con `docker exec -i k3d-procesos-server-0 kubectl` (el script de Secrets lo admite en `KUBECTL`).
+
 ## Documentación de la API (Swagger / OpenAPI)
 
 Con la aplicación en ejecución:
@@ -261,6 +324,8 @@ Con la aplicación en ejecución:
 
 - Swagger UI sirve para explorar y probar la API REST (`/api/**`).
 - Las rutas de documentación son públicas, pero **la API conserva la seguridad real** del sistema.
+- En el perfil `prod` (imagen Docker y Kubernetes) Swagger y `/v3/api-docs` están apagados; se activan
+  solo con `SWAGGER_HABILITADO=true`.
 - La API es **stateless** y solo acepta JWT: el token se obtiene con `POST /api/auth/login` y se
   escribe en *Authorize* (esquema `bearerAuth`, sin el prefijo `Bearer`).
 - La cookie `JSESSIONID` de las vistas Thymeleaf **no** autentica la API.

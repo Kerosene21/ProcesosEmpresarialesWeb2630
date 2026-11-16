@@ -1,0 +1,27 @@
+# Overlay del cluster local de pruebas (k3d, ver k3d-cluster.yaml). Solo HTTP en 127.0.0.1:8088.
+#   kubectl apply -k k8s/overlays/local
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+images:
+  - name: procesos-empresariales-backend
+    newTag: local
+  - name: procesos-empresariales-frontend
+    newTag: local
+configMapGenerator:
+  # Excepcion limitada a este cluster local por HTTP: sin HTTPS el navegador no devolveria una cookie
+  # de refresco marcada como Secure. El despliegue real mantiene COOKIE_SEGURA=true de la base.
+  - name: procesos-configuracion
+    behavior: merge
+    literals:
+      - COOKIE_SEGURA=false
+patches:
+  - target:
+      kind: Ingress
+      name: procesos
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          traefik.ingress.kubernetes.io/router.entrypoints: web

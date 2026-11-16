@@ -1,0 +1,28 @@
+# Unica entrada publica: /api/** va al backend y el resto a la SPA de Angular.
+# Traefik da prioridad a la regla mas larga, asi que /api/** nunca llega a nginx.
+# La barra final es necesaria: Traefik traduce Prefix a un PathPrefix literal y con "/api" enviaria
+# tambien /apix o /api-docs a la cadena Thymeleaf de Spring.
+# Actuator, Swagger y las vistas Thymeleaf quedan fuera porque no viven bajo /api/.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: procesos
+spec:
+  ingressClassName: traefik
+  rules:
+    - http:
+        paths:
+          - path: /api/
+            pathType: Prefix
+            backend:
+              service:
+                name: procesos-backend
+                port:
+                  name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: procesos-frontend
+                port:
+                  name: http

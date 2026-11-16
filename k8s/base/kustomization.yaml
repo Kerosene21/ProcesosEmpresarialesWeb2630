@@ -1,0 +1,26 @@
+# Base comun del despliegue. Pensada para HTTPS (COOKIE_SEGURA=true); cada overlay fija imagenes y entrada.
+# Los Secrets procesos-postgres-admin y procesos-backend no se versionan: los crea k8s/scripts/crear-secretos.sh.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: procesos-empresariales
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: procesos-empresariales
+    includeSelectors: false
+resources:
+  - namespace.yaml
+  - postgres/statefulset.yaml
+  - postgres/service.yaml
+  - backend/deployment.yaml
+  - backend/service.yaml
+  - frontend/deployment.yaml
+  - frontend/service.yaml
+  - ingress.yaml
+  - network-policies.yaml
+configMapGenerator:
+  - name: procesos-configuracion
+    envs:
+      - backend/configuracion.env
+  - name: procesos-postgres-inicio
+    files:
+      - postgres/crear-base-aplicacion.sh

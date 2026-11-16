@@ -5,3 +5,4 @@ Dockerfile text eol=lf
 *.conf text eol=lf
 src/main/resources/db/migration/*.sql text eol=lf
 docs/migrations/esquema-v1.txt text eol=lf
+k8s/** text eol=lf
