@@ -1,0 +1,13 @@
+# Contexto de la imagen del backend: lista de permitidos. Solo entra lo necesario para compilar con
+# Maven; quedan fuera .git, .env, .claude, frontend, target, node_modules, docs, jmeter, pruebas,
+# reportes, logs y cualquier credencial local.
+*
+!pom.xml
+!mvnw
+!.mvn/
+!.mvn/**
+!src/
+!src/**
+src/**/*.log
+src/**/.env
+src/**/.env.*

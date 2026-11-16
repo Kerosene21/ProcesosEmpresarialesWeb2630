@@ -55,6 +55,9 @@ public class SecurityConfig {
     private static final String[] RUTAS_API_ELIMINACION_EVENTO = { "/api/procesos/*/message-throws/*/eliminacion",
             "/api/procesos/*/message-catches/*/eliminacion", "/api/procesos/*/envios-externos/*/eliminacion" };
     private static final String RUTA_API_EMPRESAS = "/api/empresas";
+    private static final String RUTA_ACTUATOR = "/actuator/**";
+    private static final String[] RUTAS_SALUD = { "/actuator/health", "/actuator/health/liveness",
+            "/actuator/health/readiness" };
     private static final String DESAFIO_BEARER = "Bearer";
     private static final String DESAFIO_TOKEN_NO_VALIDO = "Bearer error=\"invalid_token\"";
 
@@ -111,6 +114,26 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
+    SecurityFilterChain actuatorFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .securityMatcher(RUTA_ACTUATOR)
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .securityContext(contexto -> contexto
+                        .securityContextRepository(new RequestAttributeSecurityContextRepository()))
+                .requestCache(cache -> cache.disable())
+                .authorizeHttpRequests(peticiones -> peticiones
+                        .requestMatchers(HttpMethod.GET, RUTAS_SALUD).permitAll()
+                        .anyRequest().denyAll())
+                .logout(logout -> logout.disable())
+                .exceptionHandling(errores -> errores
+                        .authenticationEntryPoint(new ApiNoAutorizadoEntryPoint())
+                        .accessDeniedHandler(new ApiAccesoDenegadoHandler()))
+                .build();
+    }
+
+    @Bean
+    @Order(3)
     SecurityFilterChain securityFilterChain(HttpSecurity http, UserDetailsService userDetailsService)
             throws Exception {
         AccessDeniedHandlerImpl accesoDenegado = new AccessDeniedHandlerImpl();

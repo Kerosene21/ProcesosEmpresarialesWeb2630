@@ -178,6 +178,41 @@ desarrollo que ya existía requiere pasos manuales, según desde qué versión v
 
 El perfil de pruebas y CI usan `create-drop` sobre una base limpia, así que no necesitan migración.
 
+## Imágenes Docker
+
+Las imágenes se preparan para el despliegue en Kubernetes con Ingress. No hay `compose.yaml`: Docker se
+usa solo para construir y probar las imágenes.
+
+| Imagen | Dockerfile | Contexto | Puerto interno | Usuario | Salud |
+|---|---|---|---|---|---|
+| Backend Spring Boot | [`Dockerfile`](Dockerfile) | `.` | 8080 | 10001 | `/actuator/health/liveness` y `/actuator/health/readiness` |
+| Frontend Angular + nginx | [`frontend/Dockerfile`](frontend/Dockerfile) | `frontend` | 8080 | 101 | `/healthz` |
+
+```bash
+docker build -t procesos-empresariales-backend:local .
+```
+
+```bash
+docker build -t procesos-empresariales-frontend:local frontend
+```
+
+- Ambos `.dockerignore` son listas de permitidos: no entran `.git`, `.env`, `.claude`, `node_modules`,
+  `target`, `dist`, reportes ni credenciales.
+- La compilación del backend ejecuta con el Maven Wrapper las pruebas que no necesitan PostgreSQL; la
+  suite completa sigue siendo `./mvnw clean verify`. La del frontend ejecuta `ng test` antes de `ng build`.
+- nginx solo sirve los archivos estáticos con *fallback* SPA a `index.html`. Las rutas `/api/**` las
+  enrutará el Ingress al backend en el mismo origen; en el contenedor del frontend responden 404.
+- La configuración del backend llega por variables de entorno en tiempo de ejecución: `DB_URL`,
+  `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `COOKIE_SEGURA`, `PURGA_REFRESCO_CRON`,
+  `SERVER_FORWARD_HEADERS_STRATEGY` (`native` detrás de un proxy HTTPS) y cualquier propiedad de Spring
+  en formato `SPRING_*` o `MANAGEMENT_*`. La imagen fija `SERVER_PORT=8080` y `SPRING_JPA_SHOW_SQL=false`.
+  Ningún secreto se incluye en las imágenes; para probar en local, pasarlos con un archivo fuera del
+  repositorio:
+
+```bash
+docker run --rm --env-file /ruta/fuera/del/repo/backend.env -p 127.0.0.1:18081:8080 procesos-empresariales-backend:local
+```
+
 ## Documentación de la API (Swagger / OpenAPI)
 
 Con la aplicación en ejecución:
@@ -245,7 +280,7 @@ y las credenciales configuradas. El resto, incluidas las de seguridad con `@WebM
 necesitan base de datos:
 
 ```bash
-./mvnw test -Dtest='!*IntegracionTest,!ProcesosEmpresarialesWeb2630ApplicationTests'
+./mvnw test -Dtest='!*IntegracionTest*,!ProcesosEmpresarialesWeb2630ApplicationTests*'
 ```
 
 ### SonarQube Cloud
