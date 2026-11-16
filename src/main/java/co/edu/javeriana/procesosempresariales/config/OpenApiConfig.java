@@ -1,6 +1,7 @@
 package co.edu.javeriana.procesosempresariales.config;
 
 import java.util.List;
+import java.util.Set;
 
 import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
 import org.springdoc.core.customizers.GlobalOperationCustomizer;
@@ -19,6 +20,7 @@ import io.swagger.v3.oas.models.media.ComposedSchema;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.DateTimeSchema;
 import io.swagger.v3.oas.models.media.IntegerSchema;
+import io.swagger.v3.oas.models.media.MapSchema;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.ObjectSchema;
 import io.swagger.v3.oas.models.media.Schema;
@@ -33,8 +35,15 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 public class OpenApiConfig {
 
     private static final String GRUPO_API = "api-rest";
-    private static final String ESQUEMA_SESION = "sesion";
+    private static final String ESQUEMA_BEARER = "bearerAuth";
     private static final String ESQUEMA_CSRF = "csrf";
+    private static final String ESQUEMA_COOKIE_REFRESCO = "cookieRefresco";
+    private static final String RUTA_CSRF = "/api/auth/csrf";
+    private static final String RUTA_LOGIN = "/api/auth/login";
+    private static final String RUTA_REFRESH = "/api/auth/refresh";
+    private static final String RUTA_LOGOUT = "/api/auth/logout";
+    private static final String RUTA_REGISTRO_EMPRESA = "/api/empresas";
+    private static final Set<String> RUTAS_CON_COOKIES = Set.of(RUTA_LOGIN, RUTA_REFRESH, RUTA_LOGOUT);
     private static final String ERROR_API = "ErrorApi";
     private static final String ERROR_VALIDACION = "ErrorValidacion";
 
@@ -46,19 +55,31 @@ public class OpenApiConfig {
             El sistema **modela** procesos: no ejecuta procesos BPMN, no envía mensajes reales \
             ni invoca sistemas externos.
 
-            **Autenticación.** La API usa la misma sesión que la aplicación web. Inicia sesión en \
-            `/login` en este navegador y Swagger UI reutilizará la cookie `JSESSIONID`.
+            **Autenticación.** La API es *stateless* y usa JWT. Cada operación protegida exige el encabezado \
+            `Authorization: Bearer <token>` (botón *Authorize*, esquema `bearerAuth`). El token de acceso dura \
+            15 minutos y se obtiene con `POST /api/auth/login`; `POST /api/auth/refresh` lo renueva con la \
+            cookie HttpOnly `PE_REFRESH` y `POST /api/auth/logout` revoca la sesión. La cookie `JSESSIONID` \
+            de las vistas web no autentica la API.
 
-            **Operaciones de escritura.** `POST`, `PUT` y `DELETE` exigen el token CSRF de la sesión \
-            en el encabezado `X-CSRF-TOKEN` (botón *Authorize*, esquema `csrf`).
+            **CSRF.** Solo login, refresh y logout, que dependen de cookies, exigen el encabezado \
+            `X-XSRF-TOKEN` (esquema `csrf`) con el valor de la cookie `XSRF-TOKEN` que emite \
+            `GET /api/auth/csrf`. Las demás operaciones no usan CSRF porque no se autentican con cookies.
+
+            **Roles y estado.** El token no contiene roles ni empresa: en cada petición se consultan en la \
+            base de datos el usuario, su estado activo, su rol y la sesión, así que un cambio de rol, una \
+            desactivación o un cierre de sesión se aplican de inmediato.
+
+            **Endpoints públicos.** `GET /api/auth/csrf` y el registro de empresas (`POST /api/empresas`) no \
+            requieren autenticación.
 
             **Multiempresa.** La empresa se toma del usuario autenticado. Cada empresa solo ve y \
             modifica sus propios recursos; los procesos que otra empresa le comparte son de solo \
             lectura y la empresa propietaria conserva la edición.
 
             **Errores.** Las reglas de negocio, la autenticación y los permisos responden \
-            `{ "codigo", "mensaje" }` (`ErrorApi`). Bean Validation, JSON mal formado o parámetros \
-            con tipo inválido responden el error estándar de Spring Boot (`ErrorValidacion`).
+            `{ "codigo", "mensaje" }` (`ErrorApi`). Bean Validation responde `DATOS_NO_VALIDOS` con el \
+            mensaje de cada campo en `campos`. JSON mal formado o parámetros con tipo inválido responden \
+            el error estándar de Spring Boot (`ErrorValidacion`).
             """;
 
     @Bean
@@ -69,20 +90,26 @@ public class OpenApiConfig {
                         .description(DESCRIPCION)
                         .version("1.0.0"))
                 .components(new Components()
-                        .addSecuritySchemes(ESQUEMA_SESION, new SecurityScheme()
-                                .type(SecurityScheme.Type.APIKEY)
-                                .in(SecurityScheme.In.COOKIE)
-                                .name("JSESSIONID")
-                                .description("Sesión creada por el formulario de `/login`. El navegador la envía "
-                                        + "automáticamente; no hace falta escribir ningún valor aquí."))
+                        .addSecuritySchemes(ESQUEMA_BEARER, new SecurityScheme()
+                                .type(SecurityScheme.Type.HTTP)
+                                .scheme("bearer")
+                                .bearerFormat("JWT")
+                                .description("Token de acceso del campo `tokenAcceso` que responden "
+                                        + "`POST /api/auth/login` y `POST /api/auth/refresh`. Se escribe sin el "
+                                        + "prefijo `Bearer`."))
                         .addSecuritySchemes(ESQUEMA_CSRF, new SecurityScheme()
                                 .type(SecurityScheme.Type.APIKEY)
                                 .in(SecurityScheme.In.HEADER)
-                                .name("X-CSRF-TOKEN")
-                                .description("Token CSRF de la sesión, obligatorio en POST, PUT y DELETE. Se "
-                                        + "obtiene del campo oculto `_csrf` de cualquier formulario de la aplicación "
-                                        + "después de iniciar sesión (por ejemplo, el de cerrar sesión en "
-                                        + "`/empresas`).")));
+                                .name("X-XSRF-TOKEN")
+                                .description("Token CSRF, obligatorio solo en login, refresh y logout. Es el valor "
+                                        + "de la cookie `XSRF-TOKEN`, que emite `GET /api/auth/csrf`."))
+                        .addSecuritySchemes(ESQUEMA_COOKIE_REFRESCO, new SecurityScheme()
+                                .type(SecurityScheme.Type.APIKEY)
+                                .in(SecurityScheme.In.COOKIE)
+                                .name("PE_REFRESH")
+                                .description("Refresh token opaco en una cookie HttpOnly, SameSite=Strict, limitada "
+                                        + "a `/api/auth`. La emite el login y el navegador la envía "
+                                        + "automáticamente; JavaScript no puede leerla.")));
     }
 
     @Bean
@@ -111,7 +138,18 @@ public class OpenApiConfig {
         };
     }
 
+    private Acceso acceso(String ruta, PathItem.HttpMethod metodo) {
+        if (RUTAS_CON_COOKIES.contains(ruta)) {
+            return Acceso.CSRF_Y_COOKIES;
+        }
+        if (RUTA_CSRF.equals(ruta) || (RUTA_REGISTRO_EMPRESA.equals(ruta) && metodo == PathItem.HttpMethod.POST)) {
+            return Acceso.PUBLICO;
+        }
+        return Acceso.BEARER;
+    }
+
     private void documentar(String ruta, PathItem.HttpMethod metodo, Operation operacion) {
+        Acceso acceso = acceso(ruta, metodo);
         boolean escritura = metodo != PathItem.HttpMethod.GET;
         boolean recursoIdentificado = ruta.contains("{");
         ApiResponses respuestas = operacion.getResponses();
@@ -119,17 +157,26 @@ public class OpenApiConfig {
             respuestas.remove("200");
             agregarSiFalta(respuestas, "204", "Recurso eliminado; sin contenido.");
         }
-        agregarSiFalta(respuestas, "401", "No hay una sesión autenticada (`USUARIO_NO_AUTORIZADO`).");
+        if (acceso == Acceso.BEARER) {
+            agregarSiFalta(respuestas, "401", "Falta el token de acceso o no es válido: ausente, mal formado, "
+                    + "expirado, de una sesión revocada o de un usuario desactivado (`USUARIO_NO_AUTORIZADO`, "
+                    + "con `WWW-Authenticate: Bearer`).");
+        }
         if (operacion.getRequestBody() != null) {
-            agregarSiFalta(respuestas, "400", "Datos no válidos: Bean Validation o JSON mal formado "
-                    + "(`ErrorValidacion`), o una regla del modelo incumplida (`ErrorApi`).");
+            agregarSiFalta(respuestas, "400", "Datos no válidos: Bean Validation (`DATOS_NO_VALIDOS`, "
+                    + "`ErrorApi` con `campos`), JSON mal formado (`ErrorValidacion`) o una regla del modelo "
+                    + "incumplida (`ErrorApi`).");
         }
         if (tieneFiltros(operacion)) {
             agregarSiFalta(respuestas, "400", "Un filtro tiene un valor no válido (`ErrorValidacion`).");
         }
-        if (escritura || recursoIdentificado) {
+        if (acceso == Acceso.BEARER && (escritura || recursoIdentificado)) {
             agregarSiFalta(respuestas, "403", "Sin permiso (`USUARIO_SIN_PERMISO`): el rol del usuario no "
                     + "permite la operación o el recurso pertenece a otra empresa.");
+        }
+        if (acceso == Acceso.CSRF_Y_COOKIES) {
+            agregarSiFalta(respuestas, "403", "Falta el encabezado `X-XSRF-TOKEN` o no coincide con la cookie "
+                    + "`XSRF-TOKEN` (`USUARIO_SIN_PERMISO`).");
         }
         if (recursoIdentificado) {
             agregarSiFalta(respuestas, "404", "El proceso o el recurso no existe o ya fue eliminado "
@@ -140,8 +187,28 @@ public class OpenApiConfig {
                 respuesta.setContent(contenidoDeError(codigo));
             }
         });
-        SecurityRequirement requisito = new SecurityRequirement().addList(ESQUEMA_SESION);
-        operacion.setSecurity(List.of(escritura ? requisito.addList(ESQUEMA_CSRF) : requisito));
+        operacion.setSecurity(requisitos(ruta, acceso));
+    }
+
+    private List<SecurityRequirement> requisitos(String ruta, Acceso acceso) {
+        if (acceso == Acceso.PUBLICO) {
+            return List.of();
+        }
+        if (acceso == Acceso.BEARER) {
+            return List.of(new SecurityRequirement().addList(ESQUEMA_BEARER));
+        }
+        if (RUTA_LOGIN.equals(ruta)) {
+            return List.of(new SecurityRequirement().addList(ESQUEMA_CSRF));
+        }
+        SecurityRequirement conCookie = new SecurityRequirement().addList(ESQUEMA_CSRF)
+                .addList(ESQUEMA_COOKIE_REFRESCO);
+        return RUTA_LOGOUT.equals(ruta)
+                ? List.of(conCookie, new SecurityRequirement().addList(ESQUEMA_CSRF))
+                : List.of(conCookie);
+    }
+
+    private enum Acceso {
+        PUBLICO, CSRF_Y_COOKIES, BEARER
     }
 
     private boolean tieneFiltros(Operation operacion) {
@@ -173,13 +240,15 @@ public class OpenApiConfig {
                         .example("El proceso no existe"))
                 .addProperty("procesos", new ArraySchema().items(new StringSchema())
                         .description("Solo en `ROL_PROCESO_EN_USO`: procesos que usan el rol."))
+                .addProperty("campos", new MapSchema().additionalProperties(new StringSchema())
+                        .description("Solo en `DATOS_NO_VALIDOS`: mensaje de validación de cada campo."))
                 .required(List.of("codigo", "mensaje"));
     }
 
     private Schema<?> errorValidacion() {
         return new ObjectSchema()
-                .description("Error estándar de Spring Boot para Bean Validation, JSON mal formado o "
-                        + "parámetros con tipo inválido.")
+                .description("Error estándar de Spring Boot para JSON mal formado o parámetros con tipo "
+                        + "inválido.")
                 .addProperty("timestamp", new DateTimeSchema())
                 .addProperty("status", new IntegerSchema().example(400))
                 .addProperty("error", new StringSchema().example("Bad Request"))

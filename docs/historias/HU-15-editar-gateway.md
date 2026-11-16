@@ -204,7 +204,9 @@ La empresa sale del usuario autenticado y el gateway debe pertenecer a un proces
 
 ## Qué quedó pendiente
 
-- **Editar la posición del gateway**: fuera de los criterios de esta historia.
+- **Editar la posición del gateway**: fuera de los criterios de esta historia; se resolvió
+  posteriormente con el arrastre del modelador Angular y
+  `PUT /api/procesos/{procesoId}/gateways/{gatewayId}/posicion`. El gateway conserva su pool.
 - **Comprobar de verdad la exclusividad**: exigiría evaluar expresiones, y el proyecto no ejecuta
   procesos.
 - **Eliminar gateways**: es HU-16, implementada posteriormente.

@@ -1,0 +1,68 @@
+<section class="pagina">
+  <header class="encabezado-pagina">
+    <div class="encabezado-pagina__texto">
+      <p class="encabezado-pagina__antetitulo">Administración</p>
+      <h1>Usuarios de la empresa</h1>
+      <p class="encabezado-pagina__descripcion">
+        Personas que pueden iniciar sesión en tu empresa y el rol de acceso de cada una. Los usuarios
+        desactivados se conservan con su historial.
+      </p>
+    </div>
+    @if (esAdministrador()) {
+      <a class="boton boton--primario" routerLink="/usuarios/nuevo">Nuevo usuario</a>
+    }
+  </header>
+
+  <section class="tarjeta" aria-labelledby="titulo-usuarios" [attr.aria-busy]="cargando()">
+    <h2 id="titulo-usuarios" class="visualmente-oculto">Usuarios</h2>
+    @if (cargando()) {
+      <app-aviso tipo="carga" titulo="Cargando usuarios…" />
+    } @else if (fallo(); as falloActual) {
+      <app-aviso
+        tipo="error"
+        [titulo]="falloActual.titulo"
+        [detalle]="explicar(falloActual)"
+        accion="Reintentar"
+        (accionSolicitada)="reintentar()"
+      />
+    } @else if (lista(); as usuarios) {
+      @if (usuarios.length === 0) {
+        <app-aviso tipo="vacio" titulo="La empresa todavía no tiene usuarios" />
+      } @else {
+        <p class="nota">{{ usuarios.length }} usuarios · {{ activos() }} activos</p>
+        <div class="tabla-contenedor">
+          <table class="tabla tabla--adaptable">
+            <caption class="visualmente-oculto">Usuarios de la empresa</caption>
+            <thead>
+              <tr>
+                <th scope="col">Correo</th>
+                <th scope="col">Rol</th>
+                <th scope="col">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (usuario of usuarios; track usuario.id) {
+                <tr>
+                  <td data-etiqueta="Correo">
+                    <a class="lista-usuarios__enlace" [routerLink]="['/usuarios', usuario.id]">{{ usuario.correo }}</a>
+                    @if (esPropio(usuario)) {
+                      <span class="chip chip--informacion">Tu cuenta</span>
+                    }
+                  </td>
+                  <td data-etiqueta="Rol">{{ textoRol[usuario.rol] }}</td>
+                  <td data-etiqueta="Estado">
+                    @if (usuario.activo) {
+                      <span class="chip chip--exito">Activo</span>
+                    } @else {
+                      <span class="chip chip--peligro">Inactivo</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </section>
+</section>

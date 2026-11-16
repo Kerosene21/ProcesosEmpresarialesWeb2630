@@ -1,0 +1,28 @@
+<section class="panel" aria-labelledby="titulo-panel-elemento" aria-live="polite">
+  <h3 id="titulo-panel-elemento" class="panel__titulo">Elemento seleccionado</h3>
+  @if (descripcion(); as elemento) {
+    <p class="panel__tipo">{{ elemento.tipo }}</p>
+    <p class="panel__nombre">{{ elemento.nombre }}</p>
+    <dl class="panel__datos">
+      @for (fila of elemento.filas; track $index) {
+        <div>
+          <dt>{{ fila.etiqueta }}</dt>
+          <dd>{{ fila.valor }}</dd>
+        </div>
+      }
+    </dl>
+    @if (elemento.advertencias.length > 0) {
+      <ul class="panel__advertencias" aria-label="Advertencias del elemento">
+        @for (advertencia of elemento.advertencias; track $index) {
+          <li>{{ advertencia }}</li>
+        }
+      </ul>
+    }
+    <div class="panel__acciones">
+      <ng-content />
+      <button type="button" class="boton boton--texto" (click)="limpiar.emit()">Limpiar selección</button>
+    </div>
+  } @else {
+    <p class="nota">Selecciona un elemento en el diagrama o en la lista de elementos para consultar su información.</p>
+  }
+</section>

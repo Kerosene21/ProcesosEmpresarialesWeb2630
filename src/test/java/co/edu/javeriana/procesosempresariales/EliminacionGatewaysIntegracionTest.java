@@ -2,9 +2,6 @@ package co.edu.javeriana.procesosempresariales;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,10 +13,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import co.edu.javeriana.procesosempresariales.domain.EstadoProceso;
@@ -99,11 +94,8 @@ class EliminacionGatewaysIntegracionTest {
         empresaService.registrar(new RegistroEmpresaDto("Andes Gateway", "905200002-2", ADMIN_ANDES, PASSWORD));
     }
 
-    private MockHttpSession iniciarSesion(String correo) throws Exception {
-        MvcResult resultado = mockMvc.perform(formLogin().user(correo).password(PASSWORD))
-                .andExpect(authenticated().withUsername(correo))
-                .andReturn();
-        return (MockHttpSession) resultado.getRequest().getSession(false);
+    private AccesoJwt iniciarSesion(String correo) throws Exception {
+        return new ClientePruebaJwt(mockMvc).iniciarSesion(correo, PASSWORD);
     }
 
     private ActividadRespuestaDto crearActividad(String nombre, int x) {
@@ -153,7 +145,7 @@ class EliminacionGatewaysIntegracionTest {
         modelarUnaDecision();
         long gatewaysAntes = gatewayRepository.count();
 
-        mockMvc.perform(delete(rutaGateway()).session(iniciarSesion(ADMIN_ALPES)).with(csrf()))
+        mockMvc.perform(delete(rutaGateway()).with(iniciarSesion(ADMIN_ALPES)))
                 .andExpect(status().isNoContent());
 
         assertThat(gatewayRepository.count()).isEqualTo(gatewaysAntes);
@@ -166,7 +158,7 @@ class EliminacionGatewaysIntegracionTest {
         modelarUnaDecision();
         long arcosAntes = arcoRepository.count();
 
-        mockMvc.perform(delete(rutaGateway()).session(iniciarSesion(ADMIN_ALPES)).with(csrf()))
+        mockMvc.perform(delete(rutaGateway()).with(iniciarSesion(ADMIN_ALPES)))
                 .andExpect(status().isNoContent());
 
         assertThat(arcoRepository.count()).isEqualTo(arcosAntes);
@@ -180,7 +172,7 @@ class EliminacionGatewaysIntegracionTest {
     void laEliminacionQuedaEnElHistorialDelProceso() throws Exception {
         modelarUnaDecision();
 
-        mockMvc.perform(delete(rutaGateway()).session(iniciarSesion(ADMIN_ALPES)).with(csrf()))
+        mockMvc.perform(delete(rutaGateway()).with(iniciarSesion(ADMIN_ALPES)))
                 .andExpect(status().isNoContent());
 
         assertThat(procesoService.consultarHistorial(proceso.getId(), ADMIN_ALPES).get(0).getCambiosRealizados())
@@ -209,7 +201,7 @@ class EliminacionGatewaysIntegracionTest {
     void laConsultaPreviaMuestraElImpactoSinModificarNada() throws Exception {
         modelarUnaDecision();
 
-        mockMvc.perform(get(rutaGateway() + "/eliminacion").session(iniciarSesion(ADMIN_ALPES)))
+        mockMvc.perform(get(rutaGateway() + "/eliminacion").with(iniciarSesion(ADMIN_ALPES)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(gateway.getId()))
                 .andExpect(jsonPath("$.activo").value(true))
@@ -225,12 +217,12 @@ class EliminacionGatewaysIntegracionTest {
     void elEditorYElLectorNoEliminanGateways() throws Exception {
         modelarUnaDecision();
 
-        mockMvc.perform(delete(rutaGateway()).session(iniciarSesion(EDITOR_ALPES)).with(csrf()))
+        mockMvc.perform(delete(rutaGateway()).with(iniciarSesion(EDITOR_ALPES)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.codigo").value("USUARIO_SIN_PERMISO"));
-        mockMvc.perform(delete(rutaGateway()).session(iniciarSesion(LECTOR_ALPES)).with(csrf()))
+        mockMvc.perform(delete(rutaGateway()).with(iniciarSesion(LECTOR_ALPES)))
                 .andExpect(status().isForbidden());
-        mockMvc.perform(get(rutaGateway() + "/eliminacion").session(iniciarSesion(EDITOR_ALPES)))
+        mockMvc.perform(get(rutaGateway() + "/eliminacion").with(iniciarSesion(EDITOR_ALPES)))
                 .andExpect(status().isForbidden());
 
         assertThat(gatewayActivo()).isTrue();
@@ -240,10 +232,10 @@ class EliminacionGatewaysIntegracionTest {
     @Test
     void unGatewayYaEliminadoNoSeEliminaDosVeces() throws Exception {
         modelarUnaDecision();
-        MockHttpSession sesion = iniciarSesion(ADMIN_ALPES);
-        mockMvc.perform(delete(rutaGateway()).session(sesion).with(csrf())).andExpect(status().isNoContent());
+        AccesoJwt acceso = iniciarSesion(ADMIN_ALPES);
+        mockMvc.perform(delete(rutaGateway()).with(acceso)).andExpect(status().isNoContent());
 
-        mockMvc.perform(delete(rutaGateway()).session(sesion).with(csrf()))
+        mockMvc.perform(delete(rutaGateway()).with(acceso))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.mensaje").value("El gateway ya fue eliminado"));
     }
@@ -252,7 +244,7 @@ class EliminacionGatewaysIntegracionTest {
     void otraEmpresaNoEliminaElGateway() throws Exception {
         modelarUnaDecision();
 
-        mockMvc.perform(delete(rutaGateway()).session(iniciarSesion(ADMIN_ANDES)).with(csrf()))
+        mockMvc.perform(delete(rutaGateway()).with(iniciarSesion(ADMIN_ANDES)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.codigo").value("USUARIO_SIN_PERMISO"));
 
@@ -264,7 +256,7 @@ class EliminacionGatewaysIntegracionTest {
         modelarUnaDecision();
 
         mockMvc.perform(delete("/api/procesos/" + proceso.getId() + "/gateways/999999")
-                .session(iniciarSesion(ADMIN_ALPES)).with(csrf()))
+                .with(iniciarSesion(ADMIN_ALPES)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.mensaje").value("El gateway no existe en este proceso"));
     }
@@ -274,7 +266,7 @@ class EliminacionGatewaysIntegracionTest {
         modelarUnaDecision();
         procesoService.eliminar(proceso.getId(), ADMIN_ALPES);
 
-        mockMvc.perform(delete(rutaGateway()).session(iniciarSesion(ADMIN_ALPES)).with(csrf()))
+        mockMvc.perform(delete(rutaGateway()).with(iniciarSesion(ADMIN_ALPES)))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.mensaje").value("El proceso ya fue eliminado"));
 

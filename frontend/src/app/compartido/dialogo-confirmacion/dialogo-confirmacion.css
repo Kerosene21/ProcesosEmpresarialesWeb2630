@@ -1,0 +1,47 @@
+.dialogo__fondo {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: rgb(16 24 40 / 45%);
+}
+
+.dialogo {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 21;
+  display: grid;
+  gap: var(--espacio-4);
+  width: min(32rem, calc(100vw - 2rem));
+  padding: var(--espacio-5);
+  background: var(--color-superficie);
+  border-radius: var(--radio-l);
+  box-shadow: var(--sombra-m);
+  transform: translate(-50%, -50%);
+}
+
+.dialogo__titulo {
+  margin: 0;
+  font-size: var(--texto-l);
+}
+
+.dialogo__mensaje p {
+  margin: 0;
+  color: var(--color-texto-secundario);
+}
+
+.dialogo__error {
+  margin: 0;
+  padding: var(--espacio-3);
+  font-size: var(--texto-s);
+  color: var(--color-peligro);
+  background: var(--color-peligro-tenue);
+  border-radius: var(--radio-m);
+}
+
+.dialogo__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--espacio-3);
+}

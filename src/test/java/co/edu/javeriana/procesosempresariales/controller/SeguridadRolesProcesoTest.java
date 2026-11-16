@@ -17,6 +17,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -56,6 +57,11 @@ class SeguridadRolesProcesoTest {
 
     @MockitoBean
     private UserDetailsService userDetailsService;
+
+    @BeforeEach
+    void usuariosSimuladosActivos() {
+        UsuariosSimulados.activos(userDetailsService);
+    }
 
     private RolProcesoRespuestaDto rol() {
         RolProcesoRespuestaDto rol = new RolProcesoRespuestaDto();
@@ -120,18 +126,20 @@ class SeguridadRolesProcesoTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laCreacionSinTokenCsrfSeRechaza() throws Exception {
-        mockMvc.perform(post(RUTA_ROLES).contentType(MediaType.APPLICATION_JSON).content(JSON_ROL))
-                .andExpect(status().isForbidden());
+    void laCreacionYaNoExigeTokenCsrf() throws Exception {
+        when(rolProcesoService.crear(any(CrearRolProcesoDto.class), eq(USERNAME))).thenReturn(rol());
 
-        verify(rolProcesoService, never()).crear(any(CrearRolProcesoDto.class), anyString());
+        mockMvc.perform(post(RUTA_ROLES).contentType(MediaType.APPLICATION_JSON).content(JSON_ROL))
+                .andExpect(status().isCreated());
+
+        verify(rolProcesoService).crear(any(CrearRolProcesoDto.class), eq(USERNAME));
     }
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laEliminacionSinTokenCsrfSeRechaza() throws Exception {
-        mockMvc.perform(delete(RUTA_ROL)).andExpect(status().isForbidden());
+    void laEliminacionYaNoExigeTokenCsrf() throws Exception {
+        mockMvc.perform(delete(RUTA_ROL)).andExpect(status().isNoContent());
 
-        verify(rolProcesoService, never()).eliminar(anyLong(), anyString());
+        verify(rolProcesoService).eliminar(anyLong(), eq(USERNAME));
     }
 }

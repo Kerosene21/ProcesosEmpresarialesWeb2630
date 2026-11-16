@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import co.edu.javeriana.procesosempresariales.dto.CrearEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.EnvioExternoRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.service.EnvioExternoService;
 
 @RestController
@@ -82,6 +83,16 @@ public class EnvioExternoRestController {
             @PathVariable("envioId") Long envioId, @Valid @RequestBody EditarEnvioExternoDto dto,
             Principal principal) {
         return ResponseEntity.ok(envioExternoService.editar(procesoId, envioId, dto, principal.getName()));
+    }
+
+    @PutMapping("/{envioId}/posicion")
+    @Operation(summary = "Mover envío externo", description = "Cambia solo la posición; el evento sigue en su "
+            + "pool y conserva su correlación. Requiere rol ADMINISTRADOR o EDITOR de la empresa propietaria.")
+    @ApiResponse(responseCode = "400", description = "Posición fuera de rango (`DATOS_NO_VALIDOS`).")
+    public ResponseEntity<EnvioExternoRespuestaDto> mover(@PathVariable("procesoId") Long procesoId,
+            @PathVariable("envioId") Long envioId, @Valid @RequestBody MoverNodoDto dto,
+            Principal principal) {
+        return ResponseEntity.ok(envioExternoService.mover(procesoId, envioId, dto, principal.getName()));
     }
 
     @GetMapping("/{envioId}/eliminacion")

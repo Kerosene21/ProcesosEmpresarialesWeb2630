@@ -1,0 +1,29 @@
+.formulario {
+  display: grid;
+  gap: var(--espacio-3);
+}
+
+.formulario__titulo {
+  font-size: var(--texto-m);
+}
+
+.formulario__posicion {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.formulario__coordenadas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--espacio-2);
+  margin-top: var(--espacio-1);
+}
+
+.formulario__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--espacio-2);
+}

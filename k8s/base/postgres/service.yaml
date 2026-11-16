@@ -1,0 +1,16 @@
+# Service sin IP de cluster (headless) para el StatefulSet: solo resuelve dentro del cluster.
+apiVersion: v1
+kind: Service
+metadata:
+  name: procesos-postgres
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/component: base-de-datos
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres

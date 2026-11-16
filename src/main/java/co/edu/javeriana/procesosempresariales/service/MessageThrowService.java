@@ -15,6 +15,7 @@ import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageThrowDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageThrowDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageThrowRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.repository.MessageThrowRepository;
 
@@ -121,6 +122,16 @@ public class MessageThrowService {
         messageThrow.setComportamientoSinCaso(dto.getComportamientoSinCaso());
         messageThrowRepository.save(messageThrow);
         eventoService.registrarEdicion(proceso, usuario, messageThrow, nombreAnterior, cambios);
+        return conCorrelacion(messageThrow);
+    }
+
+    @Transactional
+    public MessageThrowRespuestaDto mover(Long procesoId, Long throwId, MoverNodoDto dto, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        MessageThrow messageThrow = throwActivoDelProceso(throwId, proceso);
+        eventoService.mover(proceso, usuario, messageThrow, dto);
         return conCorrelacion(messageThrow);
     }
 

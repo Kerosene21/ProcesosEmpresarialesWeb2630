@@ -1,0 +1,20 @@
+.flujo__linea {
+  stroke: var(--color-texto-secundario);
+  stroke-width: 1.4;
+  stroke-dasharray: 6 4;
+}
+
+.flujo__inicio {
+  fill: var(--color-superficie);
+  stroke: var(--color-texto-secundario);
+  stroke-width: 1.4;
+}
+
+.flujo__texto {
+  font-size: 11px;
+  font-style: italic;
+  fill: var(--color-texto-secundario);
+  paint-order: stroke;
+  stroke: var(--color-superficie);
+  stroke-width: 3;
+}

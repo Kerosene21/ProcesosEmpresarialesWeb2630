@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -56,6 +57,11 @@ class DiagramaProcesoTest {
 
     @MockitoBean
     private UserDetailsService userDetailsService;
+
+    @BeforeEach
+    void usuariosSimuladosActivos() {
+        UsuariosSimulados.activos(userDetailsService);
+    }
 
     private ProcesoRespuestaDto proceso(boolean eliminado) {
         ProcesoRespuestaDto proceso = new ProcesoRespuestaDto();

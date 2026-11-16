@@ -111,7 +111,7 @@ class ArcoServiceTest {
                 new BCryptPasswordEncoder());
         AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
         arcoService = new ArcoService(arcoRepository, acceso, new HistorialProcesoService(historialProcesoRepository),
-                resolver, conexiones, new GeometriaArco());
+                resolver, conexiones, new GeometriaArco(), new ModelMapper());
     }
 
     private Empresa empresa(Long id) {
@@ -202,6 +202,26 @@ class ArcoServiceTest {
     private EditarArcoDto formularioEdicion() {
         return new EditarArcoDto(TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ORIGEN, TipoNodoFlujo.ACTIVIDAD,
                 ACTIVIDAD_DESTINO, null, null);
+    }
+
+    private ArcoRespuestaDto respuestaEsperada(Long id, String etiqueta, String condicion, boolean activo) {
+        ArcoRespuestaDto respuesta = new ArcoRespuestaDto();
+        respuesta.setId(id);
+        respuesta.setProcesoId(PROCESO_ID);
+        respuesta.setOrigenTipo(TipoNodoFlujo.ACTIVIDAD);
+        respuesta.setOrigenId(ACTIVIDAD_ORIGEN);
+        respuesta.setOrigenNombre(NOMBRE_ORIGEN);
+        respuesta.setDestinoTipo(TipoNodoFlujo.ACTIVIDAD);
+        respuesta.setDestinoId(ACTIVIDAD_DESTINO);
+        respuesta.setDestinoNombre(NOMBRE_DESTINO);
+        respuesta.setEtiqueta(etiqueta);
+        respuesta.setCondicion(condicion);
+        respuesta.setActivo(activo);
+        respuesta.setOrigenX(165);
+        respuesta.setOrigenY(73);
+        respuesta.setDestinoX(400);
+        respuesta.setDestinoY(73);
+        return respuesta;
     }
 
     @Test
@@ -587,6 +607,31 @@ class ArcoServiceTest {
         assertThat(arcos).hasSize(1);
         assertThat(arcos.get(0).getOrigenNombre()).isEqualTo(NOMBRE_ORIGEN);
         assertThat(arcos.get(0).getDestinoNombre()).isEqualTo(NOMBRE_DESTINO);
+    }
+
+    @Test
+    void laRespuestaDelArcoConservaTodosSusCamposSinModificarLaEntidad() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+        existeElProcesoActivo();
+        Arco etiquetado = new Arco(ARCO_ID, proceso(EMPRESA_PROPIA, false), TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ORIGEN,
+                TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_DESTINO, "Aprobada", "monto > 100", true);
+        Arco sinProceso = new Arco(61L, null, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ORIGEN, TipoNodoFlujo.ACTIVIDAD,
+                ACTIVIDAD_DESTINO, null, null, false);
+        when(arcoRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(PROCESO_ID))
+                .thenReturn(List.of(etiquetado, sinProceso));
+        when(actividadRepository.activasDelProceso(PROCESO_ID))
+                .thenReturn(List.of(actividad(ACTIVIDAD_ORIGEN, NOMBRE_ORIGEN, 100, 50, true),
+                        actividad(ACTIVIDAD_DESTINO, NOMBRE_DESTINO, 400, 50, true)));
+
+        List<ArcoRespuestaDto> arcos = arcoService.consultarActivos(PROCESO_ID, USERNAME);
+
+        assertThat(arcos).usingRecursiveFieldByFieldElementComparator().containsExactly(
+                respuestaEsperada(ARCO_ID, "Aprobada", "monto > 100", true),
+                respuestaEsperada(61L, null, null, false));
+        assertThat(etiquetado).usingRecursiveComparison().isEqualTo(new Arco(ARCO_ID, proceso(EMPRESA_PROPIA, false),
+                TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_ORIGEN, TipoNodoFlujo.ACTIVIDAD, ACTIVIDAD_DESTINO, "Aprobada",
+                "monto > 100", true));
+        assertThat(sinProceso.getProceso()).isNull();
     }
 
     @Test

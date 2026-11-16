@@ -40,6 +40,7 @@ import co.edu.javeriana.procesosempresariales.dto.FiltroProcesosDto;
 import co.edu.javeriana.procesosempresariales.dto.HistorialProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.ProcesoResumenDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.NombreProcesoDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.exception.UsuarioSinPermisoException;

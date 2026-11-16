@@ -1,0 +1,20 @@
+<div class="barra">
+  <div class="barra__grupo" role="toolbar" aria-label="Herramientas del lienzo">
+    @for (opcion of herramientas; track opcion.valor) {
+      <button
+        type="button"
+        class="barra__herramienta"
+        [attr.aria-pressed]="opcion.valor === herramienta()"
+        (click)="herramientaElegida.emit(opcion.valor)"
+      >
+        {{ opcion.nombre }}
+      </button>
+    }
+  </div>
+  <div class="barra__grupo" role="group" aria-label="Crear con un formulario">
+    @for (opcion of nuevos; track opcion.valor) {
+      <button type="button" class="boton boton--secundario" (click)="nuevo.emit(opcion.valor)">{{ opcion.nombre }}</button>
+    }
+  </div>
+</div>
+<p class="barra__ayuda" role="status">{{ ayuda() }}</p>

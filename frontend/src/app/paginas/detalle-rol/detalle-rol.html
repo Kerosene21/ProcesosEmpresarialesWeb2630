@@ -1,0 +1,147 @@
+<section class="pagina">
+  <nav class="migas" aria-label="Ruta de navegación">
+    <a routerLink="/roles-proceso">Roles de proceso</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">{{ rol()?.nombre ?? 'Detalle del rol' }}</span>
+  </nav>
+
+  @if (estadoRol().tipo === 'cargando') {
+    <app-aviso tipo="carga" titulo="Cargando el rol de proceso…" />
+  } @else if (falloRol(); as fallo) {
+    <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+    <a class="boton boton--secundario detalle-rol__volver" routerLink="/roles-proceso">Volver al listado</a>
+  } @else if (rol(); as datos) {
+    <header class="encabezado-pagina">
+      <div class="encabezado-pagina__texto">
+        <p class="encabezado-pagina__antetitulo">Rol de proceso #{{ datos.id }}</p>
+        <h1>{{ datos.nombre }}</h1>
+        <div class="grupo-chips">
+          @if (datos.activo) {
+            <span class="chip chip--exito">Activo</span>
+          } @else {
+            <span class="chip chip--peligro">Eliminado</span>
+          }
+          @if (datos.enUso) {
+            <span class="chip chip--informacion">En uso</span>
+          }
+        </div>
+      </div>
+      <div class="encabezado-pagina__acciones">
+        <a class="boton boton--secundario" routerLink="/roles-proceso">Volver al listado</a>
+        @if (esAdministrador() && datos.activo) {
+          <button
+            type="button"
+            class="boton boton--peligro-suave"
+            [disabled]="bloqueadoPorUso() || preparando()"
+            [attr.aria-describedby]="bloqueadoPorUso() ? 'aviso-rol-en-uso' : null"
+            (click)="solicitarEliminacion()"
+          >
+            {{ preparando() ? 'Comprobando…' : 'Eliminar rol' }}
+          </button>
+        }
+        @if (puedeEditar()) {
+          <a class="boton boton--primario" [routerLink]="['/roles-proceso', datos.id, 'editar']">Editar rol</a>
+        }
+      </div>
+    </header>
+
+    @if (eliminado() && !datos.activo) {
+      <app-aviso titulo="El rol de proceso se eliminó" detalle="La eliminación es lógica: el rol se conserva con su historial y deja de estar disponible para nuevas lanes." />
+    }
+    @if (bloqueadoPorUso() && esAdministrador()) {
+      <p id="aviso-rol-en-uso" class="detalle-rol__bloqueo" role="note">
+        Este rol no se puede eliminar porque lo usan lanes activas. Reasigna esas lanes a otro rol o elimínalas antes.
+      </p>
+    }
+    @if (usoDetectado()) {
+      <app-aviso tipo="error" titulo="El rol pasó a estar en uso" [detalle]="'Lo usan lanes de: ' + procesosEnUso() + '.'" />
+    }
+    @if (falloEliminacion() && !confirmando()) {
+      <app-aviso tipo="error" titulo="No se pudo preparar la eliminación" [detalle]="falloEliminacion()" />
+    }
+
+    <app-dialogo-confirmacion
+      [abierto]="confirmando()"
+      titulo="¿Eliminar este rol de proceso?"
+      [mensaje]="'El rol «' + datos.nombre + '» dejará de estar disponible para nuevas lanes. Se conserva con su historial.'"
+      textoConfirmar="Eliminar rol"
+      [procesando]="eliminando()"
+      [error]="falloEliminacion()"
+      (confirmado)="eliminar()"
+      (cancelado)="cancelarEliminacion()"
+    />
+
+    <article class="tarjeta" aria-labelledby="titulo-descripcion-rol">
+      <h2 id="titulo-descripcion-rol" class="tarjeta__titulo">Descripción</h2>
+      <p class="detalle-rol__descripcion">{{ datos.descripcion }}</p>
+    </article>
+
+    <article class="tarjeta" aria-labelledby="titulo-uso-rol">
+      <h2 id="titulo-uso-rol" class="tarjeta__titulo">Procesos que lo usan</h2>
+      @if (datos.procesos.length === 0) {
+        <app-aviso tipo="vacio" titulo="Ninguna lane activa usa este rol" />
+      } @else {
+        <div class="tabla-contenedor">
+          <table class="tabla tabla--adaptable">
+            <caption class="visualmente-oculto">Procesos cuyas lanes usan el rol</caption>
+            <thead>
+              <tr>
+                <th scope="col">Proceso</th>
+                <th scope="col">Lanes</th>
+                <th scope="col">Actividades activas</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (proceso of datos.procesos; track proceso.id) {
+                <tr>
+                  <td data-etiqueta="Proceso"><a [routerLink]="['/procesos', proceso.id]">{{ proceso.nombre }}</a></td>
+                  <td data-etiqueta="Lanes">{{ proceso.lanes }}</td>
+                  <td data-etiqueta="Actividades">{{ proceso.actividadesActivas }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </article>
+
+    <article class="tarjeta" aria-labelledby="titulo-historial-rol" [attr.aria-busy]="estadoHistorial().tipo === 'cargando'">
+      <h2 id="titulo-historial-rol" class="tarjeta__titulo">Historial</h2>
+      @if (estadoHistorial().tipo === 'cargando') {
+        <app-aviso tipo="carga" titulo="Cargando el historial…" />
+      } @else if (falloHistorial(); as fallo) {
+        <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+      } @else if (historial(); as entradas) {
+        @if (entradas.length === 0) {
+          <app-aviso tipo="vacio" titulo="El rol todavía no tiene cambios registrados" />
+        } @else {
+          <div class="tabla-contenedor">
+            <table class="tabla tabla--adaptable">
+              <caption class="visualmente-oculto">Cambios del rol, del más reciente al más antiguo</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Fecha</th>
+                  <th scope="col">Usuario</th>
+                  <th scope="col">Acción</th>
+                  <th scope="col">Cambios realizados</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (entrada of entradas; track $index) {
+                  <tr>
+                    <td data-etiqueta="Fecha">
+                      <time [attr.datetime]="entrada.fecha">{{ entrada.fecha | date: 'dd/MM/yyyy HH:mm' }}</time>
+                    </td>
+                    <td data-etiqueta="Usuario">{{ entrada.usuarioCorreo }}</td>
+                    <td data-etiqueta="Acción">{{ textoAccion[entrada.accion] }}</td>
+                    <td data-etiqueta="Cambios" class="detalle-rol__cambios">{{ entrada.cambiosRealizados }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+    </article>
+  }
+</section>

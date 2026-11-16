@@ -2,9 +2,6 @@ package co.edu.javeriana.procesosempresariales;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasSize;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
-import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -23,10 +20,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
@@ -100,7 +95,7 @@ class EventosEnDiagramaIntegracionTest {
     private Long pasarela;
     private Long revisar;
     private Long gateway;
-    private MockHttpSession admin;
+    private AccesoJwt admin;
 
     private void prepararProceso() throws Exception {
         empresaService.registrar(new RegistroEmpresaDto("Alpes Diagrama", "905800001-1", ADMIN_ALPES, PASSWORD));
@@ -121,11 +116,8 @@ class EventosEnDiagramaIntegracionTest {
         admin = iniciarSesion(ADMIN_ALPES);
     }
 
-    private MockHttpSession iniciarSesion(String correo) throws Exception {
-        MvcResult resultado = mockMvc.perform(formLogin().user(correo).password(PASSWORD))
-                .andExpect(authenticated().withUsername(correo))
-                .andReturn();
-        return (MockHttpSession) resultado.getRequest().getSession(false);
+    private AccesoJwt iniciarSesion(String correo) throws Exception {
+        return new ClientePruebaJwt(mockMvc).iniciarSesion(correo, PASSWORD);
     }
 
     private String ruta(String recurso) {
@@ -141,7 +133,7 @@ class EventosEnDiagramaIntegracionTest {
         if (json != null) {
             peticion.contentType(MediaType.APPLICATION_JSON).content(json);
         }
-        return mockMvc.perform(peticion.session(admin).with(csrf()));
+        return mockMvc.perform(peticion.with(admin));
     }
 
     private Long idCreado(ResultActions resultado) throws Exception {
@@ -242,7 +234,7 @@ class EventosEnDiagramaIntegracionTest {
         crearArco("ACTIVIDAD", revisar, "EVENTO", orden).andExpect(status().isCreated());
         crearArco("EVENTO", orden, "GATEWAY", gateway).andExpect(status().isCreated());
 
-        mockMvc.perform(get(ruta("message-throws/" + orden + "/eliminacion")).session(admin))
+        mockMvc.perform(get(ruta("message-throws/" + orden + "/eliminacion")).with(admin))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.advertencias[0]")
                         .value("Se desactivarán 2 arcos conectados a Message Throw: Orden de compra."));
@@ -263,7 +255,7 @@ class EventosEnDiagramaIntegracionTest {
         crearArco("ACTIVIDAD", revisar, "EVENTO", orden).andExpect(status().isCreated());
         comparticionProcesoService.compartir(proceso.getId(), andesId, ADMIN_ALPES);
 
-        mockMvc.perform(get(ruta("diagrama")).session(iniciarSesion(ADMIN_ANDES)))
+        mockMvc.perform(get(ruta("diagrama")).with(iniciarSesion(ADMIN_ANDES)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.procesoId").value(proceso.getId()))
                 .andExpect(jsonPath("$.pools", hasSize(3)))
@@ -288,7 +280,7 @@ class EventosEnDiagramaIntegracionTest {
     void elDiagramaDeUnProcesoNoCompartidoNoSeConsulta() throws Exception {
         prepararProceso();
 
-        mockMvc.perform(get(ruta("diagrama")).session(iniciarSesion(ADMIN_ANDES)))
+        mockMvc.perform(get(ruta("diagrama")).with(iniciarSesion(ADMIN_ANDES)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
     }

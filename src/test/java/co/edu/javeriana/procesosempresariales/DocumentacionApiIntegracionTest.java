@@ -4,27 +4,31 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
-import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -44,6 +48,15 @@ class DocumentacionApiIntegracionTest {
     private static final String ENVIOS_EXTERNOS = "/api/procesos/{procesoId}/envios-externos";
     private static final String DIAGRAMA = "/api/procesos/{procesoId}/diagrama";
     private static final String ESQUEMAS = "$.components.schemas.";
+    private static final String LOGIN = "/api/auth/login";
+    private static final String REFRESH = "/api/auth/refresh";
+    private static final String LOGOUT = "/api/auth/logout";
+    private static final String CSRF = "/api/auth/csrf";
+    private static final String ME = "/api/auth/me";
+    private static final String REGISTRO_EMPRESA = "/api/empresas";
+    private static final Set<String> OPERACIONES_PUBLICAS = Set.of("get " + CSRF, "post " + REGISTRO_EMPRESA);
+    private static final Set<String> OPERACIONES_CON_COOKIES = Set.of("post " + LOGIN, "post " + REFRESH,
+            "post " + LOGOUT);
 
     @Autowired
     private MockMvc mockMvc;
@@ -65,6 +78,8 @@ class DocumentacionApiIntegracionTest {
                 .andExpect(jsonPath("$.info.description").value(startsWith(
                         "API REST para la gestión y modelado de procesos empresariales BPMN multiempresa.")))
                 .andExpect(jsonPath("$.info.description").value(containsString("no ejecuta procesos BPMN")))
+                .andExpect(jsonPath("$.info.description").value(containsString("Authorization: Bearer")))
+                .andExpect(jsonPath("$.info.description").value(not(containsString("/api/sesion"))))
                 .andExpect(jsonPath(RUTAS).isMap());
     }
 
@@ -83,7 +98,16 @@ class DocumentacionApiIntegracionTest {
                 .andExpect(jsonPath(RUTAS, hasKey(MESSAGE_THROWS)))
                 .andExpect(jsonPath(RUTAS, hasKey(MESSAGE_CATCHES)))
                 .andExpect(jsonPath(RUTAS, hasKey(ENVIOS_EXTERNOS)))
-                .andExpect(jsonPath(RUTAS, hasKey(DIAGRAMA)));
+                .andExpect(jsonPath(RUTAS, hasKey(DIAGRAMA)))
+                .andExpect(jsonPath(RUTAS, hasKey("/api/usuarios")))
+                .andExpect(jsonPath(RUTAS, hasKey("/api/usuarios/{usuarioId}/rol")))
+                .andExpect(jsonPath(RUTAS, hasKey("/api/usuarios/{usuarioId}/desactivacion")))
+                .andExpect(jsonPath(RUTAS, hasKey(CSRF)))
+                .andExpect(jsonPath(RUTAS, hasKey(LOGIN)))
+                .andExpect(jsonPath(RUTAS, hasKey(REFRESH)))
+                .andExpect(jsonPath(RUTAS, hasKey(LOGOUT)))
+                .andExpect(jsonPath(RUTAS, hasKey(ME)))
+                .andExpect(jsonPath(RUTAS, not(hasKey("/api/sesion"))));
     }
 
     @Test
@@ -150,44 +174,97 @@ class DocumentacionApiIntegracionTest {
     }
 
     @Test
-    @WithMockUser(username = "admin@documentacion.test", roles = "ADMINISTRADOR")
-    void laProteccionCsrfDeLaApiSigueActiva() throws Exception {
+    void laApiExigeBearerYSoloLasRutasDeCookiesExigenCsrf() throws Exception {
         mockMvc.perform(post("/api/procesos/1/message-throws")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"))
+                .andExpect(jsonPath(CODIGO).value("USUARIO_NO_AUTORIZADO"));
+        mockMvc.perform(post(LOGIN)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"correo\":\"admin@documentacion.test\",\"password\":\"clave\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
     }
 
     @Test
-    void laSeguridadDocumentadaEsLaSesionDelFormularioYElTokenCsrf() throws Exception {
+    void laSeguridadDocumentadaEsBearerYCsrfSoloEnLasRutasDeCookies() throws Exception {
+        String esquemas = "$.components.securitySchemes";
         mockMvc.perform(get(API_DOCS))
-                .andExpect(jsonPath("$.components.securitySchemes.sesion.type").value("apiKey"))
-                .andExpect(jsonPath("$.components.securitySchemes.sesion.in").value("cookie"))
-                .andExpect(jsonPath("$.components.securitySchemes.sesion.name").value("JSESSIONID"))
-                .andExpect(jsonPath("$.components.securitySchemes.csrf.in").value("header"))
-                .andExpect(jsonPath("$.components.securitySchemes.csrf.name").value("X-CSRF-TOKEN"))
-                .andExpect(jsonPath("$.components.securitySchemes", not(hasKey("bearerAuth"))))
-                .andExpect(jsonPath("$.paths['" + DIAGRAMA + "'].get.security[0]", hasKey("sesion")))
+                .andExpect(jsonPath(esquemas + ".bearerAuth.type").value("http"))
+                .andExpect(jsonPath(esquemas + ".bearerAuth.scheme").value("bearer"))
+                .andExpect(jsonPath(esquemas + ".bearerAuth.bearerFormat").value("JWT"))
+                .andExpect(jsonPath(esquemas + ".csrf.type").value("apiKey"))
+                .andExpect(jsonPath(esquemas + ".csrf.in").value("header"))
+                .andExpect(jsonPath(esquemas + ".csrf.name").value("X-XSRF-TOKEN"))
+                .andExpect(jsonPath(esquemas + ".cookieRefresco.in").value("cookie"))
+                .andExpect(jsonPath(esquemas + ".cookieRefresco.name").value("PE_REFRESH"))
+                .andExpect(jsonPath(esquemas, not(hasKey("sesion"))))
+                .andExpect(jsonPath("$.paths['" + DIAGRAMA + "'].get.security[0]", hasKey("bearerAuth")))
                 .andExpect(jsonPath("$.paths['" + DIAGRAMA + "'].get.security[0]", not(hasKey("csrf"))))
-                .andExpect(jsonPath("$.paths['" + MESSAGE_THROWS + "'].post.security[0]", hasKey("sesion")))
-                .andExpect(jsonPath("$.paths['" + MESSAGE_THROWS + "'].post.security[0]", hasKey("csrf")));
+                .andExpect(jsonPath("$.paths['" + MESSAGE_THROWS + "'].post.security[0]", hasKey("bearerAuth")))
+                .andExpect(jsonPath("$.paths['" + MESSAGE_THROWS + "'].post.security[0]", not(hasKey("csrf"))))
+                .andExpect(jsonPath("$.paths['" + ME + "'].get.security[0]", hasKey("bearerAuth")))
+                .andExpect(jsonPath("$.paths['" + LOGIN + "'].post.security", hasSize(1)))
+                .andExpect(jsonPath("$.paths['" + LOGIN + "'].post.security[0]", hasKey("csrf")))
+                .andExpect(jsonPath("$.paths['" + LOGIN + "'].post.security[0]", not(hasKey("bearerAuth"))))
+                .andExpect(jsonPath("$.paths['" + REFRESH + "'].post.security", hasSize(1)))
+                .andExpect(jsonPath("$.paths['" + REFRESH + "'].post.security[0]", hasKey("csrf")))
+                .andExpect(jsonPath("$.paths['" + REFRESH + "'].post.security[0]", hasKey("cookieRefresco")))
+                .andExpect(jsonPath("$.paths['" + LOGOUT + "'].post.security", hasSize(2)))
+                .andExpect(jsonPath("$.paths['" + LOGOUT + "'].post.security[0]", hasKey("cookieRefresco")))
+                .andExpect(jsonPath("$.paths['" + LOGOUT + "'].post.security[1]", hasKey("csrf")))
+                .andExpect(jsonPath("$.paths['" + LOGOUT + "'].post.security[1]", not(hasKey("cookieRefresco"))))
+                .andExpect(jsonPath("$.paths['" + CSRF + "'].get.security", empty()))
+                .andExpect(jsonPath("$.paths['" + REGISTRO_EMPRESA + "'].post.security", empty()))
+                .andExpect(jsonPath("$.paths['" + LOGIN + "'].post.responses.403.description",
+                        containsString("X-XSRF-TOKEN")));
     }
 
     @Test
-    void cadaOperacionTieneResumenEtiquetaIdentificadorUnicoY401() throws Exception {
+    void cadaOperacionTieneResumenEtiquetaIdentificadorUnicoYSuSeguridad() throws Exception {
         String json = documento(API_DOCS);
         List<String> identificadores = JsonPath.read(json, "$.paths.*.*.operationId");
         List<String> resumenes = JsonPath.read(json, "$.paths.*.*.summary");
         List<String> etiquetas = JsonPath.read(json, "$.paths.*.*.tags[0]");
-        List<Map<String, Object>> respuestas = JsonPath.read(json, "$.paths.*.*.responses");
+        Map<String, Map<String, Map<String, Object>>> rutas = JsonPath.read(json, RUTAS);
 
-        assertThat(identificadores).hasSize(64).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
-        assertThat(resumenes).hasSize(64).allMatch(resumen -> !resumen.isBlank());
-        assertThat(etiquetas).hasSize(64);
-        assertThat(respuestas)
-                .hasSize(64)
-                .allSatisfy(respuesta -> assertThat(respuesta).containsKey("401"));
+        assertThat(identificadores).hasSize(82).doesNotHaveDuplicates().noneMatch(id -> id.contains("_"));
+        assertThat(resumenes).hasSize(82).allMatch(resumen -> !resumen.isBlank());
+        assertThat(etiquetas).hasSize(82);
+        int protegidas = 0;
+        for (Map.Entry<String, Map<String, Map<String, Object>>> ruta : rutas.entrySet()) {
+            for (Map.Entry<String, Map<String, Object>> operacion : ruta.getValue().entrySet()) {
+                String clave = operacion.getKey() + " " + ruta.getKey();
+                Map<String, Object> respuestas = mapa(operacion.getValue().get("responses"));
+                List<Map<String, Object>> seguridad = requisitos(operacion.getValue().get("security"));
+                if (OPERACIONES_PUBLICAS.contains(clave)) {
+                    assertThat(seguridad).as(clave).isEmpty();
+                    assertThat(respuestas).as(clave).doesNotContainKeys("401", "403");
+                } else if (OPERACIONES_CON_COOKIES.contains(clave)) {
+                    assertThat(seguridad).as(clave).isNotEmpty()
+                            .allSatisfy(requisito -> assertThat(requisito).containsKey("csrf")
+                                    .doesNotContainKey("bearerAuth"));
+                    assertThat(respuestas).as(clave).containsKey("403");
+                } else {
+                    protegidas++;
+                    assertThat(seguridad).as(clave).containsExactly(Map.<String, Object>of("bearerAuth", List.of()));
+                    assertThat(respuestas).as(clave).containsKey("401");
+                }
+            }
+        }
+        assertThat(protegidas).isEqualTo(77);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> mapa(Object valor) {
+        return (Map<String, Object>) valor;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> requisitos(Object valor) {
+        return (List<Map<String, Object>>) valor;
     }
 
     @Test
@@ -209,7 +286,15 @@ class DocumentacionApiIntegracionTest {
                 .andExpect(jsonPath("$.paths['" + MESSAGE_CATCHES + "'].post.responses", hasKey("403")))
                 .andExpect(jsonPath("$.paths['" + DIAGRAMA + "'].get.responses", hasKey("200")))
                 .andExpect(jsonPath("$.paths['" + DIAGRAMA + "'].get.responses.200.content['application/json']"
-                        + ".schema.$ref").value("#/components/schemas/DiagramaProcesoDto"));
+                        + ".schema.$ref").value("#/components/schemas/DiagramaProcesoDto"))
+                .andExpect(jsonPath("$.paths['/api/procesos/{procesoId}/actividades/{actividadId}/posicion'].put"
+                        + ".responses", hasKey("400")))
+                .andExpect(jsonPath("$.paths['/api/procesos/{procesoId}/gateways/{gatewayId}/posicion'].put"
+                        + ".requestBody.content['application/json'].schema.$ref")
+                        .value("#/components/schemas/MoverNodoDto"))
+                .andExpect(jsonPath("$.components.schemas.EditarActividadDto.properties", hasKey("posicionX")))
+                .andExpect(jsonPath("$.components.schemas.EditarActividadDto.properties",
+                        not(hasKey("posicionCompleta"))));
     }
 
     @Test
@@ -271,7 +356,8 @@ class DocumentacionApiIntegracionTest {
         List<String> cuerpos = JsonPath.read(json, "$.paths.*.*.requestBody.content['application/json'].schema.$ref");
 
         assertThat(rutas.keySet().stream().filter(ruta -> ruta.contains("empresa")).toList())
-                .containsExactly("/api/procesos/{procesoId}/compartido-con/{empresaId}");
+                .containsExactly("/api/empresas", "/api/empresas/actual",
+                        "/api/procesos/{procesoId}/compartido-con/{empresaId}");
         assertThat(ubicacionesDeEmpresa).containsExactly("path", "path");
         assertThat(cuerpos).isNotEmpty();
         for (String referencia : cuerpos) {

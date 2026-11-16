@@ -1,0 +1,27 @@
+.filtros-roles {
+  display: grid;
+  grid-template-columns: minmax(14rem, 2fr) minmax(12rem, 1fr) auto;
+  gap: var(--espacio-4);
+  align-items: end;
+}
+
+.filtros-roles__acciones {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.lista-roles__enlace {
+  font-weight: 600;
+}
+
+.lista-roles__descripcion {
+  margin-top: var(--espacio-1);
+  font-size: var(--texto-s);
+  color: var(--color-texto-secundario);
+}
+
+@media (max-width: 720px) {
+  .filtros-roles {
+    grid-template-columns: 1fr;
+  }
+}

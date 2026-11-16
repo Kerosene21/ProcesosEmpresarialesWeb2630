@@ -1,0 +1,70 @@
+<section class="comparticion" aria-labelledby="titulo-comparticion">
+  <div>
+    <h2 id="titulo-comparticion" class="tarjeta__titulo">Compartición con otras empresas</h2>
+    <p class="nota">
+      Las empresas invitadas consultan el proceso y su diagrama en solo lectura. Tu empresa conserva la propiedad y
+      la edición exclusiva; no se comparten usuarios, roles ni otros procesos.
+    </p>
+  </div>
+
+  @if (mensaje(); as texto) {
+    <p class="comparticion__exito" role="status">{{ texto }}</p>
+  }
+  @if (fallo(); as falloActual) {
+    <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
+  }
+
+  @if (empresas(); as invitadas) {
+    @if (invitadas.length === 0) {
+      <app-aviso tipo="vacio" titulo="El proceso es privado" detalle="Todavía no se comparte con ninguna empresa." />
+    } @else {
+      <ul class="comparticion__lista" aria-label="Empresas con acceso de solo lectura">
+        @for (empresa of invitadas; track empresa.id) {
+          <li class="comparticion__empresa">
+            <span>
+              <strong>{{ empresa.nombre }}</strong>
+              <span class="nota"> · identificador {{ empresa.id }}</span>
+            </span>
+            @if (gestionable()) {
+              <button type="button" class="boton boton--peligro-suave" [attr.aria-label]="'Retirar el acceso de ' + empresa.nombre" [disabled]="procesando()" (click)="solicitarRetiro(empresa)">
+                Retirar acceso
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    }
+  } @else if (falloConsulta(); as falloActual) {
+    <app-aviso tipo="error" titulo="No se pudo consultar con quién se comparte el proceso" [detalle]="explicar(falloActual)" accion="Reintentar" (accionSolicitada)="recargar()" />
+  } @else {
+    <app-aviso tipo="carga" titulo="Consultando las empresas invitadas…" />
+  }
+
+  @if (gestionable()) {
+    <form class="comparticion__formulario" [formGroup]="formulario" (ngSubmit)="compartir()" novalidate aria-labelledby="titulo-compartir">
+      <h3 id="titulo-compartir" class="comparticion__subtitulo">Compartir con una empresa</h3>
+      <div class="campo">
+        <label class="campo__etiqueta" for="comparticion-empresa">Identificador de la empresa</label>
+        <input id="comparticion-empresa" class="campo__control" type="number" min="1" step="1" formControlName="empresaId" aria-describedby="ayuda-comparticion-empresa" [attr.aria-invalid]="error() !== null" />
+        <span id="ayuda-comparticion-empresa" class="campo__ayuda">El administrador de la otra empresa lo encuentra en «Mi empresa».</span>
+        <span class="campo__error">{{ error() }}</span>
+      </div>
+      <button type="submit" class="boton boton--primario" [disabled]="procesando()">{{ procesando() ? 'Compartiendo…' : 'Compartir en solo lectura' }}</button>
+    </form>
+  } @else if (proceso().eliminado) {
+    <p class="nota">El proceso fue eliminado: se conserva la lista, pero ya no se puede compartir ni retirar el acceso.</p>
+  } @else {
+    <p class="nota">Solo un administrador de tu empresa puede cambiar con quién se comparte el proceso.</p>
+  }
+
+  <app-dialogo-confirmacion
+    [abierto]="porRetirar() !== null"
+    titulo="¿Retirar el acceso?"
+    [mensaje]="'«' + (porRetirar()?.nombre ?? '') + '» dejará de ver este proceso y su diagrama. Puedes volver a compartirlo más adelante.'"
+    textoConfirmar="Retirar acceso"
+    [procesando]="procesando()"
+    [error]="falloRetiro()"
+    (confirmado)="retirar()"
+    (cancelado)="cancelarRetiro()"
+  />
+</section>

@@ -20,6 +20,8 @@ import co.edu.javeriana.procesosempresariales.dto.ActividadRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarActividadDto;
 import co.edu.javeriana.procesosempresariales.dto.LaneRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverActividadDto;
+import co.edu.javeriana.procesosempresariales.exception.FlujoEntrePoolsException;
 import co.edu.javeriana.procesosempresariales.exception.NombreActividadDuplicadoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.repository.ActividadRepository;
@@ -32,6 +34,8 @@ public class ActividadService {
     private static final String SIN_PERMISO_ESCRITURA =
             "Solo un administrador o editor puede crear o modificar actividades";
     private static final String SIN_PERMISO_ELIMINAR = "Solo un administrador puede eliminar actividades";
+    private static final String CAMBIO_DE_POOL_CON_ARCOS = ": no puede pasar a una lane de otro pool porque un flujo"
+            + " de secuencia no cruza pools; elimina antes esos arcos";
 
     private ActividadRepository actividadRepository;
     private LaneService laneService;
@@ -122,8 +126,11 @@ public class ActividadService {
         }
 
         Lane laneNueva = laneService.laneDelProceso(dto.getLaneId(), proceso);
+        validarPoolDeLasConexiones(proceso, actividad, laneNueva);
+        Integer posicionX = dto.cambiaPosicion() ? dto.getPosicionX() : actividad.getPosicionX();
+        Integer posicionY = dto.cambiaPosicion() ? dto.getPosicionY() : actividad.getPosicionY();
 
-        String cambios = construirCambios(actividad, dto, nombreNuevo, laneNueva);
+        String cambios = construirCambios(actividad, dto, nombreNuevo, laneNueva, posicionX, posicionY);
         if (cambios.isEmpty()) {
             return toDto(actividad);
         }
@@ -132,6 +139,34 @@ public class ActividadService {
         actividad.setNombre(nombreNuevo);
         actividad.setTipo(dto.getTipo());
         actividad.setLane(laneNueva);
+        actividad.setPosicionX(posicionX);
+        actividad.setPosicionY(posicionY);
+        actividadRepository.save(actividad);
+
+        historialProcesoService.registrar(proceso, usuario, resumen);
+        return toDto(actividad);
+    }
+
+    @Transactional
+    public ActividadRespuestaDto mover(Long procesoId, Long actividadId, MoverActividadDto dto, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        Actividad actividad = actividadActivaDelProceso(actividadId, proceso);
+
+        Lane laneNueva = laneService.laneDelProceso(dto.getLaneId(), proceso);
+        validarPoolDeLasConexiones(proceso, actividad, laneNueva);
+
+        List<String> cambios = new ArrayList<>();
+        agregarCambiosDeUbicacion(cambios, actividad, laneNueva, dto.getPosicionX(), dto.getPosicionY());
+        if (cambios.isEmpty()) {
+            return toDto(actividad);
+        }
+
+        String resumen = "actividad '" + actividad.getNombre() + "': " + String.join("; ", cambios);
+        actividad.setLane(laneNueva);
+        actividad.setPosicionX(dto.getPosicionX());
+        actividad.setPosicionY(dto.getPosicionY());
         actividadRepository.save(actividad);
 
         historialProcesoService.registrar(proceso, usuario, resumen);
@@ -184,15 +219,35 @@ public class ActividadService {
         return actividad;
     }
 
-    private String construirCambios(Actividad actividad, EditarActividadDto dto, String nombreNuevo, Lane laneNueva) {
+    private void validarPoolDeLasConexiones(Proceso proceso, Actividad actividad, Lane laneNueva) {
+        if (Objects.equals(actividad.getLane().getPool().getId(), laneNueva.getPool().getId())) {
+            return;
+        }
+        int conectados = conexionesService.conectadosActivos(proceso, TipoNodoFlujo.ACTIVIDAD, actividad.getId())
+                .size();
+        if (conectados > 0) {
+            throw new FlujoEntrePoolsException("'" + actividad.getNombre() + "' tiene " + conectados
+                    + (conectados == 1 ? " arco conectado" : " arcos conectados") + CAMBIO_DE_POOL_CON_ARCOS);
+        }
+    }
+
+    private String construirCambios(Actividad actividad, EditarActividadDto dto, String nombreNuevo, Lane laneNueva,
+            Integer posicionX, Integer posicionY) {
         List<String> cambios = new ArrayList<>();
         agregarCambio(cambios, "nombre", actividad.getNombre(), nombreNuevo);
         agregarCambio(cambios, "tipo", actividad.getTipo().name(), dto.getTipo().name());
+        agregarCambiosDeUbicacion(cambios, actividad, laneNueva, posicionX, posicionY);
+        return String.join("; ", cambios);
+    }
+
+    private void agregarCambiosDeUbicacion(List<String> cambios, Actividad actividad, Lane laneNueva,
+            Integer posicionX, Integer posicionY) {
         if (!Objects.equals(actividad.getLane().getId(), laneNueva.getId())) {
             cambios.add("lane: '" + actividad.getLane().nombreFuncional() + "' -> '" + laneNueva.nombreFuncional()
                     + "'");
         }
-        return String.join("; ", cambios);
+        HistorialProcesoService.cambioDePosicion(actividad.getPosicionX(), actividad.getPosicionY(), posicionX,
+                posicionY).ifPresent(cambios::add);
     }
 
     private void agregarCambio(List<String> cambios, String campo, String anterior, String nuevo) {

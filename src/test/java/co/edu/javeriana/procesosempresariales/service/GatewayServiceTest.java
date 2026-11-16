@@ -44,6 +44,7 @@ import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.PoolCajaNegraException;
 import co.edu.javeriana.procesosempresariales.exception.PoolNoValidoException;
@@ -106,7 +107,8 @@ class GatewayServiceTest {
                 new BCryptPasswordEncoder());
         AccesoProcesoService acceso = new AccesoProcesoService(usuarios, procesoRepository);
         gatewayService = new GatewayService(gatewayRepository, acceso,
-                new HistorialProcesoService(historialProcesoRepository), conexiones, resolver, poolService);
+                new HistorialProcesoService(historialProcesoRepository), conexiones, resolver, poolService,
+                new ModelMapper());
     }
 
     private Empresa empresa(Long id) {
@@ -388,6 +390,29 @@ class GatewayServiceTest {
         assertThat(gateways).hasSize(1);
         assertThat(gateways.get(0).getSimbolo()).isEqualTo("O");
         assertThat(gateways.get(0).getPosicionX()).isEqualTo(300);
+    }
+
+    @Test
+    void laRespuestaDelGatewayConservaTodosSusCamposSinModificarLaEntidad() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+        existeElProcesoActivo();
+        Gateway gateway = gateway(TipoGateway.EXCLUSIVO, true);
+        when(gatewayRepository.findByProcesoIdAndActivoTrueOrderByIdAsc(PROCESO_ID)).thenReturn(List.of(gateway));
+
+        List<GatewayRespuestaDto> gateways = gatewayService.consultarActivos(PROCESO_ID, USERNAME);
+
+        GatewayRespuestaDto esperado = new GatewayRespuestaDto();
+        esperado.setId(GATEWAY_ID);
+        esperado.setProcesoId(PROCESO_ID);
+        esperado.setPoolId(POOL_ID);
+        esperado.setTipo(TipoGateway.EXCLUSIVO);
+        esperado.setSimbolo("X");
+        esperado.setEtiqueta("Gateway EXCLUSIVO #12");
+        esperado.setPosicionX(300);
+        esperado.setPosicionY(120);
+        esperado.setActivo(true);
+        assertThat(gateways).singleElement().usingRecursiveComparison().isEqualTo(esperado);
+        assertThat(gateway).usingRecursiveComparison().isEqualTo(gateway(TipoGateway.EXCLUSIVO, true));
     }
 
     @Test
@@ -1032,5 +1057,71 @@ class GatewayServiceTest {
 
         noSeModificoNada();
         verify(procesoRepository, never()).estaCompartidoCon(anyLong(), anyLong());
+    }
+
+    @Test
+    void elEditorMueveUnGatewayDentroDeSuPoolYQuedaEnElHistorial() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, true);
+
+        GatewayRespuestaDto movido = gatewayService.mover(PROCESO_ID, GATEWAY_ID, new MoverNodoDto(420, 150),
+                USERNAME);
+
+        Gateway guardado = gatewayGuardado();
+        assertThat(guardado.getPosicionX()).isEqualTo(420);
+        assertThat(guardado.getPosicionY()).isEqualTo(150);
+        assertThat(guardado.getTipo()).isEqualTo(TipoGateway.EXCLUSIVO);
+        assertThat(movido.getPoolId()).isEqualTo(POOL_ID);
+        assertThat(historialGuardado().getCambiosRealizados()).isEqualTo("gateway #12: posicion: (300, 120) -> "
+                + "(420, 150)");
+    }
+
+    @Test
+    void moverUnGatewayALaMismaPosicionNoGuardaNiRegistraHistorial() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.PARALELO, true);
+
+        gatewayService.mover(PROCESO_ID, GATEWAY_ID, new MoverNodoDto(300, 120), USERNAME);
+
+        verify(gatewayRepository, never()).save(any(Gateway.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void elUsuarioDeSoloLecturaNoMueveGateways() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+
+        assertThatThrownBy(() -> gatewayService.mover(PROCESO_ID, GATEWAY_ID, new MoverNodoDto(420, 150), USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class)
+                .hasMessage("Solo un administrador o editor puede crear o modificar gateways");
+
+        verify(gatewayRepository, never()).save(any(Gateway.class));
+    }
+
+    @Test
+    void moverUnGatewayRechazaUnProcesoEliminadoOAjeno() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_PROPIA, true);
+
+        assertThatThrownBy(() -> gatewayService.mover(PROCESO_ID, GATEWAY_ID, new MoverNodoDto(420, 150), USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class);
+
+        existeElProceso(EMPRESA_AJENA, false);
+        assertThatThrownBy(() -> gatewayService.mover(PROCESO_ID, GATEWAY_ID, new MoverNodoDto(420, 150), USERNAME))
+                .isInstanceOf(UsuarioSinPermisoException.class);
+        verify(gatewayRepository, never()).save(any(Gateway.class));
+    }
+
+    @Test
+    void moverRechazaUnGatewayEliminado() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElGateway(TipoGateway.EXCLUSIVO, false);
+
+        assertThatThrownBy(() -> gatewayService.mover(PROCESO_ID, GATEWAY_ID, new MoverNodoDto(420, 150), USERNAME))
+                .isInstanceOf(RecursoNoEncontradoException.class)
+                .hasMessage("El gateway ya fue eliminado");
     }
 }

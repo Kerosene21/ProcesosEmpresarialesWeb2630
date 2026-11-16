@@ -89,6 +89,10 @@ class EliminacionProcesosIntegracionTest {
         return (MockHttpSession) resultado.getRequest().getSession(false);
     }
 
+    private AccesoJwt iniciarSesionJwt(String correo) throws Exception {
+        return new ClientePruebaJwt(mockMvc).iniciarSesion(correo, PASSWORD);
+    }
+
     private ProcesoRespuestaDto crearProceso(String nombre, String autor) {
         return procesoService.crear(new CrearProcesoDto(nombre, "Proceso comercial", "Comercial"), autor);
     }
@@ -251,9 +255,9 @@ class EliminacionProcesosIntegracionTest {
         registrarAlpes();
         ProcesoRespuestaDto proceso = crearProceso("Ventas", EDITOR_ALPES);
         long procesosAntes = procesoRepository.count();
-        MockHttpSession sesion = iniciarSesion(ADMIN_ALPES);
+        AccesoJwt acceso = iniciarSesionJwt(ADMIN_ALPES);
 
-        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).session(sesion).with(csrf()))
+        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).with(acceso))
                 .andExpect(status().isNoContent());
 
         assertThat(procesoRepository.count()).isEqualTo(procesosAntes);
@@ -264,9 +268,9 @@ class EliminacionProcesosIntegracionTest {
     void laApiRechazaLaEliminacionDeUnEditorConTrescientosTres() throws Exception {
         registrarAlpes();
         ProcesoRespuestaDto proceso = crearProceso("Ventas", EDITOR_ALPES);
-        MockHttpSession sesion = iniciarSesion(EDITOR_ALPES);
+        AccesoJwt acceso = iniciarSesionJwt(EDITOR_ALPES);
 
-        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).session(sesion).with(csrf()))
+        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).with(acceso))
                 .andExpect(status().isForbidden());
 
         assertThat(procesoRepository.findById(proceso.getId()).orElseThrow().isEliminado()).isFalse();
@@ -276,9 +280,9 @@ class EliminacionProcesosIntegracionTest {
     void laApiRechazaLaEliminacionDeUnUsuarioDeSoloLecturaConTrescientosTres() throws Exception {
         registrarAlpes();
         ProcesoRespuestaDto proceso = crearProceso("Ventas", EDITOR_ALPES);
-        MockHttpSession sesion = iniciarSesion(LECTOR_ALPES);
+        AccesoJwt acceso = iniciarSesionJwt(LECTOR_ALPES);
 
-        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).session(sesion).with(csrf()))
+        mockMvc.perform(delete("/api/procesos/" + proceso.getId()).with(acceso))
                 .andExpect(status().isForbidden());
 
         assertThat(procesoRepository.findById(proceso.getId()).orElseThrow().isEliminado()).isFalse();
@@ -295,6 +299,18 @@ class EliminacionProcesosIntegracionTest {
                 .session(sesionAlpes).with(csrf()))
                 .andExpect(status().isForbidden())
                 .andExpect(view().name("error/problema"));
+
+        assertThat(procesoRepository.findById(procesoDeAndes.getId()).orElseThrow().isEliminado()).isFalse();
+    }
+
+    @Test
+    void laApiImpideQueElAdministradorDeOtraEmpresaElimineElProceso() throws Exception {
+        registrarAlpes();
+        registrarAndes();
+        ProcesoRespuestaDto procesoDeAndes = crearProceso("Compras", ADMIN_ANDES);
+
+        mockMvc.perform(delete("/api/procesos/" + procesoDeAndes.getId()).with(iniciarSesionJwt(ADMIN_ALPES)))
+                .andExpect(status().isForbidden());
 
         assertThat(procesoRepository.findById(procesoDeAndes.getId()).orElseThrow().isEliminado()).isFalse();
     }

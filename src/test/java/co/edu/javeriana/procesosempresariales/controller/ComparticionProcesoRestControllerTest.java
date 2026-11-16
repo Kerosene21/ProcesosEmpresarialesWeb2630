@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import co.edu.javeriana.procesosempresariales.dto.EmpresaInvitadaDto;
+import co.edu.javeriana.procesosempresariales.exception.ApiExceptionHandler;
 import co.edu.javeriana.procesosempresariales.exception.ComparticionNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.ProcesoYaCompartidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;

@@ -1,0 +1,16 @@
+.migas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espacio-2);
+  font-size: var(--texto-s);
+  color: var(--color-texto-secundario);
+}
+
+.modelador-proceso__volver {
+  justify-self: start;
+}
+
+.modelador-proceso__diagrama {
+  display: grid;
+  gap: var(--espacio-3);
+}

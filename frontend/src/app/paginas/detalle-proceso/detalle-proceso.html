@@ -1,0 +1,130 @@
+<section class="pagina">
+  <nav class="migas" aria-label="Ruta de navegación">
+    <a routerLink="/procesos">Procesos</a>
+    <span aria-hidden="true">/</span>
+    <span aria-current="page">{{ proceso()?.nombre ?? 'Detalle del proceso' }}</span>
+  </nav>
+
+  @if (estadoProceso().tipo === 'cargando') {
+    <app-aviso tipo="carga" titulo="Cargando el proceso…" />
+  } @else if (falloProceso(); as fallo) {
+    <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+    <a class="boton boton--secundario detalle__volver" routerLink="/procesos">Volver al listado</a>
+  } @else if (proceso(); as datos) {
+    <header class="encabezado-pagina">
+      <div class="encabezado-pagina__texto">
+        <p class="encabezado-pagina__antetitulo">Proceso #{{ datos.id }}</p>
+        <h1>{{ datos.nombre }}</h1>
+        <div class="grupo-chips">
+          <app-etiqueta-estado [estado]="datos.estado" />
+          @if (datos.eliminado) {
+            <span class="chip chip--peligro">Eliminado</span>
+          }
+          @if (datos.soloLectura) {
+            <span class="chip chip--informacion">Solo lectura</span>
+          }
+        </div>
+      </div>
+      <div class="encabezado-pagina__acciones">
+        <a class="boton boton--secundario" routerLink="/procesos">Volver al listado</a>
+        @if (puedeVerHistorial()) {
+          <a class="boton boton--secundario" [routerLink]="['/procesos', datos.id, 'historial']">Ver historial</a>
+        }
+        @if (puedeEliminar()) {
+          <button type="button" class="boton boton--peligro-suave" (click)="solicitarEliminacion()">Eliminar proceso</button>
+        }
+        @if (puedeEditar()) {
+          <a class="boton boton--primario" [routerLink]="['/procesos', datos.id, 'editar']">Editar proceso</a>
+        }
+      </div>
+    </header>
+
+    @if (datos.soloLectura) {
+      <app-aviso
+        titulo="Proceso compartido en solo lectura"
+        [detalle]="'Pertenece a «' + datos.empresaPropietariaNombre + '». Puedes consultar su información y su diagrama, pero no modificarlo, compartirlo ni consultar su historial.'"
+      />
+    }
+
+    @if (eliminacionConfirmada() && datos.eliminado) {
+      <app-aviso
+        titulo="El proceso se eliminó"
+        detalle="La eliminación es lógica: el proceso se conserva junto a su historial y se consulta con el filtro de eliminados."
+      />
+    }
+
+    <app-dialogo-confirmacion
+      [abierto]="confirmandoEliminacion()"
+      titulo="¿Eliminar este proceso?"
+      [mensaje]="'El proceso «' + datos.nombre + '» dejará de aparecer en el listado por defecto. Se conserva con su historial y no se borra de la base de datos.'"
+      textoConfirmar="Eliminar proceso"
+      [procesando]="eliminando()"
+      [error]="falloEliminacion()"
+      (confirmado)="eliminar()"
+      (cancelado)="cancelarEliminacion()"
+    />
+
+    <article class="tarjeta" aria-labelledby="titulo-informacion">
+      <h2 id="titulo-informacion" class="tarjeta__titulo">Información general</h2>
+      <p class="detalle__descripcion">{{ datos.descripcion }}</p>
+      <dl class="lista-datos">
+        <div>
+          <dt>Categoría</dt>
+          <dd>{{ datos.categoria }}</dd>
+        </div>
+        <div>
+          <dt>Estado</dt>
+          <dd>{{ textoEstado[datos.estado] }}</dd>
+        </div>
+        <div>
+          <dt>Empresa propietaria</dt>
+          <dd>{{ datos.empresaPropietariaNombre }}</dd>
+        </div>
+        <div>
+          <dt>Pool propietario</dt>
+          <dd>{{ datos.poolNombre }}</dd>
+        </div>
+        <div>
+          <dt>Acceso</dt>
+          <dd>{{ datos.soloLectura ? 'Compartido en solo lectura' : 'Proceso de tu empresa' }}</dd>
+        </div>
+      </dl>
+    </article>
+
+    @if (!datos.soloLectura) {
+      <article class="tarjeta">
+        <app-panel-comparticion [proceso]="datos" />
+      </article>
+      <article class="tarjeta">
+        <app-panel-permisos [proceso]="datos" />
+      </article>
+    }
+
+    <article class="tarjeta diagrama" aria-labelledby="titulo-diagrama">
+      <div class="diagrama__encabezado">
+        <div>
+          <h2 id="titulo-diagrama">Diagrama del proceso</h2>
+          <p class="nota">Modelo BPMN dibujado con los datos del backend. Selecciona un elemento para consultar su información.</p>
+        </div>
+        @if (puedeEditar()) {
+          <a class="boton boton--primario" [routerLink]="['/procesos', datos.id, 'modelador']">Abrir modelador</a>
+        }
+      </div>
+      @if (estadoDiagrama().tipo === 'cargando') {
+        <app-aviso tipo="carga" titulo="Cargando el diagrama…" />
+      } @else if (falloDiagrama(); as fallo) {
+        <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+      } @else if (diagrama(); as modelo) {
+        <ul class="metricas" aria-label="Elementos del modelo">
+          @for (metrica of metricas(); track metrica.etiqueta) {
+            <li class="metrica">
+              <span class="metrica__valor">{{ metrica.valor }}</span>
+              <span class="metrica__etiqueta">{{ metrica.etiqueta }}</span>
+            </li>
+          }
+        </ul>
+        <app-modelador [proceso]="datos" [diagrama]="modelo" />
+      }
+    </article>
+  }
+</section>

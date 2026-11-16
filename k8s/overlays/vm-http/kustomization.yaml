@@ -1,0 +1,21 @@
+# Validacion temporal por HTTP del overlay vm, solo a traves de la VPN o de un tunel SSH.
+# No es el despliegue definitivo: las cookies salen sin Secure. En cuanto HTTPS funcione se aplica k8s/overlays/vm.
+#   microk8s kubectl apply -k k8s/overlays/vm-http
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../vm
+configMapGenerator:
+  - name: procesos-configuracion
+    behavior: merge
+    literals:
+      - COOKIE_SEGURA=false
+patches:
+  - target:
+      kind: Ingress
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/traefik.ingress.kubernetes.io~1router.entrypoints
+        value: web
+      - op: remove
+        path: /metadata/annotations/traefik.ingress.kubernetes.io~1router.tls

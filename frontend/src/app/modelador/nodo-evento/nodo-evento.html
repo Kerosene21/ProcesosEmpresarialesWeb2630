@@ -1,0 +1,12 @@
+<svg:title>{{ datos().etiqueta }}</svg:title>
+<svg:circle class="evento__borde" [attr.cx]="centro().x" [attr.cy]="centro().y" [attr.r]="radio()" />
+@if (!inicio()) {
+  <svg:circle class="evento__interior" [attr.cx]="centro().x" [attr.cy]="centro().y" [attr.r]="radioInterior" />
+}
+<svg:rect class="evento__sobre" [class.evento__sobre--lleno]="emisor()" [attr.x]="sobre().x" [attr.y]="sobre().y" width="18" height="12" />
+<svg:polyline class="evento__solapa" [class.evento__solapa--lleno]="emisor()" [attr.points]="sobre().solapa" />
+<svg:text class="evento__nombre" [attr.x]="centro().x" [attr.y]="caja().y + caja().alto + 14">{{ nombre() }}</svg:text>
+@if (alerta()) {
+  <svg:circle class="alerta" [attr.cx]="caja().x + caja().ancho" [attr.cy]="caja().y" r="8" />
+  <svg:text class="alerta__signo" [attr.x]="caja().x + caja().ancho" [attr.y]="caja().y + 4">!</svg:text>
+}

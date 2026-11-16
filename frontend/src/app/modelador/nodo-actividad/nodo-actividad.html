@@ -1,0 +1,8 @@
+<svg:title>{{ actividad().nombre }} · {{ tipo() }}</svg:title>
+<svg:rect class="actividad" [attr.x]="caja().x" [attr.y]="caja().y" [attr.width]="caja().ancho" [attr.height]="caja().alto" rx="8" />
+<svg:text class="actividad__nombre" [attr.x]="caja().x + 8" [attr.y]="caja().y + 20">{{ nombre() }}</svg:text>
+<svg:text class="actividad__tipo" [attr.x]="caja().x + 8" [attr.y]="caja().y + 37">{{ tipo() }}</svg:text>
+@if (alerta()) {
+  <svg:circle class="alerta" [attr.cx]="caja().x + caja().ancho" [attr.cy]="caja().y" r="8" />
+  <svg:text class="alerta__signo" [attr.x]="caja().x + caja().ancho" [attr.y]="caja().y + 4">!</svg:text>
+}

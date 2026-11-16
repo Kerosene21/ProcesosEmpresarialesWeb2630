@@ -3,6 +3,8 @@ package co.edu.javeriana.procesosempresariales.service;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,13 @@ public class HistorialProcesoService {
     @Autowired
     public HistorialProcesoService(HistorialProcesoRepository historialProcesoRepository) {
         this.historialProcesoRepository = historialProcesoRepository;
+    }
+
+    public static Optional<String> cambioDePosicion(Integer xAnterior, Integer yAnterior, Integer x, Integer y) {
+        if (Objects.equals(xAnterior, x) && Objects.equals(yAnterior, y)) {
+            return Optional.empty();
+        }
+        return Optional.of("posicion: (" + xAnterior + ", " + yAnterior + ") -> (" + x + ", " + y + ")");
     }
 
     @Transactional

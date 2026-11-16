@@ -103,7 +103,7 @@ class PoolServiceTest {
                 historial);
         EmpresaService empresas = new EmpresaService(empresaRepository, usuarios, new ModelMapper());
         RolProcesoService roles = new RolProcesoService(rolProcesoRepository, historialRolProcesoRepository,
-                new RolProcesoSpecifications(), acceso);
+                new RolProcesoSpecifications(), acceso, new ModelMapper());
         poolService = new PoolService(poolRepository, acceso, permisos, historial, empresas, roles);
     }
 

@@ -91,10 +91,10 @@ Entity → Repository → DTO → Service → Controller
 ```
 co.edu.javeriana.procesosempresariales
 ├── config      seguridad, OpenAPI y beans reutilizables
-├── controller  controladores MVC y REST, y manejadores de excepciones
+├── controller  controladores MVC y REST
 ├── domain      entidades JPA y enumeraciones
 ├── dto         objetos de entrada y salida
-├── exception   excepciones de negocio
+├── exception   excepciones de negocio y manejadores globales de excepciones
 ├── repository  repositorios Spring Data
 └── service     lógica de negocio
 ```
@@ -123,6 +123,10 @@ cp .env.example .env
 `DB_PASSWORD` es obligatoria: si no está definida, la aplicación no arranca. La URL de la base de
 pruebas es fija y no se puede redirigir por variables de entorno, porque `create-drop` destruye el
 esquema al terminar.
+
+`JWT_SECRET` también es obligatoria para arrancar la aplicación: es la clave HS256 de los tokens de
+acceso, en Base64 y de al menos 32 bytes (por ejemplo, `openssl rand -base64 48`). Las pruebas no la
+necesitan, porque cada contexto de pruebas genera una clave aleatoria propia.
 
 ### Ejecutar
 
@@ -174,6 +178,163 @@ desarrollo que ya existía requiere pasos manuales, según desde qué versión v
 
 El perfil de pruebas y CI usan `create-drop` sobre una base limpia, así que no necesitan migración.
 
+## Migraciones de base de datos
+
+El esquema de producción lo crea y versiona **Flyway** con las migraciones de
+[`src/main/resources/db/migration`](src/main/resources/db/migration). `V1__esquema_inicial.sql` crea las
+16 tablas con sus llaves, restricciones `CHECK`, claves únicas e índices, con los mismos nombres que genera
+Hibernate.
+
+| Perfil | Esquema | Flyway |
+|---|---|---|
+| `prod` (imagen Docker) | `ddl-auto=validate` | Activo, sin `baseline-on-migrate` |
+| Por defecto (desarrollo local) | `ddl-auto=update` | Desactivado |
+| `test` | `ddl-auto=create-drop` | Desactivado; `FlywayMigracionIntegracionTest` prueba V1 en un esquema temporal |
+
+El perfil `prod` exige `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` y `JWT_SECRET` como variables de entorno.
+
+- **Base nueva y vacía**: Flyway aplica V1 al arrancar con el perfil `prod`.
+- **Base existente con tablas y sin historial de Flyway**: el perfil `prod` se niega a arrancar y no la
+  modifica. Antes hay que comparar su esquema con V1 (solo lectura) y, si coincide, marcarla una única vez
+  con un *baseline* manual en la versión 1, con respaldo previo:
+
+```bash
+psql -tA -d BASE -f docs/migrations/describir-esquema.sql > esquema-base.txt
+```
+
+```bash
+diff docs/migrations/esquema-v1.txt esquema-base.txt
+```
+
+  Si no hay diferencias, se arranca una sola vez con `SPRING_FLYWAY_BASELINE_ON_MIGRATE=true` y
+  `SPRING_FLYWAY_BASELINE_VERSION=1`; los arranques siguientes no llevan esas variables. Si hay
+  diferencias, se corrigen con un script revisado antes del *baseline*.
+
+Los scripts de [`docs/migrations`](docs/migrations) (`hu21-hu24-migracion.sql` y
+`jwt-fase0-refresh-tokens.sql`) son históricos: quedan incluidos en V1 y Flyway no los ejecuta.
+
+## Imágenes Docker
+
+Las imágenes se preparan para el despliegue en Kubernetes con Ingress. No hay `compose.yaml`: Docker se
+usa solo para construir y probar las imágenes.
+
+| Imagen | Dockerfile | Contexto | Puerto interno | Usuario | Salud |
+|---|---|---|---|---|---|
+| Backend Spring Boot | [`Dockerfile`](Dockerfile) | `.` | 8080 | 10001 | `/actuator/health/liveness` y `/actuator/health/readiness` |
+| Frontend Angular + nginx | [`frontend/Dockerfile`](frontend/Dockerfile) | `frontend` | 8080 | 101 | `/healthz` |
+
+```bash
+docker build -t procesos-empresariales-backend:local .
+```
+
+```bash
+docker build -t procesos-empresariales-frontend:local frontend
+```
+
+- Ambos `.dockerignore` son listas de permitidos: no entran `.git`, `.env`, `.claude`, `node_modules`,
+  `target`, `dist`, reportes ni credenciales.
+- La compilación del backend ejecuta con el Maven Wrapper las pruebas que no necesitan PostgreSQL; la
+  suite completa sigue siendo `./mvnw clean verify`. La del frontend ejecuta `ng test` antes de `ng build`.
+- nginx solo sirve los archivos estáticos con *fallback* SPA a `index.html`. Las rutas `/api/**` las
+  enrutará el Ingress al backend en el mismo origen; en el contenedor del frontend responden 404.
+- La configuración del backend llega por variables de entorno en tiempo de ejecución: `DB_URL`,
+  `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `COOKIE_SEGURA`, `PURGA_REFRESCO_CRON`,
+  `SERVER_FORWARD_HEADERS_STRATEGY` (`native` detrás de un proxy HTTPS) y cualquier propiedad de Spring
+  en formato `SPRING_*` o `MANAGEMENT_*`. La imagen fija `SERVER_PORT=8080` y `SPRING_PROFILES_ACTIVE=prod`
+  (Flyway y `ddl-auto=validate`, ver [Migraciones de base de datos](#migraciones-de-base-de-datos)).
+  Ningún secreto se incluye en las imágenes; para probar en local, pasarlos con un archivo fuera del
+  repositorio:
+
+```bash
+docker run --rm --env-file /ruta/fuera/del/repo/backend.env -p 127.0.0.1:18081:8080 procesos-empresariales-backend:local
+```
+
+## Despliegue en Kubernetes
+
+Los manifiestos viven en [`k8s/`](k8s) y se combinan con Kustomize (`kubectl apply -k`):
+
+| Ruta | Contenido |
+|---|---|
+| `k8s/base` | Namespace con Pod Security `restricted`, PostgreSQL (StatefulSet, Service *headless* y PVC), backend y frontend (Deployment y Service), Ingress, NetworkPolicies y ConfigMaps |
+| `k8s/overlays/local` | Clúster local de pruebas con k3d: etiquetas `:local`, entrada HTTP `web` y `COOKIE_SEGURA=false` |
+| `k8s/overlays/vm` | VM universitaria con MicroK8s: imágenes de GHCR, solo HTTPS (`websecure`), Traefik del namespace `ingress`, red de pods de Calico, PVC de 5 Gi con `Retain` y límite de peticiones |
+| `k8s/overlays/vm-http` | Validación temporal de `vm` por HTTP mediante VPN o túnel SSH (`COOKIE_SEGURA=false`) |
+| `k8s/overlays/vm/almacenamiento` | StorageClass y PV local de ámbito de clúster; se aplican aparte y con autorización |
+| `k8s/components/limite-autenticacion` | Middleware de Traefik con límite de peticiones para `POST /api/auth/login` y `POST /api/empresas` |
+| `k8s/scripts/crear-secretos.sh` | Crea los Secrets con valores aleatorios si no existen; nunca los escribe en disco |
+| `k8s/scripts/revisar-vm.sh` | Comprobaciones de solo lectura del MicroK8s de la VM antes de desplegar |
+
+- **Ingress (Traefik)**: `/api/` va al backend y `/` a nginx. Actuator, Swagger y las vistas Thymeleaf no
+  viven bajo `/api/`, así que no se publican. La ruta lleva barra final porque Traefik trata `Prefix` como
+  un prefijo literal: con `/api` también enviaría `/apix` al backend.
+- **Secrets** (no versionados): `procesos-postgres-admin` (`POSTGRES_PASSWORD`) y `procesos-backend`
+  (`DB_PASSWORD` y `JWT_SECRET`). Se conservan si ya existen, porque PostgreSQL guarda la clave del rol
+  `procesos_app` al inicializar el volumen; cambiar `DB_PASSWORD` después exige un `ALTER ROLE`.
+- **PostgreSQL**: el script de inicio crea el rol `procesos_app` sin privilegios y la base
+  `procesos_empresariales`, de la que es propietario. Solo es accesible desde los pods del backend.
+- **Flyway con varias réplicas**: el backend tiene 2 réplicas y cada una ejecuta Flyway al arrancar. Flyway
+  toma un bloqueo consultivo de PostgreSQL durante la migración, así que una réplica aplica V1 y la otra
+  espera y encuentra el esquema al día. Las actualizaciones usan `maxUnavailable: 0`.
+- **Seguridad de los pods**: usuarios sin privilegios (10001, 101 y 70), sistema de archivos raíz de solo
+  lectura con `emptyDir` en `/tmp`, sin capacidades, `seccomp` `RuntimeDefault` y sin token de
+  ServiceAccount. Swagger queda apagado en el perfil `prod` salvo que se defina `SWAGGER_HABILITADO=true`.
+- **HTTPS**: la base mantiene `COOKIE_SEGURA=true`, `SERVER_FORWARD_HEADERS_STRATEGY=native` y confía en
+  las cabeceras `X-Forwarded-*` solo desde la red de pods de K3s (`10.42.0.0/16`).
+
+### Clúster local con k3d
+
+El overlay `local` sirve para probar en Windows con Docker Desktop; no es el clúster de la VM. Requiere
+[k3d](https://k3d.io/) 5.9 (`winget install k3d.k3d`) y crea K3s v1.36.6 con Traefik y `local-path`. La
+API y el Ingress solo escuchan en `127.0.0.1`.
+
+```bash
+k3d cluster create --config k8s/overlays/local/k3d-cluster.yaml
+```
+
+```bash
+k3d image import --cluster procesos procesos-empresariales-backend:local
+```
+
+```bash
+k3d image import --cluster procesos procesos-empresariales-frontend:local
+```
+
+```bash
+kubectl apply -f k8s/base/namespace.yaml
+```
+
+```bash
+k8s/scripts/crear-secretos.sh
+```
+
+```bash
+kubectl apply -k k8s/overlays/local
+```
+
+La aplicación queda en `http://localhost:8088`. `k3d image import` debe ejecutarse con una imagen por
+comando, y tras reconstruir una imagen `:local` hay que reiniciar su Deployment con
+`kubectl -n procesos-empresariales rollout restart deploy/procesos-backend`. PostgreSQL se descarga del
+registro por *digest*. Si un antivirus intercepta TLS en `127.0.0.1:6550`, `kubectl` puede ejecutarse dentro
+del nodo con `docker exec -i k3d-procesos-server-0 kubectl` (el script de Secrets lo admite en `KUBECTL`).
+
+### VM universitaria con MicroK8s
+
+El overlay `vm` usa el MicroK8s existente sin crear otro clúster ni cambiar Traefik, Calico o CoreDNS. No hace
+falta el código fuente en la VM: el manifiesto se genera en local y solo se copian el resultado y los scripts.
+
+```bash
+kubectl kustomize k8s/overlays/vm > procesos-vm.yaml
+```
+
+- `sha-pendiente` no existe a propósito: antes del primer despliegue se sustituye por el *digest* que publique
+  GitHub Actions en `ghcr.io/kerosene21/procesos-empresariales-{backend,frontend}`.
+- La VM no tiene StorageClass: PostgreSQL usa el PV local de `k8s/overlays/vm/almacenamiento`
+  (`/var/lib/procesos-empresariales/postgres`, `Retain`), que exige crear el directorio con `sudo`.
+- Valores confirmados en la VM: red de pods de Calico `10.1.0.0/16`, nodo `nbig132`, Traefik en el namespace
+  `ingress` (etiquetas `app.kubernetes.io/name=traefik` y `app.kubernetes.io/instance=traefik-ingress`) y
+  entrypoints `web` y `websecure`. Las NetworkPolicies solo admiten esos pods de Traefik.
+- `k8s/scripts/revisar-vm.sh` repite esas comprobaciones en solo lectura antes de cada despliegue.
+
 ## Documentación de la API (Swagger / OpenAPI)
 
 Con la aplicación en ejecución:
@@ -186,11 +347,45 @@ Con la aplicación en ejecución:
 
 - Swagger UI sirve para explorar y probar la API REST (`/api/**`).
 - Las rutas de documentación son públicas, pero **la API conserva la seguridad real** del sistema.
-- La autenticación usa la **sesión** del sistema: se inicia sesión en `/login` en el mismo
-  navegador y Swagger UI reutiliza la cookie `JSESSIONID`.
-- Las operaciones `POST`, `PUT` y `DELETE` exigen el token **CSRF** de la sesión en el encabezado
-  `X-CSRF-TOKEN` (botón *Authorize*, esquema `csrf`).
-- No existe un JWT ni un esquema Bearer ficticio solo para Swagger.
+- En el perfil `prod` (imagen Docker y Kubernetes) Swagger y `/v3/api-docs` están apagados; se activan
+  solo con `SWAGGER_HABILITADO=true`.
+- La API es **stateless** y solo acepta JWT: el token se obtiene con `POST /api/auth/login` y se
+  escribe en *Authorize* (esquema `bearerAuth`, sin el prefijo `Bearer`).
+- La cookie `JSESSIONID` de las vistas Thymeleaf **no** autentica la API.
+- Solo login, refresh y logout exigen el token **CSRF** en el encabezado `X-XSRF-TOKEN` (esquema
+  `csrf`), con el valor de la cookie `XSRF-TOKEN` que emite `GET /api/auth/csrf`.
+
+### Autenticación JWT de la API REST
+
+La API REST (`/api/**`) es stateless: cada operación protegida exige `Authorization: Bearer <token>`.
+Las vistas Thymeleaf conservan su sesión con el formulario de `/login`, que no da acceso a la API.
+
+| Endpoint | Uso |
+|---|---|
+| `GET /api/auth/csrf` | Emite la cookie `XSRF-TOKEN` (legible por la SPA, `Path=/`). |
+| `POST /api/auth/login` | `{"correo","password"}` → token de acceso (15 min) y cookie `PE_REFRESH`. |
+| `POST /api/auth/refresh` | Rota la cookie `PE_REFRESH` y entrega un token de acceso nuevo. |
+| `POST /api/auth/logout` | Revoca la sesión de la cookie y la elimina; no necesita un token vigente. |
+| `GET /api/auth/me` | Datos actuales del usuario del token (requiere Bearer). |
+
+- `PE_REFRESH` es `HttpOnly`, limitada a `/api/auth`, `SameSite=Strict` y `Secure` (configurable con
+  `COOKIE_SEGURA` solo para desarrollo local). En la base de datos solo se guarda su hash SHA-256.
+- Login, refresh y logout exigen `X-XSRF-TOKEN` porque dependen de cookies. El resto de la API no
+  usa CSRF, ya que no se autentica con cookies; los formularios Thymeleaf siguen protegidos con CSRF.
+- Son públicos `GET /api/auth/csrf` y el registro de empresas `POST /api/empresas`.
+- El token no contiene roles ni empresa: en cada petición se consultan en PostgreSQL el usuario, su
+  estado activo, su rol y la sesión (`sid`). Desactivar al usuario o cerrar sesión invalida sus tokens
+  de inmediato.
+- Un Bearer ausente, inválido, expirado o revocado responde 401 con `WWW-Authenticate: Bearer`; una
+  sesión `JSESSIONID` nunca lo sustituye y las peticiones con Bearer no crean sesiones HTTP.
+- La antigua API de sesión `/api/sesion` se retiró.
+- Una tarea programada purga cada hora (`PURGA_REFRESCO_CRON`, por defecto `0 17 * * * *` en UTC) los
+  refresh tokens caducados y las sesiones vencidas hace más de 15 minutos y 30 segundos, de modo que la
+  revocación se conserva mientras pueda existir un token de acceso vigente. Un bloqueo consultivo de
+  PostgreSQL (`pg_try_advisory_xact_lock`) evita que varias réplicas la ejecuten a la vez.
+- En Angular el token de acceso vive solo en memoria. Al cerrar sesión se avisa a las demás pestañas
+  por `BroadcastChannel` (sin enviar tokens). Si el servidor no confirma la revocación, la aplicación lo
+  indica, no restaura la sesión al recargar y vuelve a intentar el cierre.
 
 ## Pruebas y calidad
 
@@ -209,7 +404,7 @@ y las credenciales configuradas. El resto, incluidas las de seguridad con `@WebM
 necesitan base de datos:
 
 ```bash
-./mvnw test -Dtest='!*IntegracionTest,!ProcesosEmpresarialesWeb2630ApplicationTests'
+./mvnw test -Dtest='!*IntegracionTest*,!ProcesosEmpresarialesWeb2630ApplicationTests*'
 ```
 
 ### SonarQube Cloud
@@ -233,27 +428,43 @@ El plan [`jmeter/backend-procesos.jmx`](jmeter/backend-procesos.jmx) simula usua
 consultando la API:
 
 - 25 usuarios, ramp-up de 10 segundos y 5 iteraciones.
-- Cada usuario se autentica una sola vez: `GET /login`, extracción del token CSRF y `POST /login`.
-- La cookie `JSESSIONID` se mantiene durante toda la prueba.
-- En cada iteración consulta `GET /api/procesos`.
+- Cada usuario se autentica una sola vez: `AUTH 01` obtiene la cookie `XSRF-TOKEN` en
+  `GET /api/auth/csrf` y `AUTH 02` hace `POST /api/auth/login` con `X-XSRF-TOKEN`, del que se extrae
+  `tokenAcceso`.
+- En cada iteración `API 03` consulta `GET /api/procesos` con `Authorization: Bearer`.
+- Las etiquetas `AUTH` y `API` separan las métricas de autenticación de las de negocio.
 
-El plan apunta a `localhost:8085`, por lo que la aplicación debe levantarse en ese puerto (por
-ejemplo, `./mvnw spring-boot:run -Dspring-boot.run.arguments=--server.port=8085`). El usuario y la
-contraseña se reciben como propiedades externas y **nunca deben guardarse en el `.jmx`**:
+El plan apunta por defecto a `http://localhost:8085` (propiedades `host`, `port` y `protocol`). Debe
+ejecutarse solo contra una base controlada, nunca contra datos que deban conservarse. El usuario y la
+contraseña se reciben como propiedades externas y **nunca deben guardarse en el `.jmx`**. JMeter
+escribe en su log las propiedades `-J`, así que el log debe quedar fuera del repositorio:
 
 ```bash
-jmeter -n -t jmeter/backend-procesos.jmx -Jusername=USUARIO -Jpassword=CONTRASENA -l jmeter/resultados/carga.jtl -e -o jmeter/resultados/reporte-html
+jmeter -n -t jmeter/backend-procesos.jmx -Jusername=USUARIO -Jpassword=CONTRASENA -j /ruta/fuera/del/repo/jmeter.log -l jmeter/resultados/carga.jtl -e -o jmeter/resultados/reporte-html
 ```
 
-La última validación local produjo **175 solicitudes con 0 errores**. Los tiempos obtenidos en una
-máquina local son orientativos y no constituyen una garantía de rendimiento. La carpeta
-`jmeter/resultados/` no se versiona.
+Los tiempos obtenidos en una máquina local son orientativos y no constituyen una garantía de
+rendimiento. La carpeta `jmeter/resultados/` no se versiona.
 
-### Validación manual con Postman
+### Pruebas de API con Postman y Newman
 
-La API también se validó manualmente con Postman: autenticación, manejo del token CSRF, consultas
-protegidas, creación y consulta de recursos, y el error de negocio por nombre duplicado. La
-colección se usó de forma local y no forma parte del repositorio.
+La colección [`pruebas/api/procesos-empresariales.postman_collection.json`](pruebas/api/procesos-empresariales.postman_collection.json)
+y el entorno [`pruebas/api/local.postman_environment.json`](pruebas/api/local.postman_environment.json)
+se importan en Postman Desktop o se ejecutan con Newman. Cubren CSRF, login, refresh, logout,
+`/api/auth/me`, credenciales inválidas, usuarios desactivados, Bearer ausente, inválido, expirado y
+revocado, roles, CRUD de empresas, usuarios y procesos, aislamiento multiempresa, procesos
+compartidos y la definición OpenAPI.
+
+- Cada ejecución registra sus propias empresas con un sufijo único y genera la contraseña en tiempo de
+  ejecución: los archivos no contienen credenciales ni tokens. Debe ejecutarse contra una base
+  controlada.
+- `cookieSegura` debe coincidir con `COOKIE_SEGURA` del backend (`false` en http local).
+- El caso de Bearer expirado firma un token con `jwtSecretoPruebas`, que solo se pasa al ejecutar y debe
+  ser la `JWT_SECRET` del backend de pruebas. Sin ese valor, ese caso y su control se omiten.
+
+```bash
+npx newman@6 run pruebas/api/procesos-empresariales.postman_collection.json -e pruebas/api/local.postman_environment.json
+```
 
 ## Documentación
 

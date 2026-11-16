@@ -1,0 +1,47 @@
+:host {
+  cursor: pointer;
+  outline: none;
+}
+
+.gateway {
+  fill: var(--color-superficie);
+  stroke: var(--color-advertencia);
+  stroke-width: 1.5;
+}
+
+.gateway__simbolo {
+  fill: none;
+  stroke: var(--color-texto);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.gateway__tipo {
+  font-size: 11px;
+  fill: var(--color-texto-secundario);
+  text-anchor: middle;
+}
+
+:host(.nodo--marcado) .gateway {
+  stroke: var(--color-acento);
+  stroke-dasharray: 5 3;
+  stroke-width: 2.5;
+}
+
+:host(.nodo--seleccionado) .gateway,
+:host(:focus-visible) .gateway {
+  fill: var(--color-primario-tenue);
+  stroke: var(--color-foco);
+  stroke-width: 3;
+}
+
+.alerta {
+  fill: var(--color-advertencia);
+}
+
+.alerta__signo {
+  font-size: 11px;
+  font-weight: 700;
+  fill: var(--color-superficie);
+  text-anchor: middle;
+}

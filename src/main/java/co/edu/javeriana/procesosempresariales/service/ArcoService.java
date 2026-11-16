@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -51,17 +52,19 @@ public class ArcoService {
     private NodoFlujoResolver nodoFlujoResolver;
     private ConexionesService conexionesService;
     private GeometriaArco geometriaArco;
+    private ModelMapper modelMapper;
 
     @Autowired
     public ArcoService(ArcoRepository arcoRepository, AccesoProcesoService accesoProcesoService,
             HistorialProcesoService historialProcesoService, NodoFlujoResolver nodoFlujoResolver,
-            ConexionesService conexionesService, GeometriaArco geometriaArco) {
+            ConexionesService conexionesService, GeometriaArco geometriaArco, ModelMapper modelMapper) {
         this.arcoRepository = arcoRepository;
         this.accesoProcesoService = accesoProcesoService;
         this.historialProcesoService = historialProcesoService;
         this.nodoFlujoResolver = nodoFlujoResolver;
         this.conexionesService = conexionesService;
         this.geometriaArco = geometriaArco;
+        this.modelMapper = modelMapper;
     }
 
     @Transactional
@@ -317,16 +320,8 @@ public class ArcoService {
     }
 
     private ArcoRespuestaDto toDto(Arco arco, Proceso proceso, Map<String, NodoFlujo> nodos) {
-        ArcoRespuestaDto respuesta = new ArcoRespuestaDto();
-        respuesta.setId(arco.getId());
+        ArcoRespuestaDto respuesta = modelMapper.map(arco, ArcoRespuestaDto.class);
         respuesta.setProcesoId(proceso.getId());
-        respuesta.setOrigenTipo(arco.getOrigenTipo());
-        respuesta.setOrigenId(arco.getOrigenId());
-        respuesta.setDestinoTipo(arco.getDestinoTipo());
-        respuesta.setDestinoId(arco.getDestinoId());
-        respuesta.setEtiqueta(arco.getEtiqueta());
-        respuesta.setCondicion(arco.getCondicion());
-        respuesta.setActivo(arco.isActivo());
 
         Optional<NodoFlujo> origen = buscarEnIndice(proceso, nodos, arco.getOrigenTipo(), arco.getOrigenId());
         Optional<NodoFlujo> destino = buscarEnIndice(proceso, nodos, arco.getDestinoTipo(), arco.getDestinoId());

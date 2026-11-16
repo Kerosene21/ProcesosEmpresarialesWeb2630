@@ -2,7 +2,9 @@ package co.edu.javeriana.procesosempresariales.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +18,7 @@ import co.edu.javeriana.procesosempresariales.domain.Usuario;
 import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.CondicionArcoNoValidaException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
 import co.edu.javeriana.procesosempresariales.repository.GatewayRepository;
@@ -38,17 +41,19 @@ public class GatewayService {
     private ConexionesService conexionesService;
     private NodoFlujoResolver nodoFlujoResolver;
     private PoolService poolService;
+    private ModelMapper modelMapper;
 
     @Autowired
     public GatewayService(GatewayRepository gatewayRepository, AccesoProcesoService accesoProcesoService,
             HistorialProcesoService historialProcesoService, ConexionesService conexionesService,
-            NodoFlujoResolver nodoFlujoResolver, PoolService poolService) {
+            NodoFlujoResolver nodoFlujoResolver, PoolService poolService, ModelMapper modelMapper) {
         this.gatewayRepository = gatewayRepository;
         this.accesoProcesoService = accesoProcesoService;
         this.historialProcesoService = historialProcesoService;
         this.conexionesService = conexionesService;
         this.nodoFlujoResolver = nodoFlujoResolver;
         this.poolService = poolService;
+        this.modelMapper = modelMapper;
     }
 
     @Transactional
@@ -132,6 +137,27 @@ public class GatewayService {
         conexionesService.guardarCambios(modificados);
         historialProcesoService.registrar(proceso, usuario,
                 "gateway #" + gateway.getId() + ": " + String.join("; ", cambios));
+
+        return conAdvertencias(toDto(gateway), proceso, gateway);
+    }
+
+    @Transactional
+    public GatewayRespuestaDto mover(Long procesoId, Long gatewayId, MoverNodoDto dto, String username) {
+        Usuario usuario = accesoProcesoService.usuarioAutenticado(username);
+        accesoProcesoService.validarRolDeEscritura(usuario, SIN_PERMISO_ESCRITURA);
+        Proceso proceso = accesoProcesoService.procesoActivoDeLaEmpresa(procesoId, usuario);
+        Gateway gateway = gatewayActivoDelProceso(gatewayId, proceso);
+
+        Optional<String> cambio = HistorialProcesoService.cambioDePosicion(gateway.getPosicionX(),
+                gateway.getPosicionY(), dto.getPosicionX(), dto.getPosicionY());
+        if (cambio.isEmpty()) {
+            return conAdvertencias(toDto(gateway), proceso, gateway);
+        }
+
+        gateway.setPosicionX(dto.getPosicionX());
+        gateway.setPosicionY(dto.getPosicionY());
+        gatewayRepository.save(gateway);
+        historialProcesoService.registrar(proceso, usuario, "gateway #" + gateway.getId() + ": " + cambio.get());
 
         return conAdvertencias(toDto(gateway), proceso, gateway);
     }
@@ -268,16 +294,9 @@ public class GatewayService {
     }
 
     private GatewayRespuestaDto toDto(Gateway gateway) {
-        GatewayRespuestaDto respuesta = new GatewayRespuestaDto();
-        respuesta.setId(gateway.getId());
-        respuesta.setProcesoId(gateway.getProceso().getId());
-        respuesta.setPoolId(gateway.getPool().getId());
-        respuesta.setTipo(gateway.getTipo());
+        GatewayRespuestaDto respuesta = modelMapper.map(gateway, GatewayRespuestaDto.class);
         respuesta.setSimbolo(gateway.getTipo().getSimbolo());
         respuesta.setEtiqueta(gateway.etiqueta());
-        respuesta.setPosicionX(gateway.getPosicionX());
-        respuesta.setPosicionY(gateway.getPosicionY());
-        respuesta.setActivo(gateway.isActivo());
         return respuesta;
     }
 }

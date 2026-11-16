@@ -1,0 +1,25 @@
+# Cluster local de pruebas: K3s dentro de Docker Desktop mediante k3d.
+# No es el cluster de la VM universitaria; solo reproduce sus componentes (K3s, Traefik, local-path).
+#   k3d cluster create --config k8s/overlays/local/k3d-cluster.yaml
+# La API de Kubernetes y el Ingress solo escuchan en 127.0.0.1.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: procesos
+servers: 1
+agents: 0
+image: rancher/k3s:v1.36.6-k3s1
+kubeAPI:
+  hostIP: 127.0.0.1
+  hostPort: "6550"
+ports:
+  - port: 127.0.0.1:8088:80
+    nodeFilters:
+      - loadbalancer
+options:
+  k3d:
+    wait: true
+    timeout: 300s
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: true

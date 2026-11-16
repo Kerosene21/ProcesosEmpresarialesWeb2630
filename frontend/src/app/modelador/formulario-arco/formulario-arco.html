@@ -1,0 +1,114 @@
+<form
+  class="formulario"
+  [formGroup]="formulario"
+  (ngSubmit)="guardar()"
+  novalidate
+  [attr.aria-labelledby]="id + '-titulo'"
+>
+  <h3 class="formulario__titulo" [id]="id + '-titulo'">
+    {{ edicion() ? 'Editar arco' : 'Nuevo arco' }}
+  </h3>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-origen'">Origen</label>
+    <select
+      [id]="id + '-origen'"
+      class="campo__control"
+      formControlName="origen"
+      [attr.aria-invalid]="error('origen') !== null"
+      [attr.aria-describedby]="id + '-error-origen'"
+    >
+      <option [ngValue]="null" disabled>Elige el nodo de origen</option>
+      @for (nodo of nodos(); track clave(nodo)) {
+        <option [ngValue]="clave(nodo)">{{ nodo.nombre }}</option>
+      }
+    </select>
+    <span class="campo__error" [id]="id + '-error-origen'">{{ error('origen') }}</span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-destino'">Destino</label>
+    <select
+      [id]="id + '-destino'"
+      class="campo__control"
+      formControlName="destino"
+      [attr.aria-invalid]="error('destino') !== null || duplicado() !== null"
+      [attr.aria-describedby]="id + '-ayuda-destino ' + id + '-error-destino'"
+    >
+      <option [ngValue]="null" disabled>Elige el nodo de destino</option>
+      @for (nodo of destinos(); track clave(nodo)) {
+        <option [ngValue]="clave(nodo)">{{ nodo.nombre }}</option>
+      }
+    </select>
+    <span class="campo__ayuda" [id]="id + '-ayuda-destino'">
+      @if (origen() === null) {
+        Elige primero el origen.
+      } @else if (destinos().length === 0) {
+        No hay destinos válidos para este origen en su pool.
+      } @else {
+        Solo se ofrecen nodos del mismo pool que admiten flujos de secuencia entrantes.
+      }
+    </span>
+    <span class="campo__error" [id]="id + '-error-destino'">
+      @if (duplicado(); as existente) {
+        Ya existe el arco «{{ existente.origenNombre }} → {{ existente.destinoNombre }}».
+      } @else {
+        {{ error('destino') }}
+      }
+    </span>
+  </div>
+
+  <div class="campo">
+    <label class="campo__etiqueta" [for]="id + '-etiqueta'">Etiqueta (opcional)</label>
+    <input
+      [id]="id + '-etiqueta'"
+      class="campo__control"
+      type="text"
+      autocomplete="off"
+      formControlName="etiqueta"
+      [attr.aria-invalid]="error('etiqueta') !== null"
+      [attr.aria-describedby]="id + '-error-etiqueta'"
+    />
+    <span class="campo__error" [id]="id + '-error-etiqueta'">{{ error('etiqueta') }}</span>
+  </div>
+
+  @if (conCondicion()) {
+    <div class="campo">
+      <label class="campo__etiqueta" [for]="id + '-condicion'">Condición</label>
+      <input
+        [id]="id + '-condicion'"
+        class="campo__control"
+        type="text"
+        autocomplete="off"
+        formControlName="condicion"
+        [attr.aria-invalid]="error('condicion') !== null"
+        [attr.aria-describedby]="id + '-error-condicion'"
+      />
+      <span class="campo__error" [id]="id + '-error-condicion'">{{ error('condicion') }}</span>
+    </div>
+  } @else {
+    <p class="nota">Solo los arcos que salen de un gateway exclusivo o inclusivo llevan condición.</p>
+  }
+
+  @if (fallo(); as falloActual) {
+    <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
+  }
+
+  <div class="formulario__acciones">
+    <button
+      type="button"
+      class="boton boton--texto"
+      [disabled]="guardando()"
+      (click)="cancelado.emit()"
+    >
+      Cancelar
+    </button>
+    <button
+      type="submit"
+      class="boton boton--primario"
+      [disabled]="guardando() || duplicado() !== null"
+    >
+      {{ guardando() ? 'Guardando…' : edicion() ? 'Guardar cambios' : 'Crear arco' }}
+    </button>
+  </div>
+</form>

@@ -85,11 +85,29 @@ class EditarActividadDtoTest {
     }
 
     @Test
-    void laEdicionNoPideLaPosicionDeLaActividad() {
+    void laEdicionNoExigeLaPosicionDeLaActividad() {
         assertThat(camposConError(formularioValido())).isEmpty();
-        assertThat(EditarActividadDto.class.getDeclaredFields())
-                .extracting(campo -> campo.getName())
-                .containsExactlyInAnyOrder("nombre", "tipo", "laneId");
+        assertThat(formularioValido().cambiaPosicion()).isFalse();
+    }
+
+    @Test
+    void laPosicionOpcionalSeIndicaCompleta() {
+        EditarActividadDto dto = formularioValido();
+        dto.setPosicionX(120);
+
+        assertThat(camposConError(dto)).containsExactly("posicionCompleta");
+
+        dto.setPosicionY(180);
+        assertThat(camposConError(dto)).isEmpty();
+        assertThat(dto.cambiaPosicion()).isTrue();
+    }
+
+    @Test
+    void laPosicionOpcionalNoAdmiteCoordenadasFueraDelLienzo() {
+        EditarActividadDto dto = new EditarActividadDto("Revisar solicitud", TipoActividad.TAREA_USUARIO, 11L, -1,
+                50001);
+
+        assertThat(camposConError(dto)).containsExactlyInAnyOrder("posicionX", "posicionY");
     }
 
     @Test

@@ -44,6 +44,7 @@ import co.edu.javeriana.procesosempresariales.domain.VarianteMessageCatch;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageThrowDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageThrowDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageThrowRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.exception.MensajeEntreMismoPoolException;
 import co.edu.javeriana.procesosempresariales.exception.PoolMensajeNoValidoException;
 import co.edu.javeriana.procesosempresariales.exception.RecursoNoEncontradoException;
@@ -572,5 +573,53 @@ class MessageThrowServiceTest {
 
         verify(eventoRepository, never()).save(any(Evento.class));
         verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void elEditorMueveUnMessageThrowSinCambiarSuPoolNiSuCorrelacion() {
+        autenticar(RolUsuario.EDITOR);
+        existeElProcesoActivo();
+        MessageThrow messageThrow = existeElThrow(true);
+
+        MessageThrowRespuestaDto movido = messageThrowService.mover(PROCESO_ID, THROW_ID, new MoverNodoDto(520, 90),
+                USERNAME);
+
+        verify(eventoRepository).save(messageThrow);
+        assertThat(movido.getPosicionX()).isEqualTo(520);
+        assertThat(movido.getPosicionY()).isEqualTo(90);
+        assertThat(movido.getPoolOrigenId()).isEqualTo(POOL_ALPES);
+        assertThat(movido.getPoolDestinoId()).isEqualTo(POOL_BANCO);
+        assertThat(messageThrow.getClaveCorrelacion()).isEqualTo("factura");
+        assertThat(historialGuardado().getCambiosRealizados())
+                .isEqualTo("message throw '" + NOMBRE + "': posicion: (400, 60) -> (520, 90)");
+    }
+
+    @Test
+    void moverUnMessageThrowALaMismaPosicionNoGuardaNada() {
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProcesoActivo();
+        existeElThrow(true);
+
+        messageThrowService.mover(PROCESO_ID, THROW_ID, new MoverNodoDto(400, 60), USERNAME);
+
+        verify(eventoRepository, never()).save(any(Evento.class));
+        verify(historialProcesoRepository, never()).save(any(HistorialProceso.class));
+    }
+
+    @Test
+    void niElLectorNiUnaEmpresaInvitadaNiUnProcesoEliminadoPermitenMoverUnMessageThrow() {
+        autenticar(RolUsuario.SOLO_LECTURA);
+        assertThatThrownBy(() -> messageThrowService.mover(PROCESO_ID, THROW_ID, new MoverNodoDto(520, 90),
+                USERNAME)).isInstanceOf(UsuarioSinPermisoException.class);
+
+        autenticar(RolUsuario.ADMINISTRADOR);
+        existeElProceso(EMPRESA_AJENA, false);
+        assertThatThrownBy(() -> messageThrowService.mover(PROCESO_ID, THROW_ID, new MoverNodoDto(520, 90),
+                USERNAME)).isInstanceOf(UsuarioSinPermisoException.class);
+
+        existeElProceso(EMPRESA_PROPIA, true);
+        assertThatThrownBy(() -> messageThrowService.mover(PROCESO_ID, THROW_ID, new MoverNodoDto(520, 90),
+                USERNAME)).isInstanceOf(RecursoNoEncontradoException.class);
+        verify(eventoRepository, never()).save(any(Evento.class));
     }
 }

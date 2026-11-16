@@ -1,0 +1,11 @@
+<svg:title>{{ titulo() }}</svg:title>
+<svg:circle class="flujo__inicio" [attr.cx]="segmento().desde.x" [attr.cy]="segmento().desde.y" r="4" />
+<svg:line
+  class="flujo__linea"
+  [attr.x1]="segmento().desde.x"
+  [attr.y1]="segmento().desde.y"
+  [attr.x2]="segmento().hasta.x"
+  [attr.y2]="segmento().hasta.y"
+  [attr.marker-end]="punta()"
+/>
+<svg:text class="flujo__texto" [attr.x]="medio().x + 8" [attr.y]="medio().y">{{ nombre() }}</svg:text>

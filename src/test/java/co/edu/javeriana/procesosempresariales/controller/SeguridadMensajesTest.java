@@ -12,12 +12,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -33,14 +33,18 @@ import co.edu.javeriana.procesosempresariales.dto.CrearEnvioExternoDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearMessageThrowDto;
 import co.edu.javeriana.procesosempresariales.dto.DiagramaProcesoDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarMessageCatchDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
+import co.edu.javeriana.procesosempresariales.dto.RecolocarNodosDto;
 import co.edu.javeriana.procesosempresariales.dto.MessageThrowRespuestaDto;
 import co.edu.javeriana.procesosempresariales.service.DiagramaProcesoService;
 import co.edu.javeriana.procesosempresariales.service.EnvioExternoService;
 import co.edu.javeriana.procesosempresariales.service.MessageCatchService;
 import co.edu.javeriana.procesosempresariales.service.MessageThrowService;
+import co.edu.javeriana.procesosempresariales.service.RecolocacionNodosService;
 
 @WebMvcTest(controllers = { MessageThrowRestController.class, MessageCatchRestController.class,
-        EnvioExternoRestController.class, DiagramaProcesoRestController.class, AutenticacionController.class })
+        EnvioExternoRestController.class, DiagramaProcesoRestController.class, RecolocacionNodosRestController.class,
+        AutenticacionController.class })
 @Import(SecurityConfig.class)
 class SeguridadMensajesTest {
 
@@ -85,7 +89,15 @@ class SeguridadMensajesTest {
     private DiagramaProcesoService diagramaProcesoService;
 
     @MockitoBean
+    private RecolocacionNodosService recolocacionNodosService;
+
+    @MockitoBean
     private UserDetailsService userDetailsService;
+
+    @BeforeEach
+    void usuariosSimuladosActivos() {
+        UsuariosSimulados.activos(userDetailsService);
+    }
 
     private MessageThrowRespuestaDto messageThrow() {
         MessageThrowRespuestaDto messageThrow = new MessageThrowRespuestaDto();
@@ -189,20 +201,84 @@ class SeguridadMensajesTest {
     }
 
     @Test
-    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void lasApisAnterioresConservanSuRespuestaDeAccesoDenegado() throws Exception {
-        mockMvc.perform(post("/api/procesos/5/gateways").contentType(MediaType.APPLICATION_JSON).content("{}"))
+    @WithMockUser(username = USERNAME, roles = "EDITOR")
+    void lasDemasApisTambienRespondenJsonAnteElAccesoDenegado() throws Exception {
+        mockMvc.perform(get("/api/usuarios"))
                 .andExpect(status().isForbidden())
-                .andExpect(forwardedUrl("/acceso-denegado"));
+                .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
     }
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laCreacionSinTokenCsrfSeRechazaConCuerpoJson() throws Exception {
+    void laCreacionYaNoExigeTokenCsrf() throws Exception {
+        when(messageThrowService.crear(eq(5L), any(CrearMessageThrowDto.class), eq(USERNAME)))
+                .thenReturn(messageThrow());
+
         mockMvc.perform(post(RUTA_THROWS).contentType(MediaType.APPLICATION_JSON).content(JSON_THROW))
+                .andExpect(status().isCreated());
+
+        verify(messageThrowService).crear(eq(5L), any(CrearMessageThrowDto.class), eq(USERNAME));
+    }
+
+    @Test
+    void elMovimientoDeEventosResponde401SinSesion() throws Exception {
+        mockMvc.perform(put(RUTA_THROW + "/posicion").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"posicionX\":520,\"posicionY\":90}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath(CODIGO).value("USUARIO_NO_AUTORIZADO"));
+
+        verify(messageThrowService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "SOLO_LECTURA")
+    void unUsuarioDeSoloLecturaNoMueveEventosAunqueEnvieElTokenCsrf() throws Exception {
+        mockMvc.perform(put(RUTA_THROW + "/posicion").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"posicionX\":520,\"posicionY\":90}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath(CODIGO).value("USUARIO_SIN_PERMISO"));
+        mockMvc.perform(put(RUTA_CATCH + "/posicion").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"posicionX\":520,\"posicionY\":90}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put(RUTA_ENVIO + "/posicion").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"posicionX\":520,\"posicionY\":90}"))
+                .andExpect(status().isForbidden());
 
-        verify(messageThrowService, never()).crear(anyLong(), any(CrearMessageThrowDto.class), anyString());
+        verify(messageThrowService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
+        verify(messageCatchService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
+        verify(envioExternoService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "EDITOR")
+    void elMovimientoDeEventosYaNoExigeTokenCsrf() throws Exception {
+        mockMvc.perform(put(RUTA_CATCH + "/posicion").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"posicionX\":520,\"posicionY\":90}"))
+                .andExpect(status().isOk());
+
+        verify(messageCatchService).mover(anyLong(), anyLong(), any(MoverNodoDto.class), eq(USERNAME));
+    }
+
+    @Test
+    void laRecolocacionDelDiagramaExigeSesionTokenCsrfYRolDeEscritura() throws Exception {
+        String json = "{\"nodos\":[{\"tipo\":\"ACTIVIDAD\",\"id\":30,\"posicionX\":100,\"posicionY\":200}]}";
+
+        mockMvc.perform(put(RUTA_DIAGRAMA + "/posiciones").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content(json))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath(CODIGO).value("USUARIO_NO_AUTORIZADO"));
+
+        verify(recolocacionNodosService, never()).recolocar(anyLong(), any(RecolocarNodosDto.class), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "EDITOR")
+    void laRecolocacionLlegaAlServicioSinTokenCsrf() throws Exception {
+        String json = "{\"nodos\":[{\"tipo\":\"ACTIVIDAD\",\"id\":30,\"posicionX\":100,\"posicionY\":200}]}";
+
+        mockMvc.perform(put(RUTA_DIAGRAMA + "/posiciones").contentType(MediaType.APPLICATION_JSON).content(json))
+                .andExpect(status().isNoContent());
+
+        verify(recolocacionNodosService).recolocar(eq(5L), any(RecolocarNodosDto.class), eq(USERNAME));
     }
 }

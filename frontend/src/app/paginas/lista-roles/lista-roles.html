@@ -1,0 +1,79 @@
+<section class="pagina">
+  <header class="encabezado-pagina">
+    <div class="encabezado-pagina__texto">
+      <p class="encabezado-pagina__antetitulo">Catálogo</p>
+      <h1>Roles de proceso</h1>
+      <p class="encabezado-pagina__descripcion">
+        Roles de tu empresa que se asignan a las lanes de los pools. Cada lane representa a un rol responsable.
+      </p>
+    </div>
+    @if (puedeCrear()) {
+      <a class="boton boton--primario" routerLink="/roles-proceso/nuevo">Nuevo rol</a>
+    }
+  </header>
+
+  <form class="tarjeta filtros-roles" role="search" aria-label="Filtrar roles de proceso" [formGroup]="filtros" (submit)="$event.preventDefault()">
+    <div class="campo">
+      <label class="campo__etiqueta" for="filtro-rol-q">Buscar por nombre</label>
+      <input id="filtro-rol-q" class="campo__control" type="search" formControlName="q" autocomplete="off" placeholder="Ej.: Supervisor" />
+    </div>
+    <div class="campo">
+      <label class="campo__etiqueta" for="filtro-rol-visibilidad">Visibilidad</label>
+      <select id="filtro-rol-visibilidad" class="campo__control" formControlName="visibilidad">
+        @for (visibilidad of visibilidades; track visibilidad) {
+          <option [value]="visibilidad">{{ textoVisibilidad[visibilidad] }}</option>
+        }
+      </select>
+    </div>
+    <div class="filtros-roles__acciones">
+      <button type="button" class="boton boton--texto" (click)="limpiarFiltros()">Limpiar filtros</button>
+    </div>
+  </form>
+
+  <section class="tarjeta" aria-labelledby="titulo-roles" [attr.aria-busy]="cargando()">
+    <h2 id="titulo-roles" class="visualmente-oculto">Resultados</h2>
+    @if (cargando()) {
+      <app-aviso tipo="carga" titulo="Cargando roles de proceso…" />
+    } @else if (fallo(); as falloActual) {
+      <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="explicar(falloActual)" accion="Reintentar" (accionSolicitada)="reintentar()" />
+    } @else if (pagina(); as datos) {
+      @if (datos.content.length === 0) {
+        <app-aviso tipo="vacio" titulo="No hay roles de proceso que coincidan con los filtros" />
+      } @else {
+        <div class="tabla-contenedor">
+          <table class="tabla tabla--adaptable">
+            <caption class="visualmente-oculto">Roles de proceso encontrados</caption>
+            <thead>
+              <tr>
+                <th scope="col">Rol</th>
+                <th scope="col">Uso</th>
+                <th scope="col">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (rol of datos.content; track rol.id) {
+                <tr>
+                  <td data-etiqueta="Rol">
+                    <a class="lista-roles__enlace" [routerLink]="['/roles-proceso', rol.id]">{{ rol.nombre }}</a>
+                    <p class="lista-roles__descripcion">{{ rol.descripcion }}</p>
+                  </td>
+                  <td data-etiqueta="Uso">
+                    <span class="chip" [class.chip--informacion]="rol.enUso">{{ usos(rol) }}</span>
+                  </td>
+                  <td data-etiqueta="Estado">
+                    @if (rol.activo) {
+                      <span class="chip chip--exito">Activo</span>
+                    } @else {
+                      <span class="chip chip--peligro">Eliminado</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <app-paginacion [pagina]="datos.page" etiqueta="Paginación de roles de proceso" (cambio)="cambiarPagina($event)" />
+      }
+    }
+  </section>
+</section>

@@ -1,0 +1,18 @@
+.formulario-rol {
+  display: grid;
+  gap: var(--espacio-5);
+  max-width: 48rem;
+}
+
+.formulario-rol__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--espacio-3);
+  padding-top: var(--espacio-4);
+  border-top: 1px solid var(--color-borde);
+}
+
+.formulario-rol__volver {
+  justify-self: start;
+}

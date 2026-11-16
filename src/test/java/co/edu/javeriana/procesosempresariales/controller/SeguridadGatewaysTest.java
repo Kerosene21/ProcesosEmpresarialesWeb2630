@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -37,6 +38,7 @@ import co.edu.javeriana.procesosempresariales.dto.ArcoRespuestaDto;
 import co.edu.javeriana.procesosempresariales.dto.CrearGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.EditarGatewayDto;
 import co.edu.javeriana.procesosempresariales.dto.GatewayRespuestaDto;
+import co.edu.javeriana.procesosempresariales.dto.MoverNodoDto;
 import co.edu.javeriana.procesosempresariales.service.ArcoService;
 import co.edu.javeriana.procesosempresariales.service.GatewayService;
 
@@ -68,6 +70,11 @@ class SeguridadGatewaysTest {
 
     @MockitoBean
     private UserDetailsService userDetailsService;
+
+    @BeforeEach
+    void usuariosSimuladosActivos() {
+        UsuariosSimulados.activos(userDetailsService);
+    }
 
     private GatewayRespuestaDto gateway() {
         GatewayRespuestaDto gateway = new GatewayRespuestaDto();
@@ -255,10 +262,10 @@ class SeguridadGatewaysTest {
 
     @Test
     @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
-    void laEliminacionPorApiSinTokenCsrfSeRechaza() throws Exception {
-        mockMvc.perform(delete(RUTA_API_GATEWAY)).andExpect(status().isForbidden());
+    void laEliminacionPorApiYaNoExigeTokenCsrf() throws Exception {
+        mockMvc.perform(delete(RUTA_API_GATEWAY)).andExpect(status().isNoContent());
 
-        verify(gatewayService, never()).eliminar(anyLong(), anyLong(), anyString());
+        verify(gatewayService).eliminar(anyLong(), anyLong(), eq(USERNAME));
     }
 
     @Test
@@ -280,5 +287,26 @@ class SeguridadGatewaysTest {
                 .andExpect(content().string(containsString("Condición hacia Aprobar solicitud")))
                 .andExpect(content().string(containsString("monto alto")))
                 .andExpect(content().string(containsString("Gateway EXCLUSIVO #12 tiene 1 arco de salida")));
+    }
+
+    @Test
+    void laApiDeMovimientoDeGatewaysResponde401SinSesion() throws Exception {
+        mockMvc.perform(put(RUTA_API_GATEWAY + "/posicion").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"posicionX\":420,\"posicionY\":120}"))
+                .andExpect(status().isUnauthorized());
+
+        verify(gatewayService, never()).mover(anyLong(), anyLong(), any(MoverNodoDto.class), anyString());
+    }
+
+    @Test
+    @WithMockUser(username = USERNAME, roles = "ADMINISTRADOR")
+    void laApiDeMovimientoDeGatewaysYaNoExigeTokenCsrf() throws Exception {
+        when(gatewayService.mover(anyLong(), anyLong(), any(MoverNodoDto.class), eq(USERNAME))).thenReturn(gateway());
+
+        mockMvc.perform(put(RUTA_API_GATEWAY + "/posicion").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"posicionX\":420,\"posicionY\":120}"))
+                .andExpect(status().isOk());
+
+        verify(gatewayService).mover(anyLong(), anyLong(), any(MoverNodoDto.class), eq(USERNAME));
     }
 }

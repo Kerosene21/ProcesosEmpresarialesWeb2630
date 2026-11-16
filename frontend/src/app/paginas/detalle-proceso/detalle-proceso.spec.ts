@@ -1,0 +1,334 @@
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { Observable, of, throwError } from 'rxjs';
+
+import { EmpresaInvitada } from '../../core/modelos/comparticion';
+import { DiagramaProceso } from '../../core/modelos/diagrama';
+import { PermisoEstructura } from '../../core/modelos/permiso-estructura';
+import { Proceso } from '../../core/modelos/proceso';
+import { RolUsuario } from '../../core/modelos/sesion';
+import { ComparticionService } from '../../core/servicios/comparticion-service';
+import { ProcesoService } from '../../core/servicios/proceso-service';
+import { SesionService } from '../../core/servicios/sesion-service';
+import { DetalleProceso } from './detalle-proceso';
+
+const PROCESO: Proceso = {
+  id: 5,
+  nombre: 'Atención de solicitudes',
+  descripcion: 'Recepción y evaluación de solicitudes',
+  categoria: 'Servicio al cliente',
+  estado: 'BORRADOR',
+  poolId: 80,
+  poolNombre: 'Empresa de prueba',
+  eliminado: false,
+  empresaPropietariaId: 7,
+  empresaPropietariaNombre: 'Empresa de prueba',
+  soloLectura: false,
+};
+
+const DIAGRAMA: DiagramaProceso = {
+  procesoId: 5,
+  pools: [
+    {
+      id: 80,
+      procesoId: 5,
+      nombre: 'Empresa de prueba',
+      tipo: 'PROPIETARIO',
+      orden: 1,
+      cajaNegra: false,
+      activo: true,
+      empresaId: 7,
+      empresaNombre: 'Empresa de prueba',
+    },
+    {
+      id: 81,
+      procesoId: 5,
+      nombre: 'Servicio de correo',
+      tipo: 'EXTERNO',
+      orden: 2,
+      cajaNegra: true,
+      activo: true,
+      empresaId: null,
+      empresaNombre: null,
+    },
+  ],
+  lanes: [{ id: 11, nombre: 'General', rolProcesoId: null, poolId: 80, orden: 1 }],
+  actividades: [1, 2].map((id) => ({
+    id,
+    nombre: `Actividad ${id}`,
+    tipo: 'TAREA_USUARIO' as const,
+    procesoId: 5,
+    poolId: 80,
+    laneId: 11,
+    laneNombre: 'General',
+    posicionX: 100 * id,
+    posicionY: 60,
+    activo: true,
+    arcosDesactivados: 0,
+    advertencias: [],
+  })),
+  gateways: [],
+  arcos: [],
+  messageThrows: [],
+  messageCatches: [],
+  enviosExternos: [],
+  flujosMensaje: [],
+};
+
+describe('DetalleProceso', () => {
+  let fixture: ComponentFixture<DetalleProceso>;
+  let elemento: HTMLElement;
+  let obtener: ReturnType<typeof vi.fn<(id: number) => Observable<Proceso>>>;
+  let obtenerDiagrama: ReturnType<typeof vi.fn<(id: number) => Observable<DiagramaProceso>>>;
+  const eliminar = vi.fn<(id: number) => Observable<void>>();
+  const listarComparticiones = vi.fn<(id: number) => Observable<EmpresaInvitada[]>>();
+  const permisosEstructura = vi.fn<(id: number) => Observable<PermisoEstructura[]>>();
+
+  async function crear(
+    id: string,
+    proceso: Observable<Proceso>,
+    diagrama = of(DIAGRAMA),
+    rol: RolUsuario = 'ADMINISTRADOR',
+  ): Promise<void> {
+    obtener = vi.fn<(id: number) => Observable<Proceso>>().mockReturnValue(proceso);
+    obtenerDiagrama = vi.fn<(id: number) => Observable<DiagramaProceso>>().mockReturnValue(diagrama);
+    eliminar.mockReset();
+    listarComparticiones.mockReset().mockReturnValue(of([{ id: 9, nombre: 'Andes SAS' }]));
+    permisosEstructura.mockReset().mockReturnValue(of([]));
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: ProcesoService, useValue: { obtener, obtenerDiagrama, eliminar, permisosEstructura } },
+        { provide: ComparticionService, useValue: { listar: listarComparticiones } },
+        { provide: SesionService, useValue: { tieneRol: (roles: readonly RolUsuario[]) => roles.includes(rol) } },
+      ],
+    });
+    fixture = TestBed.createComponent(DetalleProceso);
+    elemento = fixture.nativeElement;
+    fixture.componentRef.setInput('id', id);
+    await fixture.whenStable();
+  }
+
+  function metrica(etiqueta: string): string | undefined {
+    return Array.from(elemento.querySelectorAll('.metrica'))
+      .find((item) => item.querySelector('.metrica__etiqueta')?.textContent === etiqueta)
+      ?.querySelector('.metrica__valor')?.textContent?.trim();
+  }
+
+  it('muestra los datos del DTO, el resumen y el diagrama gráfico del backend', async () => {
+    await crear('5', of(PROCESO));
+
+    expect(obtener).toHaveBeenCalledWith(5);
+    expect(obtenerDiagrama).toHaveBeenCalledTimes(1);
+    expect(elemento.querySelector('h1')?.textContent).toBe('Atención de solicitudes');
+    expect(elemento.querySelector('.lista-datos')?.textContent).toContain('Servicio al cliente');
+    expect(metrica('Pools')).toBe('2');
+    expect(metrica('Actividades')).toBe('2');
+    expect(elemento.querySelectorAll('svg .pool').length).toBe(2);
+    expect(elemento.querySelector('.pool--caja-negra')?.textContent).toContain('Caja negra');
+    expect(elemento.querySelector('.lane__nombre')?.textContent?.trim()).toBe('General');
+    expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(2);
+    expect(elemento.textContent).not.toContain('se desarrollará más adelante');
+    const editar = Array.from(elemento.querySelectorAll('a')).find((enlace) => enlace.textContent === 'Editar proceso');
+    expect(editar?.getAttribute('href')).toBe('/procesos/5/editar');
+  });
+
+  it('muestra el error del diagrama sin ocultar la información del proceso y permite reintentar', async () => {
+    await crear(
+      '5',
+      of(PROCESO),
+      throwError(() => ({
+        tipo: 'servidor',
+        estado: 500,
+        codigo: null,
+        titulo: 'El servidor no pudo atender la solicitud',
+        detalle: null,
+      })),
+    );
+
+    expect(elemento.querySelector('h1')?.textContent).toBe('Atención de solicitudes');
+    expect(elemento.querySelector('.diagrama [role="alert"]')?.textContent).toContain('El servidor no pudo atender la solicitud');
+    expect(elemento.querySelector('svg')).toBeNull();
+
+    obtenerDiagrama.mockReturnValue(of(DIAGRAMA));
+    elemento.querySelector<HTMLButtonElement>('.diagrama .aviso__accion')!.click();
+    await fixture.whenStable();
+
+    expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(2);
+  });
+
+  it('en un proceso eliminado sigue mostrando el diagrama solo para consulta', async () => {
+    await crear('5', of({ ...PROCESO, eliminado: true }));
+
+    expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(2);
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial']);
+  });
+
+  it('no ofrece edición en un proceso compartido en solo lectura', async () => {
+    await crear('5', of({ ...PROCESO, soloLectura: true }));
+
+    expect(elemento.textContent).toContain('Solo lectura');
+    expect(elemento.textContent).not.toContain('Editar proceso');
+  });
+
+  it('rechaza un identificador no numérico sin llamar al backend', async () => {
+    await crear('abc', of(PROCESO));
+
+    expect(obtener).not.toHaveBeenCalled();
+    expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('no es válido');
+  });
+
+  it('muestra el error del backend en lugar del contenido', async () => {
+    await crear(
+      '9',
+      throwError(() => ({
+        tipo: 'no-encontrado',
+        estado: 404,
+        codigo: 'RECURSO_NO_ENCONTRADO',
+        titulo: 'El recurso solicitado no existe',
+        detalle: 'El proceso no existe',
+      })),
+    );
+
+    expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('El recurso solicitado no existe');
+    expect(elemento.querySelector('.metricas')).toBeNull();
+  });
+
+  function acciones(): string[] {
+    return Array.from(elemento.querySelectorAll('.encabezado-pagina__acciones a, .encabezado-pagina__acciones button')).map(
+      (accion) => accion.textContent?.trim() ?? '',
+    );
+  }
+
+  function boton(texto: string): HTMLButtonElement | undefined {
+    return Array.from(elemento.querySelectorAll<HTMLButtonElement>('button')).find(
+      (candidato) => candidato.textContent?.trim() === texto,
+    );
+  }
+
+  it('ofrece al administrador editar, eliminar y consultar el historial', async () => {
+    await crear('5', of(PROCESO));
+
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial', 'Eliminar proceso', 'Editar proceso']);
+    const historial = Array.from(elemento.querySelectorAll('a')).find((enlace) => enlace.textContent === 'Ver historial');
+    expect(historial?.getAttribute('href')).toBe('/procesos/5/historial');
+  });
+
+  it('al editor le permite editar pero no eliminar', async () => {
+    await crear('5', of(PROCESO), of(DIAGRAMA), 'EDITOR');
+
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial', 'Editar proceso']);
+    expect(enlaceModelador()?.getAttribute('href')).toBe('/procesos/5/modelador');
+  });
+
+  it('a un usuario de solo lectura solo le deja consultar', async () => {
+    await crear('5', of(PROCESO), of(DIAGRAMA), 'SOLO_LECTURA');
+
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial']);
+    expect(enlaceModelador()).toBeUndefined();
+  });
+
+  it('no ofrece el modelador en procesos compartidos o eliminados', async () => {
+    await crear('5', of({ ...PROCESO, soloLectura: true }));
+    expect(enlaceModelador()).toBeUndefined();
+
+    TestBed.resetTestingModule();
+    await crear('5', of({ ...PROCESO, eliminado: true }));
+    expect(enlaceModelador()).toBeUndefined();
+  });
+
+  function enlaceModelador(): HTMLAnchorElement | undefined {
+    return Array.from(elemento.querySelectorAll('a')).find((enlace) => enlace.textContent?.trim() === 'Abrir modelador');
+  }
+
+  it('en un proceso compartido no ofrece el historial, que es exclusivo de la empresa propietaria', async () => {
+    await crear('5', of({ ...PROCESO, soloLectura: true }));
+
+    expect(acciones()).toEqual(['Volver al listado']);
+  });
+
+  it('en un proceso propio muestra con quién se comparte', async () => {
+    await crear('5', of(PROCESO));
+
+    expect(listarComparticiones).toHaveBeenCalledWith(5);
+    expect(elemento.querySelector('app-panel-comparticion')?.textContent).toContain('Andes SAS');
+    expect(elemento.querySelector('#comparticion-empresa')).not.toBeNull();
+  });
+
+  it('en un proceso propio muestra la matriz de permisos de estructura', async () => {
+    await crear('5', of(PROCESO));
+
+    expect(permisosEstructura).toHaveBeenCalledWith(5);
+    expect(elemento.querySelector('app-panel-permisos')).not.toBeNull();
+  });
+
+  it('a la empresa invitada le indica la propietaria y no le muestra la compartición', async () => {
+    await crear('5', of({ ...PROCESO, soloLectura: true, empresaPropietariaNombre: 'Alpes Logistica' }));
+
+    expect(listarComparticiones).not.toHaveBeenCalled();
+    expect(elemento.querySelector('app-panel-comparticion')).toBeNull();
+    expect(permisosEstructura).not.toHaveBeenCalled();
+    expect(elemento.querySelector('app-panel-permisos')).toBeNull();
+    expect(elemento.textContent).toContain('Proceso compartido en solo lectura');
+    expect(elemento.textContent).toContain('Pertenece a «Alpes Logistica»');
+    expect(elemento.querySelectorAll('g[appNodoActividad]').length).toBe(2);
+    expect(elemento.querySelector('[role="toolbar"]')).toBeNull();
+  });
+
+  it('pide confirmación y no elimina si el usuario cancela', async () => {
+    await crear('5', of(PROCESO));
+
+    boton('Eliminar proceso')!.click();
+    await fixture.whenStable();
+    const dialogo = elemento.querySelector('[role="alertdialog"]');
+    expect(dialogo?.textContent).toContain('¿Eliminar este proceso?');
+    expect(dialogo?.textContent).toContain('Atención de solicitudes');
+    boton('Cancelar')!.click();
+    await fixture.whenStable();
+
+    expect(eliminar).not.toHaveBeenCalled();
+    expect(elemento.querySelector('[role="alertdialog"]')).toBeNull();
+  });
+
+  it('elimina tras confirmar y vuelve a consultar el proceso para mostrar su estado real', async () => {
+    await crear('5', of(PROCESO));
+    eliminar.mockReturnValue(of(undefined));
+    obtener.mockReturnValue(of({ ...PROCESO, eliminado: true }));
+
+    boton('Eliminar proceso')!.click();
+    await fixture.whenStable();
+    elemento.querySelector<HTMLButtonElement>('[role="alertdialog"] .boton--peligro')!.click();
+    await fixture.whenStable();
+
+    expect(eliminar).toHaveBeenCalledWith(5);
+    expect(obtener).toHaveBeenCalledTimes(2);
+    expect(elemento.querySelector('[role="alertdialog"]')).toBeNull();
+    expect(elemento.textContent).toContain('El proceso se eliminó');
+    expect(elemento.querySelector('.chip--peligro')?.textContent).toBe('Eliminado');
+    expect(acciones()).toEqual(['Volver al listado', 'Ver historial']);
+  });
+
+  it('muestra en el diálogo el rechazo del backend sin dar el proceso por eliminado', async () => {
+    await crear('5', of(PROCESO));
+    eliminar.mockReturnValue(
+      throwError(() => ({
+        tipo: 'sin-permiso',
+        estado: 403,
+        codigo: 'USUARIO_SIN_PERMISO',
+        titulo: 'No tienes permiso para esta consulta',
+        detalle: 'Solo un administrador puede eliminar procesos',
+      })),
+    );
+
+    boton('Eliminar proceso')!.click();
+    await fixture.whenStable();
+    elemento.querySelector<HTMLButtonElement>('[role="alertdialog"] .boton--peligro')!.click();
+    await fixture.whenStable();
+
+    expect(elemento.querySelector('[role="alertdialog"] [role="alert"]')?.textContent).toContain(
+      'Solo un administrador puede eliminar procesos',
+    );
+    expect(obtener).toHaveBeenCalledTimes(1);
+    expect(elemento.textContent).not.toContain('El proceso se eliminó');
+  });
+});

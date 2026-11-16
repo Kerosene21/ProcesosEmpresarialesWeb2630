@@ -1,0 +1,11 @@
+.migas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--espacio-2);
+  font-size: var(--texto-s);
+  color: var(--color-texto-secundario);
+}
+
+.historial__cambios {
+  white-space: pre-line;
+}
