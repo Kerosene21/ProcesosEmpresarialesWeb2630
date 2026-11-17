@@ -16,6 +16,15 @@ on:
       - main
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
+    paths-ignore:
+      - 'docs/**'
+      - 'k8s/**'
+      - 'jmeter/**'
+      - 'pruebas/**'
+      - '*.md'
+      - 'frontend/*.md'
+      - '.github/workflows/kubernetes.yml'
+      - '.github/workflows/sonar.yml'
   workflow_dispatch:
 
 permissions:
@@ -70,6 +79,31 @@ jobs:
       - name: Ejecutar la suite completa
         run: ./mvnw -B clean verify
 
+      - name: Resumir las pruebas y la cobertura del backend
+        id: resumen
+        if: ${{ !cancelled() }}
+        run: >-
+          python3 .github/scripts/resumir_pruebas.py
+          --titulo "Backend: pruebas Maven/Surefire y cobertura JaCoCo"
+          --junit 'target/surefire-reports/TEST-*.xml'
+          --jacoco target/site/jacoco/jacoco.xml
+          --revisar target/surefire-reports
+          --revisar target/site/jacoco
+          --salida target/informes/resumen-backend.md
+
+      - name: Guardar los informes del backend
+        if: ${{ !cancelled() && steps.resumen.outputs.publicable == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: informes-backend
+          path: |
+            target/surefire-reports/
+            target/site/jacoco/
+            target/informes/resumen-backend.md
+          if-no-files-found: warn
+          retention-days: 90
+          overwrite: true
+
   frontend:
     name: Pruebas del frontend Angular
     runs-on: ubuntu-latest
@@ -96,10 +130,32 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Ejecutar las pruebas
-        run: npm test -- --watch=false
+        run: npm test -- --watch=false --reporters=junit --reporters=default --output-file=informes/vitest-junit.xml
 
       - name: Compilar para produccion
         run: npm run build -- --configuration production
+
+      - name: Resumir las pruebas del frontend
+        id: resumen
+        if: ${{ !cancelled() }}
+        working-directory: .
+        run: >-
+          python3 .github/scripts/resumir_pruebas.py
+          --titulo "Frontend: pruebas Angular con Vitest"
+          --junit frontend/informes/vitest-junit.xml
+          --sin-cobertura "todavia no se mide; requiere @vitest/coverage-v8"
+          --revisar frontend/informes
+          --salida frontend/informes/resumen-frontend.md
+
+      - name: Guardar los informes del frontend
+        if: ${{ !cancelled() && steps.resumen.outputs.publicable == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: informes-frontend
+          path: frontend/informes/
+          if-no-files-found: warn
+          retention-days: 90
+          overwrite: true
 
   verificar-imagenes:
     name: Construir sin publicar (${{ matrix.componente }})
