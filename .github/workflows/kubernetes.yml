@@ -20,7 +20,7 @@ jobs:
   validar:
     name: Validar manifiestos de Kubernetes
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       KUBECTL_VERSION: v1.36.2
       KUBECTL_SHA256: 1e9045ec32bea85da43de85f0065358529ea7c7a152eca78154fba5b58c27d82
@@ -35,6 +35,7 @@ jobs:
           persist-credentials: false
 
       - name: Instalar herramientas verificadas
+        id: herramientas
         run: |
           set -euo pipefail
           descargas="$RUNNER_TEMP/descargas"
@@ -55,3 +56,15 @@ jobs:
         env:
           ESQUEMAS_DIR: ${{ runner.temp }}/esquemas
         run: bash k8s/scripts/validar-manifiestos.sh
+
+      - name: Probar el despliegue en MicroK8s con kubectl simulado
+        if: ${{ !cancelled() && steps.herramientas.outcome == 'success' }}
+        run: bash k8s/scripts/pruebas/probar-desplegar-vm.sh
+
+      - name: Probar la preparacion del paquete con GHCR simulado
+        if: ${{ !cancelled() && steps.herramientas.outcome == 'success' }}
+        run: bash k8s/scripts/pruebas/probar-preparar-paquete.sh
+
+      - name: Probar la exigencia del environment protegido
+        if: ${{ !cancelled() && steps.herramientas.outcome == 'success' }}
+        run: bash k8s/scripts/pruebas/probar-verificar-entorno.sh

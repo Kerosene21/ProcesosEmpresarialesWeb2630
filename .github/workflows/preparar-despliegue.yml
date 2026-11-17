@@ -1,0 +1,163 @@
+name: Preparar despliegue
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: SHA completo del ultimo commit de main que se prepara
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preparar-despliegue
+  cancel-in-progress: false
+
+jobs:
+  autorizacion:
+    name: Comprobar commit y environment
+    if: github.repository == 'Kerosene21/ProcesosEmpresarialesWeb2630'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Comprobar que se prepara el ultimo commit de main
+        env:
+          COMMIT_SOLICITADO: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo "::error::La preparacion solo se ejecuta desde main; se lanzo desde $GITHUB_REF."
+            exit 1
+          fi
+          if [[ ! "$COMMIT_SOLICITADO" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::El commit debe ser un SHA completo de 40 caracteres hexadecimales en minuscula."
+            exit 1
+          fi
+          if [[ "$COMMIT_SOLICITADO" != "$GITHUB_SHA" ]]; then
+            echo "::error::El commit solicitado $COMMIT_SOLICITADO no es el commit de main de esta ejecucion ($GITHUB_SHA)."
+            exit 1
+          fi
+          actual=$(git ls-remote "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" refs/heads/main | cut -f1)
+          if [[ "$actual" != "$GITHUB_SHA" ]]; then
+            echo "::error::main ya esta en $actual; vuelva a lanzar la preparacion con ese commit."
+            exit 1
+          fi
+          echo "Commit $GITHUB_SHA confirmado como el ultimo de main."
+
+      - name: Obtener el codigo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Exigir el environment protegido
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENTORNO_DESPLIEGUE: ${{ vars.ENTORNO_DESPLIEGUE }}
+        run: bash k8s/scripts/verificar-entorno.sh
+
+  preparar:
+    name: Preparar el paquete de despliegue
+    needs: autorizacion
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: vm-universitaria
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - name: Obtener el codigo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Volver a comprobar el environment despues de la aprobacion
+        id: entorno
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENTORNO_DESPLIEGUE: ${{ vars.ENTORNO_DESPLIEGUE }}
+        run: bash k8s/scripts/verificar-entorno.sh
+
+      - name: Confirmar que main no cambio durante la aprobacion
+        run: |
+          set -euo pipefail
+          actual=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [[ "$actual" != "$GITHUB_SHA" || "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
+            echo "::error::main cambio a $actual mientras se esperaba la aprobacion; prepare de nuevo el commit actual."
+            exit 1
+          fi
+
+      - name: Instalar herramientas verificadas
+        run: |
+          bash k8s/scripts/instalar-herramientas.sh "$RUNNER_TEMP/herramientas"
+          echo "$RUNNER_TEMP/herramientas" >> "$GITHUB_PATH"
+
+      - name: Validar los manifiestos de Kubernetes
+        env:
+          ESQUEMAS_DIR: ${{ runner.temp }}/esquemas
+        run: bash k8s/scripts/validar-manifiestos.sh
+
+      - name: Probar los scripts de despliegue
+        run: |
+          bash k8s/scripts/pruebas/probar-desplegar-vm.sh
+          bash k8s/scripts/pruebas/probar-preparar-paquete.sh
+          bash k8s/scripts/pruebas/probar-verificar-entorno.sh
+
+      - name: Preparar el paquete
+        id: paquete
+        env:
+          APROBACION: ${{ steps.entorno.outputs.aprobacion }}
+        run: bash k8s/scripts/preparar-paquete.sh --commit "$GITHUB_SHA" --aprobacion "$APROBACION" --salida "$RUNNER_TEMP/paquete"
+
+      - name: Firmar la procedencia del paquete
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
+        with:
+          subject-path: |
+            ${{ runner.temp }}/paquete/${{ steps.paquete.outputs.paquete }}
+            ${{ runner.temp }}/paquete/desplegar-vm.sh
+
+      - name: Publicar el paquete
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: paquete-despliegue-${{ steps.paquete.outputs.commit_corto }}
+          path: |
+            ${{ runner.temp }}/paquete/${{ steps.paquete.outputs.paquete }}
+            ${{ runner.temp }}/paquete/${{ steps.paquete.outputs.paquete }}.sha256
+            ${{ runner.temp }}/paquete/desplegar-vm.sh
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Resumir la version preparada
+        env:
+          PAQUETE: ${{ steps.paquete.outputs.paquete }}
+          SUMA: ${{ steps.paquete.outputs.sha256 }}
+          ARTEFACTO: paquete-despliegue-${{ steps.paquete.outputs.commit_corto }}
+        run: |
+          {
+            cat "$RUNNER_TEMP/paquete/RESUMEN.md"
+            echo
+            echo "### Aplicacion en la VM"
+            echo
+            echo "SHA-256 del paquete: \`$SUMA\`"
+            echo
+            echo "1. En el equipo del operador, descargar y verificar la procedencia:"
+            echo
+            echo '```bash'
+            echo "gh run download $GITHUB_RUN_ID -R $GITHUB_REPOSITORY -n $ARTEFACTO"
+            echo "gh attestation verify $PAQUETE -R $GITHUB_REPOSITORY --signer-workflow $GITHUB_REPOSITORY/.github/workflows/preparar-despliegue.yml"
+            echo "gh attestation verify desplegar-vm.sh -R $GITHUB_REPOSITORY --signer-workflow $GITHUB_REPOSITORY/.github/workflows/preparar-despliegue.yml"
+            echo "sha256sum --check $PAQUETE.sha256"
+            echo '```'
+            echo
+            echo "2. Con la VPN F5 conectada, copiar \`$PAQUETE\` y \`desplegar-vm.sh\` a NBIG132 con \`scp\` y ejecutar alli por \`ssh\`, primero sin \`--aplicar\`:"
+            echo
+            echo '```bash'
+            echo "bash desplegar-vm.sh --paquete $PAQUETE --sha256 $SUMA --url https://127.0.0.1:PUERTO"
+            echo "bash desplegar-vm.sh --paquete $PAQUETE --sha256 $SUMA --url https://127.0.0.1:PUERTO --aplicar"
+            echo '```'
+            echo
+            echo "Este workflow no se conecta a la VM ni despliega: la version desplegada solo cambia cuando el operador ejecuta el paso 2 con \`--aplicar\`."
+          } >> "$GITHUB_STEP_SUMMARY"
