@@ -68,7 +68,23 @@ jobs:
           key: ${{ runner.os }}-sonar-${{ steps.semana.outputs.valor }}
           restore-keys: ${{ runner.os }}-sonar-
 
+      - name: Preparar Python 3.12
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+
+      - name: Probar los scripts de CI con cobertura
+        run: |
+          python -m pip install --quiet --disable-pip-version-check --require-hashes --only-binary=:all: --no-deps -r .github/scripts/requirements-pruebas.txt
+          mkdir -p target
+          python -m coverage run --rcfile=.github/scripts/coverage.ini -m unittest discover -s .github/scripts -p 'test_*.py' -v
+          python -m coverage report --rcfile=.github/scripts/coverage.ini
+          python -m coverage xml --rcfile=.github/scripts/coverage.ini
+
       - name: Build, test and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./mvnw -B verify "${SONAR_MAVEN_PLUGIN}:sonar"
+        run: >-
+          ./mvnw -B verify "${SONAR_MAVEN_PLUGIN}:sonar"
+          -Dsonar.python.version=3.12
+          -Dsonar.python.coverage.reportPaths=target/coverage-python.xml
