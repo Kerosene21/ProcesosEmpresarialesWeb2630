@@ -326,8 +326,9 @@ falta el código fuente en la VM: el manifiesto se genera en local y solo se cop
 kubectl kustomize k8s/overlays/vm > procesos-vm.yaml
 ```
 
-- `sha-pendiente` no existe a propósito: antes del primer despliegue se sustituye por el *digest* que publique
-  GitHub Actions en `ghcr.io/kerosene21/procesos-empresariales-{backend,frontend}`.
+- Las imágenes se fijan por *digest* en `k8s/overlays/vm/kustomization.yaml`, con los valores que muestra el
+  resumen del workflow `imagenes.yml` para `ghcr.io/kerosene21/procesos-empresariales-{backend,frontend}`. Ambos
+  paquetes son públicos y se descargan sin credenciales.
 - La VM no tiene StorageClass: PostgreSQL usa el PV local de `k8s/overlays/vm/almacenamiento`
   (`/var/lib/procesos-empresariales/postgres`, `Retain`), que exige crear el directorio con `sudo`.
 - Valores confirmados en la VM: red de pods de Calico `10.1.0.0/16`, nodo `nbig132`, Traefik en el namespace

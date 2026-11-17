@@ -11,14 +11,14 @@ resources:
 components:
   - ../../components/limite-autenticacion
 images:
-  # sha-pendiente no existe a proposito: antes del primer despliegue se cambia "newTag: sha-pendiente" por
-  # "digest: sha256:..." con el digest que publique GitHub Actions para esa imagen (o con kustomize edit set image).
+  # Fijadas por digest (index multiplataforma con linux/amd64, SBOM y procedencia) publicado por el workflow
+  # imagenes.yml desde main en el commit 2b4d97d (etiqueta sha-2b4d97d). Cada nueva version cambia estos digests.
   - name: procesos-empresariales-backend
     newName: ghcr.io/kerosene21/procesos-empresariales-backend
-    newTag: sha-pendiente
+    digest: sha256:6944e7ad8d295cfb6292f05404e31574447c0a95f5a1ea7b9102d240d9d07290
   - name: procesos-empresariales-frontend
     newName: ghcr.io/kerosene21/procesos-empresariales-frontend
-    newTag: sha-pendiente
+    digest: sha256:248a6028f9c9e0aa4ebc2ecb02770a6a292297e7ed7b6e74ce60d5efeaabf21d
 configMapGenerator:
   - name: procesos-configuracion
     behavior: merge
