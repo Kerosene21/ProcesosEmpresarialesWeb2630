@@ -1,0 +1,57 @@
+name: Kubernetes
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kubernetes-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  validar:
+    name: Validar manifiestos de Kubernetes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      KUBECTL_VERSION: v1.36.2
+      KUBECTL_SHA256: 1e9045ec32bea85da43de85f0065358529ea7c7a152eca78154fba5b58c27d82
+      KUBECONFORM_VERSION: v0.8.0
+      KUBECONFORM_SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+      YQ_VERSION: v4.54.1
+      YQ_SHA256: 8e34fc298390875de416e6a4afcb8cabeceb25d9aa8506c1a2f9353cf702ea5f
+    steps:
+      - name: Obtener el codigo
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Instalar herramientas verificadas
+        run: |
+          set -euo pipefail
+          descargas="$RUNNER_TEMP/descargas"
+          herramientas="$RUNNER_TEMP/herramientas"
+          mkdir -p "$descargas" "$herramientas"
+          descargar() {
+            curl --proto '=https' --tlsv1.2 -fsSL --retry 3 -o "$descargas/$1" "$2"
+            printf '%s  %s\n' "$3" "$descargas/$1" | sha256sum --check --strict
+          }
+          descargar kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" "$KUBECTL_SHA256"
+          descargar kubeconform.tar.gz "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" "$KUBECONFORM_SHA256"
+          descargar yq "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" "$YQ_SHA256"
+          tar -xzf "$descargas/kubeconform.tar.gz" -C "$descargas" kubeconform
+          install -m 0755 "$descargas/kubectl" "$descargas/kubeconform" "$descargas/yq" "$herramientas/"
+          echo "$herramientas" >> "$GITHUB_PATH"
+
+      - name: Validar manifiestos
+        env:
+          ESQUEMAS_DIR: ${{ runner.temp }}/esquemas
+        run: bash k8s/scripts/validar-manifiestos.sh
