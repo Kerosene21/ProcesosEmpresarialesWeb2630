@@ -9,7 +9,7 @@ readonly -a ARCHIVOS_PAQUETE=(RESUMEN.md deployments.yaml metadatos.txt migracio
 readonly -a DEPLOYMENTS=(procesos-backend procesos-frontend)
 readonly TAMANO_MAXIMO_PAQUETE=1048576
 readonly TAMANO_MAXIMO_ARCHIVO=262144
-readonly APROBACION_GITHUB="environment:vm-universitaria"
+readonly ENTORNO_VERIFICADO="environment:vm-universitaria"
 readonly REGEX_DIGEST='^[0-9a-f]{64}$'
 readonly REGEX_URL='^https?://(127\.0\.0\.1|localhost|\[::1\])(:[0-9]{1,5})?$'
 declare -rA REGEX_IMAGEN=(
@@ -31,7 +31,7 @@ declare -rA REGEX_METADATOS=(
   [frontend_revision]='^[0-9a-f]{40}$'
   [backend_anterior]='^(ninguna|ghcr\.io/kerosene21/procesos-empresariales-backend@sha256:[0-9a-f]{64})$'
   [migraciones_nuevas]='^([0-9]{1,3}|desconocido)$'
-  [aprobacion]='^(ninguna|environment:vm-universitaria)$'
+  [verificacion_entorno]='^(ninguna|environment:vm-universitaria)$'
 )
 readonly JSONPATH_CONTENEDORES='{range .spec.template.spec.initContainers[*]}init {.name} {.image}{"\n"}{end}{range .spec.template.spec.containers[*]}app {.name} {.image}{"\n"}{end}'
 readonly JSONPATH_ESTADO='{.spec.replicas} {.status.readyReplicas} {.status.updatedReplicas} {.status.availableReplicas} {.metadata.generation} {.status.observedGeneration}'
@@ -47,7 +47,7 @@ URL=""
 SIN_HTTP=false
 APLICAR=false
 MIGRACIONES_REVISADAS=false
-SIN_APROBACION=false
+SIN_ENTORNO=false
 REGISTRO_BASE="${HOME:-.}/despliegues-procesos-empresariales"
 TIEMPO_MAXIMO=""
 TRABAJO=""
@@ -74,7 +74,8 @@ Opciones:
   --registro DIRECTORIO      Directorio de registros (por defecto ~/despliegues-procesos-empresariales)
   --tiempo-maximo SEGUNDOS   Tiempo maximo de cada rollout (60-1800)
   --migraciones-revisadas    Confirma la revision de compatibilidad y el respaldo de PostgreSQL
-  --sin-aprobacion-github    Acepta un paquete preparado sin el environment vm-universitaria
+  --sin-entorno-github       Acepta un paquete preparado sin verificar el environment vm-universitaria
+                             (se admite el nombre anterior --sin-aprobacion-github)
   --aplicar                  Actualiza las imagenes del backend y del frontend
 
 Codigos de salida: 0 correcto, 1 comprobacion fallida sin cambios, 2 uso incorrecto,
@@ -153,7 +154,7 @@ leer_argumentos() {
       --sin-http) SIN_HTTP=true; shift ;;
       --aplicar) APLICAR=true; shift ;;
       --migraciones-revisadas) MIGRACIONES_REVISADAS=true; shift ;;
-      --sin-aprobacion-github) SIN_APROBACION=true; shift ;;
+      --sin-entorno-github | --sin-aprobacion-github) SIN_ENTORNO=true; shift ;;
       -h | --ayuda) uso; exit 0 ;;
       *) error_uso "opcion desconocida: $1" ;;
     esac
@@ -179,8 +180,8 @@ leer_argumentos() {
   if [[ $APLICAR == true && -n $PAQUETE && -z $SHA_ESPERADO ]]; then
     error_uso "--aplicar exige --sha256 con el valor publicado en el resumen de GitHub Actions"
   fi
-  if [[ -n $REVERTIR ]] && [[ $MIGRACIONES_REVISADAS == true || $SIN_APROBACION == true || -n $SHA_ESPERADO ]]; then
-    error_uso "--migraciones-revisadas, --sin-aprobacion-github y --sha256 solo se usan con --paquete"
+  if [[ -n $REVERTIR ]] && [[ $MIGRACIONES_REVISADAS == true || $SIN_ENTORNO == true || -n $SHA_ESPERADO ]]; then
+    error_uso "--migraciones-revisadas, --sin-entorno-github y --sha256 solo se usan con --paquete"
   fi
 }
 
@@ -300,6 +301,9 @@ leer_metadatos() {
     fi
     clave=${BASH_REMATCH[1]}
     valor=${BASH_REMATCH[2]}
+    if [[ $clave == aprobacion ]]; then
+      clave=verificacion_entorno
+    fi
     if [[ -z ${REGEX_METADATOS[$clave]:-} ]]; then
       fallo "clave no admitida en metadatos.txt: $clave"
     elif [[ -n ${META[$clave]+x} ]]; then
@@ -317,10 +321,10 @@ leer_metadatos() {
   correcto "commit ${META[commit]} de $REPOSITORIO (${META[commit_fecha]})"
   correcto "backend ${META[backend_imagen]} (revision ${META[backend_revision]:0:12})"
   correcto "frontend ${META[frontend_imagen]} (revision ${META[frontend_revision]:0:12})"
-  if [[ ${META[aprobacion]} == "$APROBACION_GITHUB" ]]; then
-    correcto "preparado con la aprobacion del environment vm-universitaria"
+  if [[ ${META[verificacion_entorno]} == "$ENTORNO_VERIFICADO" ]]; then
+    correcto "paquete preparado con el environment vm-universitaria verificado (solo main y sin omision de administradores)"
   else
-    aviso "preparado sin environment de aprobacion en GitHub"
+    aviso "paquete preparado sin verificar el environment vm-universitaria"
   fi
   SOLICITADA[procesos-backend/esperar-postgres]=${META[backend_imagen]}
   SOLICITADA[procesos-backend/backend]=${META[backend_imagen]}
@@ -526,14 +530,14 @@ comprobar_migraciones() {
   fi
 }
 
-comprobar_aprobacion() {
-  [[ -n $PAQUETE && ${META[aprobacion]} != "$APROBACION_GITHUB" ]] || return 0
-  if [[ $SIN_APROBACION == true ]]; then
-    aviso "se acepta un paquete sin aprobacion del environment vm-universitaria (--sin-aprobacion-github)"
+comprobar_entorno_verificado() {
+  [[ -n $PAQUETE && ${META[verificacion_entorno]} != "$ENTORNO_VERIFICADO" ]] || return 0
+  if [[ $SIN_ENTORNO == true ]]; then
+    aviso "se acepta un paquete preparado sin verificar el environment vm-universitaria (--sin-entorno-github)"
   elif [[ $APLICAR == true ]]; then
-    fallo "el paquete no paso por el environment vm-universitaria; use --sin-aprobacion-github solo si la aprobacion se hizo por otro medio"
+    fallo "el paquete se preparo sin verificar el environment vm-universitaria; use --sin-entorno-github solo si su origen se comprobo por otro medio"
   else
-    aviso "--aplicar exigira --sin-aprobacion-github porque el paquete no paso por el environment vm-universitaria"
+    aviso "--aplicar exigira --sin-entorno-github porque el paquete se preparo sin verificar el environment vm-universitaria"
   fi
 }
 
@@ -733,7 +737,7 @@ principal() {
   terminar_si_hay_errores
   planificar
   comprobar_migraciones
-  comprobar_aprobacion
+  comprobar_entorno_verificado
   simular_cambios
   mostrar_diferencias_configuracion
   comprobar_salud 1 false

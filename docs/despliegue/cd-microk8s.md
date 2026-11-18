@@ -2,19 +2,28 @@
 
 Arquitectura definitiva: **GitHub Actions + GHCR + descarga del paquete + VPN F5 + SCP/SSH + MicroK8s**.
 
-GitHub Actions prueba, construye, publica y prepara un paquete firmado con la versión autorizada. El operador lo
-descarga en su equipo, se conecta a la universidad por la VPN F5 y lo aplica en NBIG132 con
+GitHub Actions prueba, construye, publica y prepara un paquete firmado con la versión fijada en `main`. El operador
+lo descarga en su equipo, se conecta a la universidad por la VPN F5 y lo aplica en NBIG132 con
 `k8s/scripts/desplegar-vm.sh`. Ningún workflow se conecta a la VM, guarda credenciales de Kubernetes o despliega por
 sí solo.
+
+- No se exigen Required reviewers: preparar un paquete no depende de que otro integrante lo apruebe.
+- El workflow de preparación solo se lanza a mano (`workflow_dispatch`) desde `main` y solo prepara su último commit.
+- El environment `vm-universitaria` restringe la ejecución a la rama `main` y no admite omisiones de administradores.
+- GitHub Actions prepara y verifica el paquete: imágenes de GHCR, migraciones, manifiestos, pruebas y firma.
+- Actualizar MicroK8s exige que el operador descargue el paquete, conecte la VPN F5, entre por SSH y ejecute
+  `desplegar-vm.sh --aplicar` de forma expresa.
+- No se usan runners autohospedados.
 
 ```text
 1. PR a main ──► CI en runners de GitHub: 7 checks obligatorios
    (pruebas, builds, SonarQube Cloud, manifiestos y pruebas del CD)
 2. merge ──► imagenes.yml construye y publica las imágenes en GHCR (digest, SBOM y procedencia)
 3. PR que fija los digests en k8s/overlays/vm ──► merge: Git registra la versión deseada
-4. Preparar despliegue (workflow_dispatch con el SHA del último commit de main)
-     autorizacion: rama main, commit == main y environment vm-universitaria protegido
-     preparar: aprobación de vm-universitaria ─ validación ─ pruebas ─ paquete ─ firma ─ artefacto
+4. Preparar despliegue (workflow_dispatch manual con el SHA del último commit de main)
+     autorizacion: rama main, commit == main y configuración de vm-universitaria verificada
+     preparar: environment vm-universitaria (sin revisores) ─ nueva verificación ─ validación ─ pruebas
+               ─ paquete ─ firma ─ artefacto
 5. Equipo del operador: gh run download ─ gh attestation verify ─ sha256sum
 6. VPN F5 de la universidad (conexión manual del operador)
 7. scp del paquete y del script a NBIG132; ssh con la contraseña escrita por el operador
@@ -41,9 +50,9 @@ las pruebas del CD y publica sus tablas en el resumen de la ejecución:
 
 | Suite | Pruebas | Qué simula |
 | --- | ---: | --- |
-| `probar-desplegar-vm.sh` | 49 | `kubectl` y `curl` de la VM |
-| `probar-preparar-paquete.sh` | 16 | GHCR y un repositorio Git temporal |
-| `probar-verificar-entorno.sh` | 17 | La API de environments de GitHub |
+| `probar-desplegar-vm.sh` | 53 | `kubectl` y `curl` de la VM |
+| `probar-preparar-paquete.sh` | 18 | GHCR y un repositorio Git temporal |
+| `probar-verificar-entorno.sh` | 22 | La API de environments de GitHub |
 
 Ninguna se conecta a la VM ni a un clúster. Las herramientas son las mismas versiones fijadas y verificadas con
 SHA-256 que usa la validación.
@@ -51,7 +60,7 @@ SHA-256 que usa la validación.
 ## Preparación del paquete
 
 `.github/workflows/preparar-despliegue.yml` se lanza a mano desde `main` con el SHA completo del último commit de
-`main`. Rechaza otra rama, un SHA distinto y un `main` que avanzó, también durante la espera de aprobación.
+`main`. Rechaza otra rama, un SHA distinto y un `main` que avanzó mientras se ejecutaba.
 
 `k8s/scripts/preparar-paquete.sh` comprueba, sin credenciales:
 
@@ -68,10 +77,10 @@ contiene:
 
 | Archivo | Contenido |
 | --- | --- |
-| `metadatos.txt` | Claves fijas: commit, digests, revisiones, versión anterior, migraciones nuevas y aprobación |
+| `metadatos.txt` | Claves fijas: commit, digests, revisiones, versión anterior, migraciones nuevas y `verificacion_entorno` |
 | `deployments.yaml` | `procesos-backend` y `procesos-frontend` renderizados desde `k8s/overlays/vm`, solo para comparar |
 | `migraciones.txt` | SHA-256, nombre y estado de cada migración |
-| `RESUMEN.md` | Las tres versiones, migraciones y aprobación |
+| `RESUMEN.md` | Las tres versiones, migraciones y el environment verificado |
 | `SHA256SUMS` | Suma de los cuatro archivos anteriores |
 
 No incluye Secrets, credenciales, kubeconfig, el StatefulSet de PostgreSQL, PVC, PV, StorageClass ni recursos de
@@ -82,32 +91,48 @@ Los SHA-256 prueban la integridad; la procedencia la prueba `gh attestation veri
 workflow `preparar-despliegue.yml`. La procedencia de las imágenes en GHCR es metadato de BuildKit sin firma: confirma
 coherencia, pero solo es tan fiable como el control de escritura sobre GHCR.
 
-## Aprobación con el environment protegido
+## Environment protegido sin aprobación humana
 
-La preparación exige el environment `vm-universitaria`. `k8s/scripts/verificar-entorno.sh` lo comprueba por la API
-de GitHub antes de que ningún job lo use, y otra vez después de la aprobación:
+La preparación usa el environment `vm-universitaria`, configurado **sin Required reviewers**. El environment no
+aprueba nada: restringe a `main` la rama desde la que puede ejecutarse el job que lo usa.
+`k8s/scripts/verificar-entorno.sh` comprueba su configuración por la API de GitHub en el job `autorizacion`, antes de
+que ningún job lo referencie, y otra vez al empezar el job `preparar`:
 
 | Situación | Resultado |
 | --- | --- |
 | Falta la variable `ENTORNO_DESPLIEGUE` o tiene otro valor | Falla con un mensaje que indica cómo configurarla |
 | El environment no existe | Falla; nunca se referencia, así que GitHub no lo crea sin reglas |
-| Sin revisores obligatorios | Falla |
-| Permite que los administradores omitan las protecciones | Falla |
-| Admite cualquier rama, las ramas protegidas, otra rama, un comodín o etiquetas | Falla |
-| Correcto | El job `Preparar el paquete de despliegue` espera la aprobación antes de ejecutar ningún paso |
-| Correcto pero con autoaprobación permitida | Continúa con un aviso |
+| La API falla o devuelve datos no válidos (otro environment, ramas ilegibles) | Falla |
+| Permite que los administradores omitan las protecciones, o la respuesta no lo indica | Falla |
+| Admite cualquier rama, las ramas protegidas, una rama distinta de `main`, otra rama además de `main`, un comodín, etiquetas o ninguna regla | Falla |
+| Sin revisores, solo `main` y sin omisión de administradores | Correcto: el job `preparar` empieza sin esperar a nadie |
+| Con revisores (no se exigen) | También correcto: GitHub pide su aprobación; aviso si permite la autoaprobación |
 
-Configuración manual, una sola vez, después de integrar el PR:
+El CD distingue cuatro cosas:
 
-1. Settings > Environments > New environment: `vm-universitaria`.
-2. Required reviewers: al menos un integrante; activar Prevent self-review si el equipo lo permite.
-3. Desactivar Allow administrators to bypass configured protection rules.
+- **Environment verificado**: la configuración anterior se comprobó. El paquete lo registra como
+  `verificacion_entorno=environment:vm-universitaria`; no significa que alguien lo aprobara.
+- **Preparación manual**: alguien con permiso de escritura lanza el workflow desde `main`. El resumen de la ejecución
+  indica quién lo lanzó y el commit preparado.
+- **Aprobación humana**: no se exige. Ni el paquete ni los registros de `desplegar-vm.sh` la mencionan, y el resumen
+  de la ejecución indica «no exigida» mientras el environment no tenga revisores.
+- **Aplicación en MicroK8s**: operación independiente que el operador realiza en NBIG132 por VPN F5 y SSH con
+  `--aplicar`.
+
+Sin revisores, cualquier persona con permiso de escritura puede preparar un paquete. Es aceptable porque preparar no
+cambia nada en la VM: actualizarla exige la VPN F5, la contraseña SSH de NBIG132 y `--aplicar`.
+
+Configuración manual del environment y de la variable:
+
+1. Settings > Environments: `vm-universitaria`.
+2. Required reviewers y Wait timer desactivados (Prevent self-review no aplica).
+3. Allow administrators to bypass configured protection rules desactivado.
 4. Deployment branches and tags: Selected branches and tags, con una única regla de tipo rama para `main`.
 5. Sin secretos ni variables en el environment.
 6. Settings > Secrets and variables > Actions > Variables: `ENTORNO_DESPLIEGUE` = `vm-universitaria`.
 
-Cada preparación queda registrada en Deployments de GitHub con quién la aprobó. Eso registra la versión autorizada,
-no la desplegada: la versión desplegada solo cambia cuando el operador ejecuta `--aplicar`.
+Cada preparación queda registrada en Actions y en Deployments de GitHub. Eso registra la versión preparada, no la
+desplegada: la versión desplegada solo cambia cuando el operador ejecuta `--aplicar`.
 
 ## Aplicación en NBIG132
 
@@ -161,8 +186,10 @@ espera `rollout status` (420 s el backend y 180 s el frontend, ajustable con `--
 con la nueva imagen, PostgreSQL listo, `GET /` (200) y `GET /api/auth/csrf` (204) con reintentos, y escribe un
 informe.
 
-Los paquetes del workflow siempre llevan la aprobación de `vm-universitaria`. `--sin-aprobacion-github` solo existe
-para paquetes preparados fuera de Actions y deja constancia en el informe.
+Los paquetes del workflow siempre registran `verificacion_entorno=environment:vm-universitaria`. Un paquete preparado
+fuera de Actions sin esa verificación exige `--sin-entorno-github`, que deja constancia en el informe. Por
+compatibilidad se aceptan el nombre anterior `--sin-aprobacion-github`, la opción `--aprobacion` de
+`preparar-paquete.sh` y la clave `aprobacion=` de paquetes anteriores, que se lee como `verificacion_entorno`.
 
 Nunca modifica PostgreSQL, StatefulSet, PVC, PV, StorageClass, Secrets, NetworkPolicies, Ingress, Middleware,
 Traefik, Calico ni la configuración global de MicroK8s, y no usa `apply`, `delete`, `--prune` ni `rollout restart`.

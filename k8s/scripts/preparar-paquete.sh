@@ -18,7 +18,7 @@ read -r -a DOCKER <<<"${DOCKER:-docker}"
 
 RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMMIT=""
-APROBACION=""
+VERIFICACION=""
 SALIDA=""
 TRABAJO=""
 ERRORES=0
@@ -34,7 +34,8 @@ MIGRACIONES_NUEVAS="desconocido"
 declare -A ESTADO_MIGRACION=()
 
 uso() {
-  printf 'Uso: preparar-paquete.sh --commit SHA --aprobacion (ninguna|environment:vm-universitaria) --salida DIRECTORIO\n'
+  printf 'Uso: preparar-paquete.sh --commit SHA --verificacion-entorno (ninguna|environment:vm-universitaria) --salida DIRECTORIO\n'
+  printf 'La opcion anterior --aprobacion se admite como sinonimo de --verificacion-entorno.\n'
 }
 
 info() { printf '  %s\n' "$*"; }
@@ -56,13 +57,13 @@ leer_argumentos() {
   while (($# > 0)); do
     case $1 in
       --commit) COMMIT=${2:-}; shift 2 ;;
-      --aprobacion) APROBACION=${2:-}; shift 2 ;;
+      --verificacion-entorno | --aprobacion) VERIFICACION=${2:-}; shift 2 ;;
       --salida) SALIDA=${2:-}; shift 2 ;;
       -h | --ayuda) uso; exit 0 ;;
       *) uso >&2; exit 2 ;;
     esac
   done
-  if [[ ! $COMMIT =~ ^[0-9a-f]{40}$ || ! $APROBACION =~ ^(ninguna|environment:vm-universitaria)$ || -z $SALIDA ]]; then
+  if [[ ! $COMMIT =~ ^[0-9a-f]{40}$ || ! $VERIFICACION =~ ^(ninguna|environment:vm-universitaria)$ || -z $SALIDA ]]; then
     uso >&2
     exit 2
   fi
@@ -309,7 +310,7 @@ frontend_imagen=${IMAGEN[frontend]}
 frontend_revision=${REVISION[frontend]}
 backend_anterior=$BACKEND_ANTERIOR
 migraciones_nuevas=$MIGRACIONES_NUEVAS
-aprobacion=$APROBACION
+verificacion_entorno=$VERIFICACION
 TEXTO
   COMMIT_FECHA=$fecha
 }
@@ -337,12 +338,13 @@ escribir_resumen() {
     fi
     printf "\n\`\`\`text\n"
     cat "$TRABAJO/$RAIZ_PAQUETE/migraciones.txt"
-    printf "\`\`\`\n\n### Aprobacion\n\n"
-    if [[ $APROBACION == ninguna ]]; then
-      printf "Preparado **sin** environment de aprobacion en GitHub. Aplicarlo exige \`--sin-aprobacion-github\`.\n"
+    printf "\`\`\`\n\n### Environment de GitHub\n\n"
+    if [[ $VERIFICACION == ninguna ]]; then
+      printf "Preparado **sin** verificar el environment \`vm-universitaria\`. Aplicarlo exige \`--sin-entorno-github\`.\n"
     else
-      printf "Preparado despues de la aprobacion del environment \`vm-universitaria\`.\n"
+      printf "Environment \`vm-universitaria\` verificado antes de preparar el paquete: solo admite la rama \`main\` y los administradores no pueden omitir sus reglas.\n"
     fi
+    printf "\nEl paquete no registra ninguna aprobacion humana. Actualizar MicroK8s es una operacion aparte: el operador la realiza en la VM con \`desplegar-vm.sh --aplicar\`.\n"
     printf "\nEl paquete solo contiene los Deployments \`procesos-backend\` y \`procesos-frontend\`. "
     printf "\`desplegar-vm.sh\` actualiza unicamente sus imagenes y nunca aplica estos manifiestos.\n"
   } >"$TRABAJO/$RAIZ_PAQUETE/RESUMEN.md"
