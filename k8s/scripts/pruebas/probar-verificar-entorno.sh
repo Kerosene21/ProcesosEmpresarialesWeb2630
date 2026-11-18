@@ -7,19 +7,20 @@ TEMPORAL="$(mktemp -d)"
 trap 'rm -rf "$TEMPORAL"' EXIT
 export GH="bash $DIR_PRUEBAS/gh-simulado.sh"
 export GITHUB_REPOSITORY="Kerosene21/ProcesosEmpresarialesWeb2630"
+readonly APROBACION_FALSA='aprobad[oa]|aprobo|con la aprobacion|tras la aprobacion|despues de la aprobacion|aprobacion del environment|self-review'
 TOTAL=0
 CORRECTOS=0
 FALLIDOS=()
 FILAS=()
 
 entorno_json() {
-  local revisores=${1:-1} autorevision=${2:-true} omision=${3:-false} politica=${4:-'{"protected_branches":false,"custom_branch_policies":true}'}
-  local lista="[]"
+  local revisores=${1:-0} autorevision=${2:-true} omision=${3:-false} politica=${4:-'{"protected_branches":false,"custom_branch_policies":true}'}
+  local reglas='{"id":2,"node_id":"GA_2","type":"branch_policy"}'
   if ((revisores > 0)); then
-    lista='[{"type":"User","reviewer":{"login":"revisor"}}]'
+    reglas="{\"id\":1,\"node_id\":\"GA_1\",\"type\":\"required_reviewers\",\"prevent_self_review\":$autorevision,\"reviewers\":[{\"type\":\"User\",\"reviewer\":{\"login\":\"revisor\"}}]},$reglas"
   fi
-  printf '{"id":1,"name":"vm-universitaria","can_admins_bypass":%s,"protection_rules":[{"id":1,"type":"required_reviewers","prevent_self_review":%s,"reviewers":%s},{"id":2,"type":"branch_policy"}],"deployment_branch_policy":%s}' \
-    "$omision" "$autorevision" "$lista" "$politica"
+  printf '{"id":1,"name":"vm-universitaria","can_admins_bypass":%s,"protection_rules":[%s],"deployment_branch_policy":%s}' \
+    "$omision" "$reglas" "$politica"
 }
 
 ramas_json() {
@@ -45,17 +46,25 @@ preparar() {
 }
 
 caso() {
-  local nombre=$1 codigo_esperado=$2 patron=$3 salida codigo resultado=SI
+  local nombre=$1 codigo_esperado=$2 patron=$3 revisores=${4:-0} prohibido=${5:-} salida codigo resultado=SI
   salida="$TEMPORAL/salida-$TOTAL.txt"
   bash "$SCRIPT" >"$salida" 2>&1
   codigo=$?
   if [[ $codigo != "$codigo_esperado" ]] || ! grep -qF -- "$patron" "$salida"; then
     resultado=NO
   fi
+  if grep -qi '^aprobacion' "$GITHUB_OUTPUT"; then
+    resultado=NO
+  fi
   if [[ $codigo_esperado != 0 && -s $GITHUB_OUTPUT ]]; then
     resultado=NO
   fi
-  if [[ $codigo_esperado == 0 ]] && ! grep -qx 'aprobacion=environment:vm-universitaria' "$GITHUB_OUTPUT"; then
+  if [[ $codigo_esperado == 0 ]]; then
+    grep -qx 'entorno=vm-universitaria' "$GITHUB_OUTPUT" || resultado=NO
+    grep -qx 'verificacion=environment:vm-universitaria' "$GITHUB_OUTPUT" || resultado=NO
+    grep -qx "revisores=$revisores" "$GITHUB_OUTPUT" || resultado=NO
+  fi
+  if [[ -n $prohibido ]] && grep -qiE -- "$prohibido" "$salida" "$GITHUB_OUTPUT"; then
     resultado=NO
   fi
   TOTAL=$((TOTAL + 1))
@@ -64,7 +73,7 @@ caso() {
   else
     FALLIDOS+=("$nombre")
     printf -- '--- salida de %s ---\n' "$nombre"
-    cat "$salida"
+    cat "$salida" "$GITHUB_OUTPUT"
   fi
   FILAS+=("| $TOTAL | $nombre | $codigo | $resultado |")
   printf '%-3s %-3s codigo=%-2s %s\n' "$TOTAL" "$resultado" "$codigo" "$nombre"
@@ -90,27 +99,39 @@ caso "Error de la API de GitHub" 1 "No se pudo leer el environment vm-universita
 
 preparar
 printf 'no es json' >"$GH_SIMULADO/entorno.json"
-caso "Respuesta no valida de la API" 1 "respuesta no valida"
+caso "Respuesta no valida de la API" 1 "respuesta no valida para el environment"
 
 preparar
-entorno_json 0 >"$GH_SIMULADO/entorno.json"
-caso "Environment sin revisores obligatorios" 1 "no exige revisores"
+entorno_json | jq -c '.name = "produccion"' >"$GH_SIMULADO/entorno.json"
+caso "Respuesta de la API para otro environment" 1 "respuesta no valida para el environment"
 
 preparar
-entorno_json 1 true true >"$GH_SIMULADO/entorno.json"
+rm "$GH_SIMULADO/ramas.json"
+caso "Error al leer las ramas permitidas" 1 "No se pudieron leer las ramas permitidas"
+
+preparar
+printf '{"total_count":1}' >"$GH_SIMULADO/ramas.json"
+caso "Respuesta no valida de las ramas permitidas" 1 "respuesta no valida para las ramas permitidas"
+
+preparar
+entorno_json 0 true true >"$GH_SIMULADO/entorno.json"
 caso "Environment que permite omitir las protecciones" 1 "permite que los administradores omitan las protecciones"
 
 preparar
-entorno_json 1 true false | jq -c 'del(.can_admins_bypass)' >"$GH_SIMULADO/entorno.json"
+entorno_json 0 true false | jq -c 'del(.can_admins_bypass)' >"$GH_SIMULADO/entorno.json"
 caso "Environment sin el dato de omision administrativa" 1 "permite que los administradores omitan las protecciones"
 
 preparar
-entorno_json 1 true false null >"$GH_SIMULADO/entorno.json"
+entorno_json 0 true false null >"$GH_SIMULADO/entorno.json"
 caso "Environment que admite cualquier rama" 1 "admite despliegues desde cualquier rama"
 
 preparar
-entorno_json 1 true false '{"protected_branches":true,"custom_branch_policies":false}' >"$GH_SIMULADO/entorno.json"
+entorno_json 0 true false '{"protected_branches":true,"custom_branch_policies":false}' >"$GH_SIMULADO/entorno.json"
 caso "Environment limitado a ramas protegidas" 1 "admite cualquier rama protegida"
+
+preparar
+ramas_json branch:develop >"$GH_SIMULADO/ramas.json"
+caso "Environment limitado a una rama distinta de main" 1 "admite despliegues desde 'branch:develop'"
 
 preparar
 ramas_json branch:main branch:develop >"$GH_SIMULADO/ramas.json"
@@ -130,14 +151,21 @@ caso "Environment con politica personalizada vacia" 1 "ninguna regla"
 
 preparar
 entorno_json 0 true true null >"$GH_SIMULADO/entorno.json"
-caso "Varias protecciones ausentes a la vez" 1 "no exige revisores"
+caso "Varias protecciones ausentes a la vez" 1 "admite despliegues desde cualquier rama"
 
 preparar
-caso "Environment protegido correctamente" 0 "Environment vm-universitaria verificado"
+caso "Environment sin revisores: configuracion definitiva valida" 0 "Environment vm-universitaria verificado: solo la rama main y sin omision de administradores"
+
+preparar
+caso "Sin revisores no se anuncia ni se registra una aprobacion humana" 0 "GitHub no solicita ni registra ninguna aprobacion humana" 0 "$APROBACION_FALSA"
+
+preparar
+entorno_json 1 true >"$GH_SIMULADO/entorno.json"
+caso "Environment con revisores opcionales tambien valido" 0 "El environment exige 1 revisores" 1
 
 preparar
 entorno_json 1 false >"$GH_SIMULADO/entorno.json"
-caso "Environment correcto que permite la autoaprobacion" 0 "Prevent self-review desactivado"
+caso "Revisores sin Prevent self-review: aviso" 0 "Prevent self-review desactivado" 1
 
 printf '\n%d de %d pruebas correctas\n' "$CORRECTOS" "$TOTAL"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then

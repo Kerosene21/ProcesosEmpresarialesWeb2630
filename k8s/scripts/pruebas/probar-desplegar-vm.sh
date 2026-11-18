@@ -50,7 +50,7 @@ frontend_imagen=$FRONTEND_NUEVO
 frontend_revision=$COMMIT
 backend_anterior=$BACKEND_ACTUAL
 migraciones_nuevas=0
-aprobacion=environment:vm-universitaria
+verificacion_entorno=environment:vm-universitaria
 TEXTO
 }
 
@@ -228,6 +228,19 @@ prueba_salud_previa_no_bloquea() {
   comprobar "Aplicacion caida antes del cambio: aviso, no bloquea un rollback" "$r"
 }
 
+prueba_sin_aprobacion_humana() {
+  nueva_simulacion
+  local suma r registro
+  suma=$(construir_paquete "$TEMPORAL/p.tar.gz")
+  ejecutar --paquete "$TEMPORAL/p.tar.gz" --sha256 "$suma" --sin-http --aplicar
+  r=$(esperar 0 "paquete preparado con el environment vm-universitaria verificado")
+  registro=$(find "$REGISTRO_PRUEBA" -mindepth 1 -maxdepth 1 -type d -name "*-${COMMIT:0:12}" | head -n 1)
+  [[ -n $registro && -f $registro/informe.txt ]] || r=NO
+  ! grep -qi 'aprob' "$SALIDA" || r=NO
+  ! grep -rqi 'aprob' "$registro" || r=NO
+  comprobar "Aplicacion sin anunciar ni registrar una aprobacion humana" "$r"
+}
+
 prueba_paquete_rechazado() {
   local nombre=$1 codigo=$2 patron=$3 manipular=${4:-}
   shift 4
@@ -345,8 +358,8 @@ SED_METADATOS="\$a ejecutar=curl"
 prueba_paquete_rechazado "Clave desconocida en los metadatos" 1 "clave no admitida en metadatos.txt: ejecutar" ""
 SED_METADATOS="\$a formato=1"
 prueba_paquete_rechazado "Clave duplicada en los metadatos" 1 "clave duplicada en metadatos.txt" ""
-SED_METADATOS='/^aprobacion=/d'
-prueba_paquete_rechazado "Metadatos incompletos" 1 "falta aprobacion en metadatos.txt" ""
+SED_METADATOS='/^verificacion_entorno=/d'
+prueba_paquete_rechazado "Metadatos incompletos" 1 "falta verificacion_entorno en metadatos.txt" ""
 prueba_paquete_rechazado "Paquete manipulado tras calcular SHA256SUMS" 1 "SHA-256 de los archivos del paquete" manipular_deployments
 prueba_paquete_rechazado "Entrada adicional en el paquete" 1 "entrada no permitida en el paquete: paquete-despliegue/extra.sh" anadir_entrada
 prueba_paquete_rechazado "Paquete incompleto" 1 "paquete incompleto: falta paquete-despliegue/RESUMEN.md" quitar_resumen
@@ -380,11 +393,18 @@ prueba_cluster "Version desplegada distinta con --migraciones-revisadas" 0 "Resu
 
 SED_METADATOS="s|^migraciones_nuevas=.*|migraciones_nuevas=2|"
 prueba_paquete_rechazado "Migraciones nuevas sin revision confirmada" 1 "incluye 2 migraciones de Flyway nuevas" ""
-SED_METADATOS="s|^aprobacion=.*|aprobacion=ninguna|"
-prueba_paquete_rechazado "Paquete sin aprobacion del environment" 1 "no paso por el environment vm-universitaria" ""
-SED_METADATOS="s|^aprobacion=.*|aprobacion=ninguna|"
-prueba_cluster "Paquete sin aprobacion aceptado de forma explicita" 0 "Resultado: CORRECTO" ninguna --sin-http --aplicar --sin-aprobacion-github
+SED_METADATOS="s|^verificacion_entorno=.*|verificacion_entorno=ninguna|"
+prueba_paquete_rechazado "Paquete preparado sin verificar el environment" 1 "se preparo sin verificar el environment vm-universitaria" ""
+SED_METADATOS="s|^verificacion_entorno=.*|verificacion_entorno=ninguna|"
+prueba_cluster "Paquete sin environment verificado aceptado de forma explicita" 0 "Resultado: CORRECTO" ninguna --sin-http --aplicar --sin-entorno-github
+SED_METADATOS="s|^verificacion_entorno=|aprobacion=|"
+prueba_cluster "Metadatos anteriores con aprobacion=environment:vm-universitaria" 0 "paquete preparado con el environment vm-universitaria verificado" ninguna --sin-http --aplicar
+SED_METADATOS="s|^verificacion_entorno=.*|aprobacion=ninguna|"
+prueba_cluster "Metadatos y opcion anteriores sin environment verificado" 0 "(--sin-entorno-github)" ninguna --sin-http --aplicar --sin-aprobacion-github
+SED_METADATOS="\$a aprobacion=environment:vm-universitaria"
+prueba_paquete_rechazado "Clave nueva y anterior del environment a la vez" 1 "clave duplicada en metadatos.txt: verificacion_entorno" ""
 SED_METADATOS=""
+prueba_sin_aprobacion_humana
 
 prueba_registro_manipulado
 

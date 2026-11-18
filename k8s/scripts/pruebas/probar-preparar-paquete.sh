@@ -120,18 +120,18 @@ metadato() {
 prueba_correcta() {
   crear_repositorio
   local r primero segundo
-  preparar --commit "$C3" --aprobacion ninguna
+  preparar --commit "$C3" --verificacion-entorno ninguna
   r=$(esperar 0 "SHA-256")
   [[ $(metadato backend_imagen) == "$REPO_BACKEND@$(digest 21)" && $(metadato backend_revision) == "$C2" ]] || r=NO
   [[ $(metadato backend_anterior) == "$REPO_BACKEND@$(digest 11)" && $(metadato migraciones_nuevas) == 1 ]] || r=NO
-  [[ $(metadato aprobacion) == ninguna && $(metadato commit) == "$C3" ]] || r=NO
+  [[ $(metadato verificacion_entorno) == ninguna && -z $(metadato aprobacion) && $(metadato commit) == "$C3" ]] || r=NO
   tar -xzOf "$SALIDA_PAQUETE"/paquete-despliegue-*.tar.gz paquete-despliegue/migraciones.txt | grep -q '  V2__procesos.sql  nueva$' || r=NO
   tar -xzOf "$SALIDA_PAQUETE"/paquete-despliegue-*.tar.gz paquete-despliegue/deployments.yaml | grep -q '^kind: StatefulSet' && r=NO
   [[ -f $SALIDA_PAQUETE/desplegar-vm.sh && -f $SALIDA_PAQUETE/RESUMEN.md ]] || r=NO
   (cd "$SALIDA_PAQUETE" && sha256sum --check --quiet ./*.sha256) || r=NO
   primero=$(cut -d' ' -f1 "$SALIDA_PAQUETE"/*.sha256)
   PAQUETE_CORRECTO=$(ls "$SALIDA_PAQUETE"/paquete-despliegue-*.tar.gz)
-  preparar --commit "$C3" --aprobacion ninguna
+  preparar --commit "$C3" --verificacion-entorno ninguna
   segundo=$(cut -d' ' -f1 "$SALIDA_PAQUETE"/*.sha256)
   [[ $primero == "$segundo" ]] || r=NO
   comprobar "Paquete correcto, reproducible y con una migracion nueva detectada" "$r"
@@ -166,10 +166,33 @@ prueba_rechazo() {
   shift 4
   crear_repositorio "${MODIFICAR_V1:-no}"
   "$preparacion"
-  preparar --commit "${COMMIT_PRUEBA:-$C3}" --aprobacion ninguna "$@"
+  preparar --commit "${COMMIT_PRUEBA:-$C3}" --verificacion-entorno ninguna "$@"
   comprobar "$nombre" "$(esperar "$codigo" "$patron")"
   COMMIT_PRUEBA=""
   MODIFICAR_V1=""
+}
+
+prueba_entorno_verificado() {
+  crear_repositorio
+  local r resumen falsa='aprobad[oa]|con la aprobacion|despues de la aprobacion|tras la aprobacion|aprobacion del environment'
+  preparar --commit "$C3" --verificacion-entorno environment:vm-universitaria
+  r=$(esperar 0 "SHA-256")
+  [[ $(metadato verificacion_entorno) == environment:vm-universitaria && -z $(metadato aprobacion) ]] || r=NO
+  resumen=$(tar -xzOf "$SALIDA_PAQUETE"/paquete-despliegue-*.tar.gz paquete-despliegue/RESUMEN.md)
+  grep -qF "Environment \`vm-universitaria\` verificado antes de preparar el paquete" <<<"$resumen" || r=NO
+  grep -qF "El paquete no registra ninguna aprobacion humana" <<<"$resumen" || r=NO
+  grep -qiE "$falsa" <<<"$resumen" && r=NO
+  grep -qiE "$falsa" "$SALIDA" && r=NO
+  comprobar "Environment verificado sin registrar ni anunciar una aprobacion humana" "$r"
+}
+
+prueba_opcion_anterior() {
+  crear_repositorio
+  local r
+  preparar --commit "$C3" --aprobacion environment:vm-universitaria
+  r=$(esperar 0 "SHA-256")
+  [[ $(metadato verificacion_entorno) == environment:vm-universitaria && -z $(metadato aprobacion) ]] || r=NO
+  comprobar "Opcion anterior --aprobacion admitida como sinonimo" "$r"
 }
 
 ninguna() { :; }
@@ -195,6 +218,8 @@ sin_anterior() {
 printf 'Pruebas de preparar-paquete.sh con GHCR simulado\n\n'
 prueba_correcta
 prueba_integracion_despliegue
+prueba_entorno_verificado
+prueba_opcion_anterior
 prueba_rechazo "Imagen ausente en GHCR" 1 "no existe en GHCR o no es accesible" imagen_ausente
 prueba_rechazo "Imagen sin linux/amd64" 1 "no tiene imagen linux/amd64" sin_amd64
 prueba_rechazo "Revision de la imagen fuera de la historia de main" 1 "no pertenece a la historia del commit" revision_ajena
@@ -210,7 +235,7 @@ MODIFICAR_V1=si
 prueba_rechazo "Migracion aplicada modificada" 1 "Flyway rechazaria el checksum" ninguna
 prueba_rechazo "Imagen mas reciente publicada: se conserva el digest de Git" 0 "el paquete conserva el digest de Git" reciente_distinta
 prueba_rechazo "Sin version anterior registrada en Git" 0 "las migraciones se marcan sin comparar" sin_anterior
-prueba_rechazo "Argumentos no validos" 2 "Uso: preparar-paquete.sh" ninguna --aprobacion cualquiera
+prueba_rechazo "Argumentos no validos" 2 "Uso: preparar-paquete.sh" ninguna --verificacion-entorno cualquiera
 
 printf '\n%d de %d pruebas correctas\n' "$CORRECTOS" "$TOTAL"
 if [[ -n ${GITHUB_STEP_SUMMARY:-} ]]; then

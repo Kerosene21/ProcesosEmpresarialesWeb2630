@@ -21,6 +21,9 @@ jobs:
     if: github.repository == 'Kerosene21/ProcesosEmpresarialesWeb2630'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
     steps:
       - name: Comprobar que se prepara el ultimo commit de main
         env:
@@ -65,6 +68,7 @@ jobs:
     environment: vm-universitaria
     permissions:
       contents: read
+      actions: read
       id-token: write
       attestations: write
     steps:
@@ -74,19 +78,19 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Volver a comprobar el environment despues de la aprobacion
+      - name: Volver a verificar el environment en el job que lo usa
         id: entorno
         env:
           GH_TOKEN: ${{ github.token }}
           ENTORNO_DESPLIEGUE: ${{ vars.ENTORNO_DESPLIEGUE }}
         run: bash k8s/scripts/verificar-entorno.sh
 
-      - name: Confirmar que main no cambio durante la aprobacion
+      - name: Confirmar que main no cambio desde la autorizacion
         run: |
           set -euo pipefail
           actual=$(git ls-remote origin refs/heads/main | cut -f1)
           if [[ "$actual" != "$GITHUB_SHA" || "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]]; then
-            echo "::error::main cambio a $actual mientras se esperaba la aprobacion; prepare de nuevo el commit actual."
+            echo "::error::main cambio a $actual desde que se lanzo la preparacion; prepare de nuevo el commit actual."
             exit 1
           fi
 
@@ -109,8 +113,8 @@ jobs:
       - name: Preparar el paquete
         id: paquete
         env:
-          APROBACION: ${{ steps.entorno.outputs.aprobacion }}
-        run: bash k8s/scripts/preparar-paquete.sh --commit "$GITHUB_SHA" --aprobacion "$APROBACION" --salida "$RUNNER_TEMP/paquete"
+          VERIFICACION: ${{ steps.entorno.outputs.verificacion }}
+        run: bash k8s/scripts/preparar-paquete.sh --commit "$GITHUB_SHA" --verificacion-entorno "$VERIFICACION" --salida "$RUNNER_TEMP/paquete"
 
       - name: Firmar la procedencia del paquete
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8
@@ -135,9 +139,21 @@ jobs:
           PAQUETE: ${{ steps.paquete.outputs.paquete }}
           SUMA: ${{ steps.paquete.outputs.sha256 }}
           ARTEFACTO: paquete-despliegue-${{ steps.paquete.outputs.commit_corto }}
+          REVISORES: ${{ steps.entorno.outputs.revisores }}
         run: |
           {
             cat "$RUNNER_TEMP/paquete/RESUMEN.md"
+            echo
+            echo "### Controles de esta ejecucion"
+            echo
+            echo "- Preparacion manual: \`workflow_dispatch\` lanzado por \`$GITHUB_TRIGGERING_ACTOR\` desde \`main\` en el commit \`$GITHUB_SHA\`."
+            echo "- Environment \`vm-universitaria\` verificado: solo admite la rama \`main\` y los administradores no pueden omitir sus reglas."
+            case "$REVISORES" in
+              0) echo "- Aprobacion humana en GitHub: no exigida; el environment no tiene revisores." ;;
+              [1-9]*) echo "- Aprobacion humana en GitHub: exigida por el environment ($REVISORES revisores) antes de este job." ;;
+              *) echo "- Aprobacion humana en GitHub: no determinada." ;;
+            esac
+            echo "- Aplicacion en MicroK8s: no realizada; solo ocurre cuando el operador ejecuta \`desplegar-vm.sh --aplicar\` en NBIG132."
             echo
             echo "### Aplicacion en la VM"
             echo
