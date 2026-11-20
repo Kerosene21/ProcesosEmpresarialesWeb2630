@@ -12,13 +12,14 @@ components:
   - ../../components/limite-autenticacion
 images:
   # Fijadas por digest (index multiplataforma con linux/amd64, SBOM y procedencia) publicado por el workflow
-  # imagenes.yml desde main en el commit 2b4d97d (etiqueta sha-2b4d97d). Cada nueva version cambia estos digests.
+  # imagenes.yml desde main: backend del commit 2b4d97d (etiqueta sha-2b4d97d) y frontend del commit ff82aaf
+  # (etiqueta sha-ff82aaf). Cada nueva version cambia estos digests.
   - name: procesos-empresariales-backend
     newName: ghcr.io/kerosene21/procesos-empresariales-backend
     digest: sha256:6944e7ad8d295cfb6292f05404e31574447c0a95f5a1ea7b9102d240d9d07290
   - name: procesos-empresariales-frontend
     newName: ghcr.io/kerosene21/procesos-empresariales-frontend
-    digest: sha256:248a6028f9c9e0aa4ebc2ecb02770a6a292297e7ed7b6e74ce60d5efeaabf21d
+    digest: sha256:a2aa26ae92c4eb1b50fbf010955259dd500a3a7e0300c85051f84a60e05261ff
 configMapGenerator:
   - name: procesos-configuracion
     behavior: merge
