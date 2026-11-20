@@ -19,7 +19,7 @@
     }
 
     @if (mensaje(); as texto) {
-      <p class="panel-lanes__exito" role="status">{{ texto }}</p>
+      <p class="panel-lanes__exito mensaje-exito" role="status">{{ texto }}</p>
     }
     @if (fallo(); as falloActual) {
       <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />

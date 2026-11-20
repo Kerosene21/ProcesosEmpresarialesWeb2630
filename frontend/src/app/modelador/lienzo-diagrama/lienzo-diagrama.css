@@ -6,7 +6,7 @@
 .lienzo {
   max-height: 70vh;
   overflow: auto;
-  background: var(--color-superficie-suave);
+  background: var(--color-superficie);
   border: 1px solid var(--color-borde);
   border-radius: var(--radio-m);
 }
@@ -48,22 +48,27 @@
 }
 
 .pool--caja-negra .pool__marco {
-  fill: var(--color-fondo);
+  fill: var(--color-superficie-suave);
 }
 
 .pool--participante .pool__cabecera {
-  fill: var(--color-exito-tenue);
+  fill: var(--color-superficie-suave);
+}
+
+.pool--externo .pool__marco,
+.pool--externo .pool__cabecera {
+  stroke-dasharray: 6 4;
 }
 
 .pool--externo .pool__cabecera {
-  fill: var(--color-advertencia-tenue);
+  fill: var(--color-superficie);
 }
 
 .pool__nombre,
 .lane__nombre {
   font-size: 12px;
   font-weight: 600;
-  fill: var(--color-primario-oscuro);
+  fill: var(--color-texto);
   text-anchor: middle;
   dominant-baseline: middle;
 }
@@ -88,7 +93,7 @@
 }
 
 .punta--seleccion {
-  fill: var(--color-foco);
+  fill: var(--color-primario-oscuro);
 }
 
 .punta--mensaje {

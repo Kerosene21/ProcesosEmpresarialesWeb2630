@@ -15,7 +15,7 @@
       accion="Reintentar"
       (accionSolicitada)="reintentar()"
     />
-    <a class="boton boton--secundario detalle-usuario__volver" routerLink="/usuarios">Volver al listado</a>
+    <a class="boton boton--secundario" routerLink="/usuarios">Volver al listado</a>
   } @else if (usuario(); as datos) {
     <header class="encabezado-pagina">
       <div class="encabezado-pagina__texto">
@@ -44,7 +44,7 @@
     </header>
 
     @if (mensaje(); as texto) {
-      <p class="detalle-usuario__exito" role="status">{{ texto }}</p>
+      <p class="detalle-usuario__exito mensaje-exito" role="status">{{ texto }}</p>
     }
     @if (falloAccion(); as falloActual) {
       <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle ?? explicar(falloActual)" />

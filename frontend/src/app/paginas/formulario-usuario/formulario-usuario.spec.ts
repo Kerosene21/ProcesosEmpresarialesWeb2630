@@ -77,7 +77,10 @@ describe('FormularioUsuario', () => {
     expect(error('error-usuario-correo')).toBe('El correo no tiene un formato válido');
     expect(error('error-usuario-password')).toBe('La contraseña debe tener entre 8 y 100 caracteres');
     expect(error('error-usuario-rol')).toBe('El rol de acceso es obligatorio');
-    expect(elemento.textContent).toContain('Revisa los campos marcados');
+    for (const campo of ['#campo-usuario-correo', '#campo-usuario-password', '#campo-usuario-rol']) {
+      expect(elemento.querySelector(campo)?.getAttribute('aria-invalid')).toBe('true');
+    }
+    expect(elemento.textContent).not.toContain('Revisa los campos marcados');
   });
 
   it('crea el usuario con el correo sin espacios y abre su detalle', async () => {

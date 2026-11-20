@@ -74,7 +74,7 @@ describe('App', () => {
     expect(elemento.querySelector('.usuario')).toBeNull();
   });
 
-  it('a un editor le muestra la navegación completa, su usuario y el cierre de sesión', async () => {
+  it('a un editor le muestra la navegación completa y el cierre de sesión sin sus datos personales', async () => {
     const elemento = await crear(usuario('EDITOR'));
 
     expect(enlaces(elemento)).toEqual([
@@ -83,8 +83,9 @@ describe('App', () => {
       '/roles-proceso',
       '/mi-empresa',
     ]);
-    expect(elemento.querySelector('.usuario')?.textContent).toContain('usuario@alpes.com');
-    expect(elemento.querySelector('.usuario')?.textContent).toContain('Editor · Alpes Logistica');
+    expect(elemento.querySelector('.usuario__salir')?.textContent?.trim()).toBe('Cerrar sesión');
+    expect(elemento.querySelector('header')?.textContent).not.toContain('usuario@alpes.com');
+    expect(elemento.querySelector('header')?.textContent).not.toContain('Alpes Logistica');
   });
 
   it('a un usuario de solo lectura no le ofrece crear procesos', async () => {

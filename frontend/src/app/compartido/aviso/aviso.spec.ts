@@ -29,8 +29,7 @@ describe('Aviso', () => {
     fixture.componentRef.setInput('tipo', 'carga');
     await fixture.whenStable();
 
-    expect(elemento.querySelector('[role="status"]')).not.toBeNull();
-    expect(elemento.querySelector('.aviso__indicador')).not.toBeNull();
+    expect(elemento.querySelector('[role="status"]')?.textContent).toContain('Cargando procesos…');
     expect(elemento.querySelector('button')).toBeNull();
   });
 });

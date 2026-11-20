@@ -1,7 +1,6 @@
 <section class="pagina acceso">
   <header class="encabezado-pagina">
     <div class="encabezado-pagina__texto">
-      <p class="encabezado-pagina__antetitulo">Empresas</p>
       <h1>Registrar empresa</h1>
       <p class="encabezado-pagina__descripcion">
         Al registrar la empresa se crea también su usuario administrador inicial, identificado con el correo de
@@ -74,9 +73,6 @@
       <span id="error-password" class="campo__error">{{ error('passwordAdministrador') }}</span>
     </div>
 
-    @if (conErrores()) {
-      <app-aviso tipo="error" titulo="Revisa los campos marcados antes de continuar" />
-    }
     @if (fallo(); as falloActual) {
       <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="explicar(falloActual)" />
     }

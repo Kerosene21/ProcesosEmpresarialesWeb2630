@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: 20;
-  background: rgb(16 24 40 / 45%);
+  background: rgb(0 0 0 / 35%);
 }
 
 .dialogo {
@@ -15,6 +15,7 @@
   width: min(32rem, calc(100vw - 2rem));
   padding: var(--espacio-5);
   background: var(--color-superficie);
+  border: 1px solid var(--color-borde);
   border-radius: var(--radio-l);
   box-shadow: var(--sombra-m);
   transform: translate(-50%, -50%);
@@ -32,11 +33,10 @@
 
 .dialogo__error {
   margin: 0;
-  padding: var(--espacio-3);
+  padding: var(--espacio-1) 0 var(--espacio-1) var(--espacio-3);
   font-size: var(--texto-s);
   color: var(--color-peligro);
-  background: var(--color-peligro-tenue);
-  border-radius: var(--radio-m);
+  border-left: 2px solid var(--color-peligro);
 }
 
 .dialogo__acciones {

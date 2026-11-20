@@ -9,7 +9,7 @@
   </div>
 
   @if (mensaje(); as texto) {
-    <p class="panel-pools__exito" role="status">{{ texto }}</p>
+    <p class="panel-pools__exito mensaje-exito" role="status">{{ texto }}</p>
   }
   @if (fallo(); as falloActual) {
     <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle" />
@@ -33,7 +33,7 @@
             <span class="grupo-chips">
               <span class="chip" [class.chip--informacion]="pool.tipo === 'PROPIETARIO'">{{ textoTipo[pool.tipo] }}</span>
               @if (pool.cajaNegra) {
-                <span class="chip chip--advertencia">Caja negra</span>
+                <span class="chip">Caja negra</span>
               }
             </span>
             <span class="nota">

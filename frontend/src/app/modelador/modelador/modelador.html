@@ -9,11 +9,11 @@
   }
 
   @if (mensaje(); as texto) {
-    <p class="modelador__exito" role="status">{{ texto }}</p>
+    <p class="modelador__exito mensaje-exito" role="status">{{ texto }}</p>
   }
 
   @if (errorMovimiento(); as texto) {
-    <p class="modelador__error" role="alert">{{ texto }}</p>
+    <p class="modelador__error mensaje-error" role="alert">{{ texto }}</p>
   }
 
   @if (vacio()) {

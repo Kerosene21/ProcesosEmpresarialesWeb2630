@@ -1,9 +1,4 @@
 <div class="aviso" [class]="'aviso--' + tipo()" [attr.role]="rol()">
-  @if (tipo() === 'carga') {
-    <span class="aviso__indicador" aria-hidden="true"></span>
-  } @else {
-    <span class="aviso__icono" aria-hidden="true">{{ icono() }}</span>
-  }
   <div class="aviso__texto">
     <p class="aviso__titulo">{{ titulo() }}</p>
     @if (detalle()) {

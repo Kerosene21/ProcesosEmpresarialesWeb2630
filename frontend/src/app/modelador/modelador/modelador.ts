@@ -257,7 +257,7 @@ export class Modelador {
       next: () =>
         this.confirmar(
           elemento,
-          `Se guardó la nueva posición de «${nodo.nombre}»${otraLane ? ` en la lane «${destino.lane?.nombre}»` : ''}.`,
+          otraLane ? `Posición guardada en la lane «${destino.lane?.nombre}».` : 'Posición guardada.',
         ),
       error: (fallo: FalloHttp) => {
         this.provisional.set(null);
@@ -373,38 +373,35 @@ export class Modelador {
   }
 
   protected actividadGuardada(actividad: ActividadRespuesta): void {
-    this.confirmar({ tipo: 'ACTIVIDAD', id: actividad.id }, `La actividad «${actividad.nombre}» se guardó en el servidor.`);
+    this.confirmar({ tipo: 'ACTIVIDAD', id: actividad.id }, 'Actividad guardada.');
   }
 
   protected gatewayGuardado(gateway: GatewayRespuesta): void {
-    this.confirmar({ tipo: 'GATEWAY', id: gateway.id }, `«${gateway.etiqueta}» se guardó en el servidor.`);
+    this.confirmar({ tipo: 'GATEWAY', id: gateway.id }, 'Gateway guardado.');
   }
 
   protected arcoGuardado(arco: ArcoRespuesta): void {
-    this.confirmar(
-      { tipo: 'ARCO', id: arco.id },
-      `El arco «${arco.origenNombre} → ${arco.destinoNombre}» se guardó en el servidor.`,
-    );
+    this.confirmar({ tipo: 'ARCO', id: arco.id }, 'Arco guardado.');
   }
 
   protected throwGuardado(evento: MessageThrowRespuesta): void {
     this.confirmar(
       { tipo: 'MESSAGE_THROW', id: evento.id },
-      conAdvertencias(`El Message Throw «${evento.nombreMensaje}» se guardó en el servidor.`, evento.advertencias),
+      conAdvertencias('Message Throw guardado.', evento.advertencias),
     );
   }
 
   protected catchGuardado(evento: MessageCatchRespuesta): void {
     this.confirmar(
       { tipo: 'MESSAGE_CATCH', id: evento.id },
-      conAdvertencias(`El Message Catch «${evento.nombreMensaje}» se guardó en el servidor.`, evento.advertencias),
+      conAdvertencias('Message Catch guardado.', evento.advertencias),
     );
   }
 
   protected envioGuardado(evento: EnvioExternoRespuesta): void {
     this.confirmar(
       { tipo: 'ENVIO_EXTERNO', id: evento.id },
-      conAdvertencias(`El envío externo «${evento.nombreMensaje}» se guardó en el servidor.`, evento.advertencias),
+      conAdvertencias('Envío externo guardado.', evento.advertencias),
     );
   }
 

@@ -11,11 +11,10 @@
     <app-aviso tipo="carga" titulo="Cargando el proceso…" />
   } @else if (falloProceso(); as fallo) {
     <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
-    <a class="boton boton--secundario modelador-proceso__volver" routerLink="/procesos">Volver al listado</a>
+    <a class="boton boton--secundario" routerLink="/procesos">Volver al listado</a>
   } @else if (proceso(); as datos) {
     <header class="encabezado-pagina">
       <div class="encabezado-pagina__texto">
-        <p class="encabezado-pagina__antetitulo">Modelador BPMN</p>
         <h1>{{ datos.nombre }}</h1>
         <div class="grupo-chips">
           <app-etiqueta-estado [estado]="datos.estado" />

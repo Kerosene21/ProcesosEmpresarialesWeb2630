@@ -9,13 +9,14 @@ describe('EtiquetaEstado', () => {
     fixture = TestBed.createComponent(EtiquetaEstado);
   });
 
-  it('presenta un borrador como advertencia', async () => {
+  it('presenta un borrador con una etiqueta neutra', async () => {
     fixture.componentRef.setInput('estado', 'BORRADOR');
     await fixture.whenStable();
 
     const chip: HTMLElement = fixture.nativeElement.querySelector('.chip');
     expect(chip.textContent?.trim()).toBe('Borrador');
-    expect(chip.classList).toContain('chip--advertencia');
+    expect(chip.classList).not.toContain('chip--advertencia');
+    expect(chip.classList).not.toContain('chip--exito');
   });
 
   it('presenta un proceso publicado como éxito', async () => {

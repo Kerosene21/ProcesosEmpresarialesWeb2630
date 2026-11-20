@@ -20,7 +20,7 @@
   padding: var(--espacio-2) var(--espacio-3);
   font: inherit;
   font-size: var(--texto-s);
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-texto);
   background: var(--color-superficie);
   border: 1px solid var(--color-borde-fuerte);
@@ -29,7 +29,7 @@
 }
 
 .barra__herramienta:hover {
-  border-color: var(--color-primario);
+  background: var(--color-superficie-suave);
 }
 
 .barra__herramienta[aria-pressed='true'] {

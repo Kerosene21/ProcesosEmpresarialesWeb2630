@@ -1,7 +1,6 @@
 <section class="pagina">
   <header class="encabezado-pagina">
     <div class="encabezado-pagina__texto">
-      <p class="encabezado-pagina__antetitulo">Catálogo</p>
       <h1>Procesos</h1>
       <p class="encabezado-pagina__descripcion">
         Consulta los procesos de tu empresa y los que otras empresas comparten contigo en solo lectura.
@@ -12,7 +11,7 @@
     }
   </header>
 
-  <form class="tarjeta filtros" role="search" aria-label="Filtrar procesos" [formGroup]="filtros" (submit)="$event.preventDefault()">
+  <form class="filtros" role="search" aria-label="Filtrar procesos" [formGroup]="filtros" (submit)="$event.preventDefault()">
     <div class="campo filtros__busqueda">
       <label class="campo__etiqueta" for="filtro-q">Buscar por nombre</label>
       <input id="filtro-q" class="campo__control" type="search" formControlName="q" autocomplete="off" placeholder="Ej.: Atención de solicitudes" />

@@ -21,15 +21,15 @@
 }
 
 :host(.nodo--marcado) .actividad {
-  stroke: var(--color-acento);
+  stroke: var(--color-texto-secundario);
   stroke-dasharray: 5 3;
   stroke-width: 2.5;
 }
 
 :host(.nodo--seleccionado) .actividad,
 :host(:focus-visible) .actividad {
-  fill: var(--color-primario-tenue);
-  stroke: var(--color-foco);
+  fill: var(--color-superficie-suave);
+  stroke: var(--color-primario-oscuro);
   stroke-width: 3;
 }
 

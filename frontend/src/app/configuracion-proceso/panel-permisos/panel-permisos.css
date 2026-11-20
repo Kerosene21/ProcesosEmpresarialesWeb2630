@@ -1,7 +1,7 @@
 .permisos {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--espacio-4);
+  gap: var(--espacio-3);
 }
 
 .permisos__tabla th[scope='colgroup'],
@@ -26,14 +26,6 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: var(--espacio-2);
+  gap: var(--espacio-3);
   margin-top: var(--espacio-3);
-}
-
-.permisos__exito {
-  padding: var(--espacio-2) var(--espacio-3);
-  font-size: var(--texto-s);
-  color: var(--color-exito);
-  background: var(--color-exito-tenue);
-  border-radius: var(--radio-s);
 }
