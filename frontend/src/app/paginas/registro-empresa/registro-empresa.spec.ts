@@ -67,7 +67,10 @@ describe('RegistroEmpresa', () => {
       'El correo de contacto es obligatorio',
       'La contraseña del administrador inicial es obligatoria',
     ]);
-    expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('Revisa los campos marcados');
+    for (const campo of ['#campo-nombre', '#campo-nit', '#campo-correo', '#campo-password']) {
+      expect(elemento.querySelector(campo)?.getAttribute('aria-invalid')).toBe('true');
+    }
+    expect(elemento.querySelector('[role="alert"]')).toBeNull();
     expect(registrar).not.toHaveBeenCalled();
   });
 

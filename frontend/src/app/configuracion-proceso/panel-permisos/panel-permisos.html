@@ -9,7 +9,7 @@
   </div>
 
   @if (mensaje(); as texto) {
-    <p class="permisos__exito" role="status">{{ texto }}</p>
+    <p class="permisos__exito mensaje-exito" role="status">{{ texto }}</p>
   }
   @if (fallo(); as falloActual) {
     <app-aviso tipo="error" titulo="No se guardaron los permisos" [detalle]="falloActual.detalle ?? falloActual.titulo" />

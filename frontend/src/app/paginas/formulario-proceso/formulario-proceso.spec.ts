@@ -88,7 +88,10 @@ describe('FormularioProceso', () => {
       'La categoría es obligatoria',
       'La descripción es obligatoria',
     ]);
-    expect(elemento.querySelector('[role="alert"]')?.textContent).toContain('Revisa los campos marcados');
+    for (const campo of ['#campo-nombre', '#campo-categoria', '#campo-descripcion']) {
+      expect(elemento.querySelector(campo)?.getAttribute('aria-invalid')).toBe('true');
+    }
+    expect(elemento.querySelector('[role="alert"]')).toBeNull();
     expect(servicio.crear).not.toHaveBeenCalled();
   });
 

@@ -1,7 +1,6 @@
 <section class="pagina">
   <header class="encabezado-pagina">
     <div class="encabezado-pagina__texto">
-      <p class="encabezado-pagina__antetitulo">Administración</p>
       <h1>Nuevo usuario</h1>
       <p class="encabezado-pagina__descripcion">
         El usuario se crea activo en tu empresa. Comunícale su contraseña inicial por un medio seguro.
@@ -9,7 +8,7 @@
     </div>
   </header>
 
-  <form class="tarjeta formulario-usuario" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate>
+  <form class="tarjeta formulario-simple" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate>
     <div class="campo">
       <label class="campo__etiqueta" for="campo-usuario-correo">Correo</label>
       <input
@@ -58,14 +57,11 @@
       <span id="error-usuario-rol" class="campo__error">{{ error('rol') }}</span>
     </div>
 
-    @if (conErrores()) {
-      <app-aviso tipo="error" titulo="Revisa los campos marcados antes de continuar" />
-    }
     @if (falloGuardado(); as falloActual) {
       <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle ?? explicar(falloActual)" />
     }
 
-    <div class="formulario-usuario__acciones">
+    <div class="formulario-simple__acciones">
       <a class="boton boton--texto" routerLink="/usuarios">Cancelar</a>
       <button type="submit" class="boton boton--primario" [disabled]="guardando()">
         {{ guardando() ? 'Guardando…' : 'Crear usuario' }}

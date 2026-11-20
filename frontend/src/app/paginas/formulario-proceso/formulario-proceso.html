@@ -1,7 +1,6 @@
 <section class="pagina">
   <header class="encabezado-pagina">
     <div class="encabezado-pagina__texto">
-      <p class="encabezado-pagina__antetitulo">{{ modoEdicion() ? 'Edición' : 'Creación' }}</p>
       <h1>{{ modoEdicion() ? 'Editar proceso' : 'Nuevo proceso' }}</h1>
       <p class="encabezado-pagina__descripcion">
         @if (modoEdicion()) {
@@ -17,7 +16,7 @@
     <app-aviso tipo="carga" titulo="Cargando el proceso…" />
   } @else if (fallo(); as falloActual) {
     <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="explicar(falloActual)" accion="Reintentar" (accionSolicitada)="reintentar()" />
-    <a class="boton boton--secundario formulario__volver" routerLink="/procesos">Volver al listado</a>
+    <a class="boton boton--secundario" routerLink="/procesos">Volver al listado</a>
   } @else if (mostrarFormulario()) {
     @if (soloConsulta()) {
       <app-aviso
@@ -26,7 +25,7 @@
       />
     }
 
-    <form class="tarjeta formulario" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate>
+    <form class="tarjeta formulario-simple" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate>
       <div class="campo">
         <label class="campo__etiqueta" for="campo-nombre">Nombre</label>
         <input
@@ -61,7 +60,7 @@
         </div>
       </div>
 
-      <div class="campo formulario__completo">
+      <div class="campo">
         <label class="campo__etiqueta" for="campo-descripcion">Descripción</label>
         <textarea
           id="campo-descripcion"
@@ -89,14 +88,11 @@
         </div>
       }
 
-      @if (conErrores()) {
-        <app-aviso class="formulario__completo" tipo="error" titulo="Revisa los campos marcados antes de continuar" />
-      }
       @if (mensajeGuardado(); as mensaje) {
-        <app-aviso class="formulario__completo" tipo="error" [titulo]="mensaje.titulo" [detalle]="mensaje.detalle" />
+        <app-aviso tipo="error" [titulo]="mensaje.titulo" [detalle]="mensaje.detalle" />
       }
 
-      <div class="formulario__acciones">
+      <div class="formulario-simple__acciones">
         <a class="boton boton--texto" [routerLink]="rutaCancelar()">Cancelar</a>
         <button type="submit" class="boton boton--primario" [disabled]="soloConsulta() || guardando()">
           {{ guardando() ? 'Guardando…' : modoEdicion() ? 'Guardar cambios' : 'Crear proceso' }}

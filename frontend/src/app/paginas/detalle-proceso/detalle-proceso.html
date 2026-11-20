@@ -9,7 +9,7 @@
     <app-aviso tipo="carga" titulo="Cargando el proceso…" />
   } @else if (falloProceso(); as fallo) {
     <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
-    <a class="boton boton--secundario detalle__volver" routerLink="/procesos">Volver al listado</a>
+    <a class="boton boton--secundario" routerLink="/procesos">Volver al listado</a>
   } @else if (proceso(); as datos) {
     <header class="encabezado-pagina">
       <div class="encabezado-pagina__texto">

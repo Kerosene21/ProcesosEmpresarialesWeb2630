@@ -26,11 +26,11 @@
   display: grid;
   gap: var(--espacio-1);
   margin: 0;
-  padding: var(--espacio-2) var(--espacio-2) var(--espacio-2) var(--espacio-5);
+  padding: 0 0 0 var(--espacio-3);
+  list-style: none;
   font-size: var(--texto-xs);
   color: var(--color-advertencia);
-  background: var(--color-advertencia-tenue);
-  border-radius: var(--radio-s);
+  border-left: 2px solid currentColor;
 }
 
 .formulario__acciones {

@@ -1,7 +1,6 @@
 <section class="pagina">
   <header class="encabezado-pagina">
     <div class="encabezado-pagina__texto">
-      <p class="encabezado-pagina__antetitulo">Catálogo</p>
       <h1>Roles de proceso</h1>
       <p class="encabezado-pagina__descripcion">
         Roles de tu empresa que se asignan a las lanes de los pools. Cada lane representa a un rol responsable.
@@ -12,7 +11,7 @@
     }
   </header>
 
-  <form class="tarjeta filtros-roles" role="search" aria-label="Filtrar roles de proceso" [formGroup]="filtros" (submit)="$event.preventDefault()">
+  <form class="filtros-roles" role="search" aria-label="Filtrar roles de proceso" [formGroup]="filtros" (submit)="$event.preventDefault()">
     <div class="campo">
       <label class="campo__etiqueta" for="filtro-rol-q">Buscar por nombre</label>
       <input id="filtro-rol-q" class="campo__control" type="search" formControlName="q" autocomplete="off" placeholder="Ej.: Supervisor" />

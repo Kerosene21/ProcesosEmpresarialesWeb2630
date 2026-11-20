@@ -9,9 +9,7 @@
 
 .panel__tipo {
   font-size: var(--texto-xs);
-  font-weight: 700;
-  color: var(--color-acento);
-  text-transform: uppercase;
+  color: var(--color-texto-secundario);
 }
 
 .panel__nombre {
@@ -37,12 +35,14 @@
 }
 
 .panel__advertencias {
+  display: grid;
+  gap: var(--espacio-1);
   margin: 0;
-  padding: var(--espacio-2) var(--espacio-2) var(--espacio-2) var(--espacio-5);
+  padding: 0 0 0 var(--espacio-3);
+  list-style: none;
   font-size: var(--texto-s);
   color: var(--color-advertencia);
-  background: var(--color-advertencia-tenue);
-  border-radius: var(--radio-s);
+  border-left: 2px solid currentColor;
 }
 
 .panel__acciones {

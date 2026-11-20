@@ -6,7 +6,7 @@
 .evento__borde,
 .evento__interior {
   fill: var(--color-superficie);
-  stroke: var(--color-acento);
+  stroke: var(--color-primario);
   stroke-width: 1.5;
 }
 
@@ -41,15 +41,15 @@
 }
 
 :host(.nodo--marcado) .evento__borde {
-  stroke: var(--color-acento);
+  stroke: var(--color-texto-secundario);
   stroke-dasharray: 5 3;
   stroke-width: 2.5;
 }
 
 :host(.nodo--seleccionado) .evento__borde,
 :host(:focus-visible) .evento__borde {
-  fill: var(--color-primario-tenue);
-  stroke: var(--color-foco);
+  fill: var(--color-superficie-suave);
+  stroke: var(--color-primario-oscuro);
   stroke-width: 3;
 }
 

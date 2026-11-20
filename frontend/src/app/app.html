@@ -2,13 +2,7 @@
 
 <header class="cabecera">
   <div class="contenedor cabecera__interior">
-    <a class="marca" [routerLink]="autenticado() ? '/procesos' : '/iniciar-sesion'">
-      <span class="marca__simbolo" aria-hidden="true">PE</span>
-      <span class="marca__texto">
-        <strong>Procesos Empresariales</strong>
-        <span>Modelado BPMN multiempresa</span>
-      </span>
-    </a>
+    <a class="marca" [routerLink]="autenticado() ? '/procesos' : '/iniciar-sesion'">Procesos Empresariales</a>
     <nav class="navegacion" aria-label="Navegación principal">
       @if (autenticado()) {
         <a
@@ -68,12 +62,8 @@
         >
       }
     </nav>
-    @if (autenticado() && sesion(); as actual) {
+    @if (autenticado()) {
       <div class="usuario">
-        <span class="usuario__datos">
-          <strong>{{ actual.correo }}</strong>
-          <span>{{ actual.rol ? textoRol[actual.rol] : '' }} · {{ actual.empresaNombre }}</span>
-        </span>
         <button
           type="button"
           class="usuario__salir"
@@ -93,7 +83,6 @@
 
 <footer class="pie">
   <div class="contenedor pie__interior">
-    <span>Procesos Empresariales Web</span>
-    <span>Datos servidos por la API REST del backend</span>
+    <span>Procesos Empresariales</span>
   </div>
 </footer>

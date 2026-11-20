@@ -23,11 +23,12 @@
 }
 
 .arco__texto--condicion {
-  fill: var(--color-advertencia);
+  font-style: italic;
+  fill: var(--color-texto-secundario);
 }
 
 :host(.arco--seleccionado) .arco__linea,
 :host(:focus-visible) .arco__linea {
-  stroke: var(--color-foco);
+  stroke: var(--color-primario-oscuro);
   stroke-width: 3;
 }

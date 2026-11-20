@@ -1,7 +1,6 @@
 <section class="pagina">
   <header class="encabezado-pagina">
     <div class="encabezado-pagina__texto">
-      <p class="encabezado-pagina__antetitulo">{{ modoEdicion() ? 'Edición' : 'Creación' }}</p>
       <h1>{{ modoEdicion() ? 'Editar rol de proceso' : 'Nuevo rol de proceso' }}</h1>
       <p class="encabezado-pagina__descripcion">
         El nombre identifica el rol dentro de tu empresa y se usa como nombre de las lanes que lo representan.
@@ -13,13 +12,13 @@
     <app-aviso tipo="carga" titulo="Cargando el rol de proceso…" />
   } @else if (fallo(); as falloActual) {
     <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="explicar(falloActual)" accion="Reintentar" (accionSolicitada)="reintentar()" />
-    <a class="boton boton--secundario formulario-rol__volver" routerLink="/roles-proceso">Volver al listado</a>
+    <a class="boton boton--secundario" routerLink="/roles-proceso">Volver al listado</a>
   } @else if (mostrarFormulario()) {
     @if (eliminado()) {
       <app-aviso titulo="Este rol de proceso no se puede editar" detalle="El rol fue eliminado y se conserva solo para consulta." />
     }
 
-    <form class="tarjeta formulario-rol" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate>
+    <form class="tarjeta formulario-simple" [formGroup]="formulario" (ngSubmit)="guardar()" novalidate>
       <div class="campo">
         <label class="campo__etiqueta" for="campo-rol-nombre">Nombre</label>
         <input
@@ -53,14 +52,11 @@
         </div>
       </div>
 
-      @if (conErrores()) {
-        <app-aviso tipo="error" titulo="Revisa los campos marcados antes de continuar" />
-      }
       @if (falloGuardado(); as falloActual) {
         <app-aviso tipo="error" [titulo]="falloActual.titulo" [detalle]="falloActual.detalle ?? explicar(falloActual)" />
       }
 
-      <div class="formulario-rol__acciones">
+      <div class="formulario-simple__acciones">
         <a class="boton boton--texto" [routerLink]="rutaCancelar()">Cancelar</a>
         <button type="submit" class="boton boton--primario" [disabled]="eliminado() || guardando()">
           {{ guardando() ? 'Guardando…' : modoEdicion() ? 'Guardar cambios' : 'Crear rol' }}

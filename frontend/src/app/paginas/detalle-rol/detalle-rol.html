@@ -9,7 +9,7 @@
     <app-aviso tipo="carga" titulo="Cargando el rol de proceso…" />
   } @else if (falloRol(); as fallo) {
     <app-aviso tipo="error" [titulo]="fallo.titulo" [detalle]="explicar(fallo)" accion="Reintentar" (accionSolicitada)="reintentar()" />
-    <a class="boton boton--secundario detalle-rol__volver" routerLink="/roles-proceso">Volver al listado</a>
+    <a class="boton boton--secundario" routerLink="/roles-proceso">Volver al listado</a>
   } @else if (rol(); as datos) {
     <header class="encabezado-pagina">
       <div class="encabezado-pagina__texto">
@@ -49,7 +49,7 @@
       <app-aviso titulo="El rol de proceso se eliminó" detalle="La eliminación es lógica: el rol se conserva con su historial y deja de estar disponible para nuevas lanes." />
     }
     @if (bloqueadoPorUso() && esAdministrador()) {
-      <p id="aviso-rol-en-uso" class="detalle-rol__bloqueo" role="note">
+      <p id="aviso-rol-en-uso" class="detalle-rol__bloqueo mensaje-advertencia" role="note">
         Este rol no se puede eliminar porque lo usan lanes activas. Reasigna esas lanes a otro rol o elimínalas antes.
       </p>
     }

@@ -347,7 +347,7 @@ describe('Modelador', () => {
     expect(crearActividad).toHaveBeenCalledWith(5, expect.objectContaining({ laneId: 11, posicionX: 896, posicionY: 47 }));
     expect(cambios).toBe(1);
     expect(elemento.querySelector('form')).toBeNull();
-    expect(elemento.querySelector('.modelador__exito')?.textContent).toContain('«Archivar solicitud» se guardó en el servidor');
+    expect(elemento.querySelector('.modelador__exito')?.textContent?.trim()).toBe('Actividad guardada.');
     expect(elemento.querySelector('.panel__nombre')).toBeNull();
 
     const actualizado = diagramaCompleto();
@@ -409,8 +409,8 @@ describe('Modelador', () => {
       expect(moverActividad).toHaveBeenCalledTimes(1);
       expect(moverActividad).toHaveBeenCalledWith(5, 2, { laneId: 12, posicionX: 360, posicionY: 180 });
       expect(cambios).toBe(1);
-      expect(elemento.querySelector('.modelador__exito')?.textContent).toContain(
-        'Se guardó la nueva posición de «Evaluar solicitud» en la lane «Supervisor».',
+      expect(elemento.querySelector('.modelador__exito')?.textContent?.trim()).toBe(
+        'Posición guardada en la lane «Supervisor».',
       );
       expect(elemento.querySelector('[data-nodo="ACTIVIDAD:2"]')?.getAttribute('transform')).toBe('translate(20 120)');
       expect(elemento.querySelector('[data-nodo="ACTIVIDAD:2"]')?.classList).toContain('nodo--seleccionado');
